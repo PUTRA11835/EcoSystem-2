@@ -192,6 +192,10 @@
         // Master selalu editable penuh berapa pun izin yang dicentang.
         $hidden   = $profileSectionHidden   ?? [];
         $ro       = $profileSectionReadonly ?? [];
+        // Create / Delete per tab (Master only, from the Menu Access boxes). My Profile sends none: there the
+        // single Update permission covers adding, changing and removing, so a tab that is not read-only allows all.
+        $crud     = $profileSectionCrud ?? [];
+        $allows   = fn (string $key, string $what) => $crud[$key][$what] ?? !($ro[$key] ?? false);
         $sec      = ['employee' => $employee, 'employeeId' => $employee->id];
 
         // Sections config: key => [tab-id, label, partial]
@@ -302,8 +306,19 @@
         <!-- Tab Content -->
         <div class="p-6">
             @forelse($visibleSections as $key => [$tabId, $label, $partial])
-            <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }}">
+            <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }} {{ $allows($key, 'create') ? '' : 'sec-no-create' }} {{ $allows($key, 'delete') ? '' : 'sec-no-delete' }}">
                 @include("master.employee.sections.{$partial}", $sec + $hrFrag + ['isReadonly' => (bool)($ro[$key] ?? false)])
+                {{-- Salary Components: kotak yang dapat dibuka di dalam tab Contract (sumber utama payroll, BPJS, referensi kontrak).
+                     Izin sendiri (employee.section.salary.*), hanya Master — tidak ada padanan My Profile. --}}
+                @if($key === 'contract' && !($hidden['salary'] ?? true))
+                    <div class="mt-6 {{ $allows('salary', 'create') ? '' : 'sec-no-create' }} {{ $allows('salary', 'delete') ? '' : 'sec-no-delete' }}">
+                        @include('master.employee.sections.salary', $sec + [
+                            'canCreate' => $allows('salary', 'create'),
+                            'canEdit'   => $crud['salary']['edit'] ?? false,
+                            'canDelete' => $allows('salary', 'delete'),
+                        ])
+                    </div>
+                @endif
                 {{-- HC-D51: foto, tanda tangan, status kepegawaian, data darurat, (konsultan) engagement ditampilkan di DALAM tab
                      Basic Data — bukan tab sendiri. Hanya untuk yang punya izin seksi `hr_profile` (data tersimpan di tabel terpisah). --}}
                 @if($key === 'basic_data' && !($hidden['hr_profile'] ?? true))
@@ -352,6 +367,9 @@
 .profile-readonly .se-wrap { pointer-events: none !important; cursor: not-allowed !important; }
 .profile-readonly .se-btn { background: #f9fafb !important; color: #6b7280 !important; border-color: #e5e7eb !important; }
 .profile-readonly .js-section-action { display: none !important; }
+/* Create / Delete of a tab follow their own boxes in Menu Access: hide "New", "Copy", upload / "Delete" without them. */
+.sec-no-create .js-act-create { display: none !important; }
+.sec-no-delete .js-act-delete { display: none !important; }
 
 /* Text-only action buttons in every section (New / Save / Copy / Delete …): clear keyboard focus + disabled look. */
 .js-section-action button:focus-visible, button.js-section-action:focus-visible,

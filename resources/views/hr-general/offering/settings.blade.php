@@ -135,16 +135,24 @@
             <p class="text-[11px] text-gray-400 mt-0.5">
                 The amounts a letter can carry, under the name printed on it — an English letter prints the English name, or the name itself when that is empty.
                 A fixed allowance counts in the base salary percentage; a variable one does not.
+                <strong>Default</strong> is what a new letter starts with — a rupiah amount, or a percentage of the letter's base salary — so HR does not retype the same figure every time (for example the base salary at the UMK, or a BPJS allowance as a share of it). It can still be changed on each letter.
                 Every change is saved as you make it. An inactive component disappears from new letters but stays on the letters that already carry it.
             </p>
         </div>
+
+        @if($canEdit)
+            <div class="hidden sm:grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_15rem_7.5rem] gap-x-3 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wider text-gray-500"
+                style="padding-left: 1.25rem; padding-right: {{ $canDelete ? '3.75rem' : '1.25rem' }};">
+                <span>Name</span><span>English name</span><span>Counts as</span><span>Default</span><span>Offered</span>
+            </div>
+        @endif
 
         <ul class="divide-y divide-gray-100">
             @foreach($components as $component)
                 <li class="px-5 py-2.5 flex items-center gap-2">
                     @if($canEdit)
                         <form action="{{ route('general.recruitment.offers.settings.components.update', $component) }}" method="POST" data-autosave
-                            class="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_7.5rem] sm:items-center gap-x-3 gap-y-2">
+                            class="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_11rem_15rem_7.5rem] sm:items-center gap-x-3 gap-y-2">
                             @csrf
                             <input type="text" name="name" value="{{ $component->name }}" required maxlength="100" aria-label="Component name"
                                 class="{{ $rowInput }} {{ $component->is_active ? '' : 'text-gray-400' }}">
@@ -153,6 +161,12 @@
 
                             @if($component->isBase())
                                 <span class="text-[11px] font-semibold text-gray-500"><i class="fas fa-lock text-[9px] mr-1"></i> Base salary</span>
+                                <div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-1.5 items-center">
+                                    <span class="text-[11px] font-semibold text-gray-500 px-1">Rp (e.g. UMK)</span>
+                                    <input type="hidden" name="default_type" value="amount">
+                                    <input type="number" name="default_value" value="{{ $component->default_value !== null ? (float) $component->default_value : '' }}" min="0" step="any"
+                                        placeholder="No default" aria-label="{{ $component->name }} default value" class="{{ $rowInput }} text-right">
+                                </div>
                                 <span class="w-4 text-center text-xs" data-save-state aria-live="polite"></span>
                             @else
                                 <div>
@@ -161,6 +175,17 @@
                                             <option value="{{ $value }}" @selected($component->kind === $value)>{{ $kindLabel }}</option>
                                         @endforeach
                                     </select>
+                                </div>
+                                <div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-1.5 items-center">
+                                    <div>
+                                        <select name="default_type" aria-label="{{ $component->name }} default is">
+                                            @foreach(\App\Models\Recruitment\OfferComponent::DEFAULT_TYPES as $value => $typeLabel)
+                                                <option value="{{ $value }}" @selected($component->default_type === $value)>{{ $typeLabel }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <input type="number" name="default_value" value="{{ $component->default_value !== null ? (float) $component->default_value : '' }}" min="0" step="any"
+                                        placeholder="No default" aria-label="{{ $component->name }} default value" class="{{ $rowInput }} text-right">
                                 </div>
                                 <div class="flex items-center gap-2">
                                     @include('hr-general.recruitment.components.toggle-switch', [
@@ -206,6 +231,17 @@
                             <option value="{{ $value }}">{{ $kindLabel }}</option>
                         @endforeach
                     </select>
+                </div>
+                <div class="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-1.5 items-center sm:w-60">
+                    <div>
+                        <select name="default_type" aria-label="New component default is">
+                            @foreach(\App\Models\Recruitment\OfferComponent::DEFAULT_TYPES as $value => $typeLabel)
+                                <option value="{{ $value }}">{{ $typeLabel }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <input type="number" name="default_value" min="0" step="any" placeholder="Default (optional)" aria-label="New component default value"
+                        class="{{ $rowInput }} text-right">
                 </div>
                 @include($action, ['icon' => 'plus', 'tone' => 'blue', 'label' => 'Add component', 'submit' => true])
             </form>

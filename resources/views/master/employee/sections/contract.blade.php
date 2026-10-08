@@ -9,7 +9,7 @@
                 @endif
             </div>
             <div class="flex gap-2 js-section-action">
-                <button type="button" onclick="clearContractForm()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                <button type="button" onclick="clearContractForm()" class="js-act-create inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
                     New
                 </button>
                 <button type="button" onclick="saveContract()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
@@ -138,11 +138,11 @@
                 </div>
 
                 <!-- Action Buttons -->
-                <button onclick="copySelectedContract()" title="Copy" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                <button onclick="copySelectedContract()" title="Copy" class="js-act-create inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-all">
                     Copy
                 </button>
 
-                <button onclick="deleteSelectedContract()" title="Delete" class="inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
+                <button onclick="deleteSelectedContract()" title="Delete" class="js-act-delete inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
                     Delete
                 </button>
 

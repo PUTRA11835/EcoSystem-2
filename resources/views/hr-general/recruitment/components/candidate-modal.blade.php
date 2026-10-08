@@ -120,10 +120,17 @@
                                 <select name="source_id" id="cmSource" class="{{ $input }}">
                                     <option value="">-- None --</option>
                                     @foreach($sources as $source)
-                                        <option value="{{ $source->id }}" @selected((string) old('source_id') === (string) $source->id)>{{ $source->name }}</option>
+                                        <option value="{{ $source->id }}" @selected(old('source_other') !== '1' && (string) old('source_id') === (string) $source->id)>{{ $source->name }}</option>
                                     @endforeach
+                                    <option value="other" @selected(old('source_other') === '1')>Other…</option>
                                 </select>
                             </div>
+                        </div>
+
+                        <div id="cmSourceDetailBox" @class(['hidden' => old('source_other') !== '1'])>
+                            <label for="cmSourceDetail" class="{{ $label }}">Other Source <span class="text-red-500">*</span></label>
+                            <input type="text" name="source_detail" id="cmSourceDetail" maxlength="150" @required(old('source_other') === '1') value="{{ old('source_detail') }}"
+                                placeholder="e.g. Referred by Budi (Finance)" class="{{ $input }}">
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -321,6 +328,14 @@
                 stage.value = summary.stage;
                 stage.dispatchEvent(new Event('change', { bubbles: true }));
             }
+        });
+
+        // "Other…" in Source reveals the box to type the source into.
+        byId('cmSource')?.addEventListener('change', function () {
+            const other = this.value === 'other';
+            byId('cmSourceDetailBox').classList.toggle('hidden', !other);
+            byId('cmSourceDetail').required = other;
+            if (other) byId('cmSourceDetail').focus();
         });
 
         // Picking a job opening fills in its position and platform when those are still empty.

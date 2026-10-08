@@ -31,7 +31,14 @@ use Symfony\Component\HttpFoundation\Response;
  *
  *     ->middleware('employee.section:family,update')
  *
- * Argumen kedua opsional, default 'update' (semua endpoint tulis).
+ * Argumen kedua opsional, default 'update' (semua endpoint tulis). Tab berisi daftar rekaman memakai tiga
+ * kemampuan, sesuai kotak di Menu Access:
+ *
+ *     'create'  tambah rekaman  (flag Create pada baris employee.section.{key}.view)
+ *     'update'  ubah rekaman    (slug employee.section.{key}.update)
+ *     'delete'  hapus rekaman   (flag Delete pada baris employee.section.{key}.view)
+ *
+ * Untuk profil SENDIRI ketiganya tetap mengikuti satu slug my-profile.section.{key}.update.
  */
 class CheckEmployeeSectionAccess
 {
@@ -46,14 +53,23 @@ class CheckEmployeeSectionAccess
         $selfId   = (int) ($user['id'] ?? 0);
         $targetId = (int) ($request->route('employeeId') ?? $request->route('id') ?? 0);
 
-        $slug = $targetId === $selfId && $targetId !== 0
-            ? "my-profile.section.{$sectionKey}.{$ability}"
-            : "employee.section.{$sectionKey}.{$ability}";
+        $isSelf = $targetId === $selfId && $targetId !== 0;
+        $writes = in_array($ability, ['update', 'create', 'delete'], true);
 
-        if (!$this->allows($selfId, $slug)) {
+        if ($isSelf) {
+            $allowed = $this->allows($selfId, "my-profile.section.{$sectionKey}." . ($writes ? 'update' : $ability));
+        } elseif (in_array($ability, ['create', 'delete'], true)) {
+            $allowed = $this->allowsFlag($selfId, "employee.section.{$sectionKey}.view", $ability);
+        } else {
+            $allowed = $this->allows($selfId, "employee.section.{$sectionKey}.{$ability}");
+        }
+
+        if (!$allowed) {
+            $what = ['create' => 'menambah', 'delete' => 'menghapus'][$ability] ?? 'mengubah';
+
             return $this->deny(
                 $request,
-                'Akses ditolak. Akun Anda tidak memiliki izin untuk mengubah data ini. Hubungi administrator.',
+                "Akses ditolak. Akun Anda tidak memiliki izin untuk {$what} data ini. Hubungi administrator.",
                 403
             );
         }
@@ -61,7 +77,7 @@ class CheckEmployeeSectionAccess
         // H3.11 (HC-D29): profil yang sudah di-"Verify & Lock" HR tidak dapat diubah PEMILIKNYA pada seksi yang
         // dinilai Onboarding. Hanya target == diri sendiri; HR/admin yang mengubah orang lain tidak tertahan.
         // isLocked() tidak pernah melempar galat (tabel belum ada → dianggap tidak terkunci).
-        if ($ability === 'update' && $targetId === $selfId && $targetId !== 0
+        if ($writes && $isSelf
             && ProfileLockPolicy::blocksOwnerUpdate(app(ProfileLockService::class)->isLocked($selfId), $sectionKey)) {
             return $this->deny(
                 $request,
@@ -97,6 +113,19 @@ class CheckEmployeeSectionAccess
         }
 
         return in_array($slug, $slugs, true);
+    }
+
+    /** Flag Create / Delete pada baris menu `$slug` (matriks izin yang sama dengan `canDo()` di view). */
+    private function allowsFlag(int $employeeId, string $slug, string $ability): bool
+    {
+        $matrix = Cache::get("perm_matrix_{$employeeId}");
+
+        if ($matrix === null) {
+            $employee = Employee::find($employeeId);
+            $matrix   = $employee ? $employee->allPermissionMatrix() : [];
+        }
+
+        return (bool) ($matrix[$slug][$ability] ?? false);
     }
 
     private function deny(Request $request, string $message, int $status): Response

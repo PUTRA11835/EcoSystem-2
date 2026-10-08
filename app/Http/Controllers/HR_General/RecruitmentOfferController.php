@@ -5,6 +5,7 @@ namespace App\Http\Controllers\HR_General;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\HR_General\Concerns\HandlesRecruitmentTables;
 use App\Models\Employee;
+use App\Models\EmployeeSalaryComponent;
 use App\Models\EmployeeHrProfile;
 use App\Models\Letterhead;
 use App\Models\LetterTypeSetting;
@@ -271,6 +272,16 @@ class RecruitmentOfferController extends Controller
             return back()->with('error', 'Failed to create the employee account: ' . $e->getMessage());
         }
 
+        // The letter's amounts become the employee's first salary components (Master Employee → Contract),
+        // applying from the join date. Kept apart from the hire so a failure here never undoes the account.
+        $salaryWarning = null;
+        try {
+            EmployeeSalaryComponent::seedFromOffer($offer, (int) $employee->employee_id, $joinDate);
+        } catch (\Throwable $e) {
+            Log::error('Recruitment: failed to copy the offer compensation to the employee', ['offer_id' => $offer->id, 'error' => $e->getMessage()]);
+            $salaryWarning = "The salary components could not be copied to the employee ({$e->getMessage()}). Add them in Master Employee → Contract → Salary Components.";
+        }
+
         try {
             $mailer->sendAccountDetails($offer, $data['full_name'], $data['eci'], $data['email'], $data['default_password']);
         } catch (\Throwable $e) {
@@ -278,10 +289,13 @@ class RecruitmentOfferController extends Controller
 
             return back()
                 ->with('success', 'Offer accepted and the employee account was created.')
-                ->with('warning', "The sign-in details could not be emailed ({$e->getMessage()}). Give the candidate their username ({$data['eci']}) and the default password you set yourself.");
+                ->with('warning', trim("The sign-in details could not be emailed ({$e->getMessage()}). Give the candidate their username ({$data['eci']}) and the default password you set yourself. {$salaryWarning}"));
         }
 
-        return back()->with('success', "Offer accepted. The employee account was created and the sign-in details were emailed to {$data['email']} — the candidate sets their own password after the first sign-in.");
+        return back()
+            ->with('success', "Offer accepted. The employee account was created and the sign-in details were emailed to {$data['email']} — the candidate sets their own password after the first sign-in."
+                . ($salaryWarning ? '' : ' The offered salary components are now on the employee (Master Employee → Contract).'))
+            ->with($salaryWarning ? ['warning' => $salaryWarning] : []);
     }
 
     public function reject(Offer $offer)
@@ -343,6 +357,7 @@ class RecruitmentOfferController extends Controller
             'name'    => 'required|string|max:100|unique:recruitment_offer_components,name',
             'name_en' => 'nullable|string|max:100',
             'kind'    => ['required', Rule::in(array_keys(OfferComponent::ALLOWANCE_KINDS))],
+            ...$this->defaultRules($request),
         ], ['name.unique' => 'That compensation component already exists.']);
 
         OfferComponent::create([
@@ -361,7 +376,13 @@ class RecruitmentOfferController extends Controller
             'name_en' => 'nullable|string|max:100',
             // The base salary stays the base salary, and is always offered.
             'kind'    => [$component->isBase() ? 'exclude' : 'required', Rule::in(array_keys(OfferComponent::ALLOWANCE_KINDS))],
+            ...$this->defaultRules($request),
         ], ['name.unique' => 'That compensation component already exists.']);
+
+        // A percentage of the base salary means nothing for the base salary itself: it is always a rupiah amount.
+        if ($component->isBase()) {
+            $data['default_type'] = OfferComponent::DEFAULT_AMOUNT;
+        }
 
         $component->update([...$data, 'is_active' => $component->isBase() || $request->boolean('is_active')]);
 
@@ -389,6 +410,17 @@ class RecruitmentOfferController extends Controller
     }
 
     // ── internal ─────────────────────────────────────────────────────────────
+
+    /** The default a component starts a new letter with: a rupiah amount, or a percentage of the base salary. */
+    private function defaultRules(Request $request): array
+    {
+        $percent = $request->input('default_type') === OfferComponent::DEFAULT_PERCENT;
+
+        return [
+            'default_type'  => ['required', Rule::in(array_keys(OfferComponent::DEFAULT_TYPES))],
+            'default_value' => ['nullable', 'numeric', 'min:0', $percent ? 'max:500' : 'max:9999999999999'],
+        ];
+    }
 
     private function pdf(Offer $offer)
     {

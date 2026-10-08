@@ -8,7 +8,7 @@
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium"><i class="fas fa-lock text-[10px]"></i> View Only</span>
                 @endif
             </div>
-            <button type="button" onclick="submitAttachment()" class="js-section-action inline-flex items-center px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
+            <button type="button" onclick="submitAttachment()" class="js-section-action js-act-create inline-flex items-center px-3 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg hover:bg-red-900 transition-all">
                 Upload
             </button>
         </div>
@@ -75,7 +75,7 @@
     <div>
         <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <h3 class="text-base font-semibold text-gray-900">Uploaded Documents</h3>
-            <button onclick="deleteSelectedAttachment()" class="inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
+            <button onclick="deleteSelectedAttachment()" class="js-act-delete inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
                 Delete
             </button>
         </div>

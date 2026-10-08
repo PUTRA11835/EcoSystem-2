@@ -21,7 +21,7 @@
         @if(!isset($isReadonly) || !$isReadonly)
         <div class="flex gap-2 js-section-action">
             <input type="hidden" id="editAddressId">
-            <button type="button" onclick="clearAddressForm()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+            <button type="button" onclick="clearAddressForm()" class="js-act-create inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
                 New
             </button>
             <button type="button" onclick="saveAddress()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
@@ -279,11 +279,11 @@
                 </div>
 
                 <!-- Action Buttons -->
-                <button onclick="copySelectedAddress()" title="Copy" class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                <button onclick="copySelectedAddress()" title="Copy" class="js-act-create inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-all">
                     Copy
                 </button>
 
-                <button onclick="deleteSelectedAddress()" title="Delete" class="inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
+                <button onclick="deleteSelectedAddress()" title="Delete" class="js-act-delete inline-flex items-center px-3 py-2 bg-white border border-red-600 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition-all">
                     Delete
                 </button>
 

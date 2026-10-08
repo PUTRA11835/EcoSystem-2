@@ -141,7 +141,7 @@
                                                 'icon' => 'paper-plane', 'tone' => 'indigo', 'label' => 'Complete & Send',
                                                 'onclick' => 'openLetterSendModal(JSON.parse(this.dataset.payload))',
                                                 'data' => [
-                                                    'action' => route('general.letters.requests.complete', $letterRequest),
+                                                    'action' => route('general.letters.requests.complete', $letterRequest), 'pdf' => route('general.letters.pdf', $letter),
                                                     'title' => 'Complete & Send', 'button' => 'Complete & Send',
                                                     'number' => $letter->letter_number, 'name' => $letterRequest->employeeName(),
                                                     'email' => $letter->recipient_email ?: \App\Models\Letters\Letter::workEmailOf($letterRequest->employee_id),
@@ -167,7 +167,7 @@
                                             'icon' => 'rotate-right', 'tone' => 'amber', 'label' => 'Resend the failed email',
                                             'onclick' => 'openLetterSendModal(JSON.parse(this.dataset.payload))',
                                             'data' => [
-                                                'action' => route('general.letters.requests.resend', $letterRequest),
+                                                'action' => route('general.letters.requests.resend', $letterRequest), 'pdf' => route('general.letters.pdf', $letter),
                                                 'title' => 'Resend Letter', 'again' => true,
                                                 'number' => $letter->letter_number, 'name' => $letterRequest->employeeName(), 'email' => $letter->recipient_email,
                                                 ...($emails[$letter->id] ?? []),

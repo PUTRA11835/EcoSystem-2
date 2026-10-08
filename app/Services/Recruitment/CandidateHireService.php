@@ -7,7 +7,6 @@ use App\Models\Employee;
 use App\Models\EmployeeBasicData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use App\Models\EmployeeBasicData;
 
 /**
  * Turns the person an accepted offer was made to into a real, login-capable Employee — the same
@@ -25,7 +24,6 @@ use App\Models\EmployeeBasicData;
 class CandidateHireService
 {
     /**
-        /**
      * @param  array{full_name: string, eci: string, email: string, password: string, position?: ?string, home_base?: ?string}  $account
      * @param  string|null  $joinDate  join date (Y-m-d) from the offering letter -> employee_basic_data.since_date;
      *                                 falls back to today when the offer has none.

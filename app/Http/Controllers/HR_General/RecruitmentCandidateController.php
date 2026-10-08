@@ -43,9 +43,11 @@ class RecruitmentCandidateController extends Controller
             ->when($filters['job_opening_id'], fn ($q, $id) => $id === 'none'
                 ? $q->whereNull('job_opening_id')
                 : $q->where('job_opening_id', $id))
-            ->when($filters['source_id'], fn ($q, $id) => $id === 'none'
-                ? $q->whereNull('source_id')
-                : $q->where('source_id', $id))
+            ->when($filters['source_id'], fn ($q, $id) => match ($id) {
+                'none'  => $q->whereNull('source_id')->whereNull('source_detail'),
+                'other' => $q->whereNull('source_id')->whereNotNull('source_detail'),
+                default => $q->where('source_id', $id),
+            })
             ->when($filters['contact'] !== '', fn ($q) => $q->where(fn ($c) => $c
                 ->where('email', 'like', "%{$filters['contact']}%")
                 ->orWhere('phone', 'like', "%{$filters['contact']}%")))
@@ -76,7 +78,7 @@ class RecruitmentCandidateController extends Controller
                 ->mapWithKeys(fn ($job) => [$job->id => "{$job->position_title} ({$job->request_number})"])
                 ->prepend('No job opening', 'none')->all(),
             'filterSources'  => RecruitmentOption::ofType(RecruitmentOption::TYPE_PLATFORM)->ordered()->pluck('name', 'id')
-                ->prepend('No source', 'none')->all(),
+                ->prepend('Other (typed in)', 'other')->prepend('No source', 'none')->all(),
             'filterDocTypes' => RecruitmentOption::ofType(RecruitmentOption::TYPE_DOCUMENT_TYPE)->ordered()->pluck('name', 'id')->all(),
             ...RecruitmentFormOptions::forCandidateModal(),
         ]);
@@ -85,6 +87,7 @@ class RecruitmentCandidateController extends Controller
     public function store(Request $request, InterviewScheduler $scheduler)
     {
         $withInterview = $request->boolean('schedule_interview');
+        $this->normaliseSource($request);
 
         // Scheduling is a capability of the Schedule tab, whichever page the form was opened from.
         abort_if($withInterview && !$this->employeeCan('general.recruitment.schedule', 'create'), 403,
@@ -106,7 +109,7 @@ class RecruitmentCandidateController extends Controller
 
         $candidate = DB::transaction(function () use ($request, $data) {
             $candidate = Candidate::create(collect($data)->only([
-                'name', 'position_id', 'job_opening_id', 'source_id', 'email', 'phone', 'status', 'notes',
+                'name', 'position_id', 'job_opening_id', 'source_id', 'source_detail', 'email', 'phone', 'status', 'notes',
             ])->all());
 
             $candidate->recordStatus(null, $candidate->status);
@@ -149,6 +152,8 @@ class RecruitmentCandidateController extends Controller
 
     public function update(Request $request, Candidate $candidate)
     {
+        $this->normaliseSource($request);
+
         $data = $request->validate([
             ...$this->candidateRules($candidate),
             ...$this->documentRules(),
@@ -159,7 +164,7 @@ class RecruitmentCandidateController extends Controller
 
         $statusChanged = DB::transaction(function () use ($request, $candidate, $data, $newStatus) {
             $candidate->update(collect($data)->only([
-                'name', 'position_id', 'job_opening_id', 'source_id', 'email', 'phone', 'notes',
+                'name', 'position_id', 'job_opening_id', 'source_id', 'source_detail', 'email', 'phone', 'notes',
             ])->all());
 
             $this->storeDocuments($request, $candidate);
@@ -225,6 +230,21 @@ class RecruitmentCandidateController extends Controller
         return back()->with('success', 'Document removed.');
     }
 
+    /**
+     * The Source dropdown offers "Other"; that choice is not a platform, so it is stored
+     * as no platform plus the text typed beside it.
+     */
+    private function normaliseSource(Request $request): void
+    {
+        $other = $request->input('source_id') === 'other';
+
+        $request->merge([
+            'source_other'  => $other ? '1' : '0',
+            'source_id'     => $other ? null : $request->input('source_id'),
+            'source_detail' => $other ? trim((string) $request->input('source_detail')) : null,
+        ]);
+    }
+
     private function candidateRules(?Candidate $candidate = null): array
     {
         return [
@@ -232,6 +252,8 @@ class RecruitmentCandidateController extends Controller
             'position_id'    => 'required|exists:positions,id',
             'job_opening_id' => 'nullable|exists:recruitment_job_openings,id',
             'source_id'      => ['nullable', Rule::exists('recruitment_options', 'id')->where('type', RecruitmentOption::TYPE_PLATFORM)],
+            // Typed in when "Other" is chosen as the source; empty otherwise.
+            'source_detail'  => ['nullable', 'required_if:source_other,1', 'string', 'max:150'],
             'email'          => 'nullable|email|max:150',
             'phone'          => 'nullable|string|max:30',
             // A hired candidate's status belongs to the Offer workflow and cannot be edited here.

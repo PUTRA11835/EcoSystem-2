@@ -124,7 +124,12 @@
                 </div>
 
                 <div class="border-t border-gray-100 pt-4">
-                    <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Compensation</h4>
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Compensation</h4>
+                        <button type="button" id="olUseDefaults" onclick="useOfferDefaults()" class="text-xs font-semibold" style="color: var(--primary-color);">
+                            <i class="fas fa-rotate-left text-[10px]"></i> Use defaults
+                        </button>
+                    </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -150,8 +155,17 @@
                                     <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
                                     <input type="text" inputmode="numeric" name="amounts[{{ $component->id }}]" id="olAmount{{ $component->id }}"
                                         data-amount data-kind="{{ $component->kind }}" placeholder="0" @required($component->isBase())
+                                        data-default-type="{{ $component->default_type }}" data-default-value="{{ $component->default_value }}"
                                         class="{{ $input }} pl-9 text-right">
                                 </div>
+                                @if(($component->default_value ?? 0) > 0)
+                                    <p class="text-[11px] text-gray-400 mt-1">
+                                        Default:
+                                        {{ $component->default_type === \App\Models\Recruitment\OfferComponent::DEFAULT_PERCENT
+                                            ? rtrim(rtrim(number_format($component->default_value, 2, '.', ''), '0'), '.') . '% of the base salary'
+                                            : 'Rp ' . number_format($component->default_value, 0, ',', '.') }}
+                                    </p>
+                                @endif
                             </div>
                         @endforeach
                     </div>
@@ -316,6 +330,35 @@
             recalculate();
         }
 
+        // Defaults of Offering Settings: a rupiah amount, or a percentage of the base salary. A field HR typed in
+        // is left alone ("touched"); the base salary default goes first because the percentages follow it.
+        function baseAmount() {
+            const base = amountInputs().find(input => input.dataset.kind === 'base');
+            return Number(digits(base?.value) || 0);
+        }
+
+        function percentDefault(input) {
+            const percent = Number(input.dataset.defaultValue || 0);
+            const base = baseAmount();
+            return base > 0 && percent > 0 ? money(Math.round(base * percent / 100)) : '';
+        }
+
+        function refreshPercentDefaults() {
+            amountInputs().forEach(input => {
+                if (input.dataset.defaultType === 'percent' && !input.dataset.touched) input.value = percentDefault(input);
+            });
+        }
+
+        window.useOfferDefaults = function () {
+            const inputs = amountInputs();
+            inputs.forEach(input => {
+                delete input.dataset.touched;
+                if (input.dataset.defaultType !== 'percent') input.value = Number(input.dataset.defaultValue || 0) > 0 ? money(Math.round(Number(input.dataset.defaultValue))) : '';
+            });
+            inputs.forEach(input => { if (input.dataset.defaultType === 'percent') input.value = percentDefault(input); });
+            recalculate();
+        };
+
         window.openOfferModal = function (letter) {
             letter = letter || {};
             const editing = !!letter.id;
@@ -330,7 +373,13 @@
 
             // The dropdown first: choosing a candidate fills name, contact and position, which the letter's own values then replace.
             setSelect('olCandidate', letter.candidate_id);
-            fill(editing || letter._keep ? letter : { ...defaults, ...(candidates[letter.candidate_id] || {}) });
+            const fresh = !editing && !letter._keep;
+            fill(fresh ? { ...defaults, ...(candidates[letter.candidate_id] || {}) } : letter);
+
+            // A new letter starts from the defaults; a saved one (or one reopened after an error) keeps its amounts as they are.
+            amountInputs().forEach(input => { delete input.dataset.touched; if (!fresh) input.dataset.touched = '1'; });
+            byId('olUseDefaults').classList.toggle('hidden', !fresh);
+            if (fresh) useOfferDefaults();
 
             modal.classList.remove('hidden');
         };
@@ -360,6 +409,8 @@
         form.addEventListener('input', event => {
             if (!event.target.matches('[data-amount]')) return;
             event.target.value = money(event.target.value);
+            if (event.isTrusted) event.target.dataset.touched = '1';
+            if (event.target.dataset.kind === 'base') refreshPercentDefaults();
             recalculate();
         });
 
