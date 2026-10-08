@@ -374,6 +374,8 @@
     <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeModal()"></div>
     <div class="relative flex items-center justify-center min-h-screen p-4">
         <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+
+            {{-- Header --}}
             <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                 <h3 class="text-base font-semibold text-gray-900" id="paymentTermModalTitle">Add Payment Term</h3>
                 <button type="button" onclick="SupportPaymentTermPlan.closeModal()" class="text-gray-400 hover:text-gray-600 transition">
@@ -382,56 +384,123 @@
                     </svg>
                 </button>
             </div>
+
+            {{-- Body --}}
             <div class="p-6 overflow-y-auto space-y-4">
                 <input type="hidden" id="paymentTermModalMode" value="create">
                 <input type="hidden" id="paymentTermModalId" value="">
+
+                {{-- Basis perhitungan — saling eksklusif:
+                       % of Revenue   → hanya di TOP Type "% of Revenue" (dikunci di Contract Line Item)
+                       % of Line Item → isi Payment %, Amount = % × nilai line item
+                       Amount         → isi nominal, % terhadap line item dihitung otomatis --}}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Calculation basis</label>
+                    <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group">
+                        <button type="button" id="pt_basis_percentage" data-perm-keep
+                                onclick="SupportPaymentTermPlan.setBasis('percentage')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed">% of Revenue</button>
+                        <button type="button" id="pt_basis_line_item" data-perm-keep
+                                onclick="SupportPaymentTermPlan.setBasis('line_item')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition disabled:cursor-not-allowed">Payment %</button>
+                        <button type="button" id="pt_basis_fixed" data-perm-keep
+                                onclick="SupportPaymentTermPlan.setBasis('fixed')"
+                                class="pt-basis-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition disabled:cursor-not-allowed">Amount</button>
+                    </div>
+                    <p id="pt_basis_hint" class="mt-1 text-xs text-gray-400"></p>
+                </div>
+
+                {{-- Line Item — wajib di mode Line Item --}}
+                <div id="pt_line_item_wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Line Item <span class="text-red-500">*</span>
+                        <span class="text-gray-400 font-normal">(required in Line Item mode)</span>
+                    </label>
+                    <select id="pt_line_item" onchange="SupportPaymentTermPlan.onLineItemChange()"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"></select>
+                </div>
+
+                {{-- Payment Term --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Payment Term <span class="text-red-500">*</span></label>
                     <input type="text" id="pt_payment_term" maxlength="255" autocomplete="off"
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                            placeholder="e.g. Down Payment, Termin 1, Final Payment">
                 </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Payment % — terkunci saat basis Amount (menampilkan porsi terhadap line item) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Payment % <span class="text-red-500">*</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Payment % <span id="pt_pct_req" class="text-red-500">*</span>
+                            <span id="pt_pct_of" class="text-gray-400 font-normal"></span>
+                        </label>
                         <div class="relative">
                             <input type="number" id="pt_payment_percentage" min="0" max="100" step="0.01" autocomplete="off"
                                    oninput="SupportPaymentTermPlan.recalcAmount()"
-                                   class="w-full pr-9 pl-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right"
+                                   class="w-full pr-9 pl-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed"
                                    placeholder="0">
                             <span class="absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-gray-500 pointer-events-none">%</span>
                         </div>
                     </div>
+
+                    {{-- Amount — auto dari revenue / nilai line item (basis %) atau diisi sendiri (basis Amount) --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Amount <span class="text-gray-400 font-normal">(auto)</span></label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Amount <span id="pt_amount_req" class="text-red-500 hidden">*</span>
+                            <span id="pt_amount_auto" class="text-gray-400 font-normal">(auto)</span>
+                        </label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
-                            <input type="text" id="pt_amount_disp" readonly tabindex="-1"
+                            <input type="text" id="pt_amount_disp" readonly tabindex="-1" inputmode="numeric" autocomplete="off"
+                                   oninput="SupportPaymentTermPlan.onAmountInput(this); SupportPaymentTermPlan.recalcAmount()"
                                    class="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 cursor-not-allowed text-sm text-gray-600 text-right"
                                    placeholder="0">
                         </div>
                     </div>
                 </div>
+
+                {{-- Period — label periode tagihan (mode Line Item) --}}
+                <div id="pt_period_wrap" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Period</label>
+                    <input type="text" id="pt_period" maxlength="50" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. Feb 2027">
+                </div>
+
+                {{-- Peringatan langsung: total TOP melebihi revenue / nilai line item (tidak memblokir) --}}
+                <div id="pt_over_warning" class="hidden rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800"></div>
+
+                {{-- Payment Requirements / Evidence --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Payment Requirements / Evidence</label>
                     <textarea id="pt_requirements" rows="2"
                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus resize-none"
                               placeholder="e.g. Signed BAST, Invoice, PO number…"></textarea>
                 </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Estimated Date --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Estimated Date</label>
                         <input type="text" id="pt_estimated_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                                placeholder="dd/mm/yyyy">
                     </div>
+
+                    {{-- Submit Invoice Date — wajib saat Status = Invoiced --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Submit Invoice Date</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Submit Invoice Date <span id="pt_submit_invoice_req" class="text-red-500 hidden">*</span>
+                        </label>
                         <input type="text" id="pt_submit_invoice_date" autocomplete="off"
                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
                                placeholder="dd/mm/yyyy">
+                        <p id="pt_submit_invoice_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Status is Invoiced.</p>
                     </div>
                 </div>
+
+                {{-- Invoice Number — wajib saat Submit Invoice Date terisi --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Invoice Number <span id="pt_invoice_number_req" class="text-red-500 hidden">*</span>
@@ -441,7 +510,9 @@
                            placeholder="e.g. INV/2026/06/001">
                     <p id="pt_invoice_number_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Submit Invoice Date is filled.</p>
                 </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {{-- Paid Date — wajib saat Status = Paid --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">
                             Paid Date <span id="pt_paid_date_req" class="text-red-500 hidden">*</span>
@@ -451,17 +522,21 @@
                                placeholder="dd/mm/yyyy">
                         <p id="pt_paid_date_hint" class="mt-1 text-xs text-gray-400 hidden">Required because Status is Paid.</p>
                     </div>
+
+                    {{-- Status --}}
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Status <span class="text-red-500">*</span></label>
                         <select id="pt_status" onchange="SupportPaymentTermPlan.togglePaidDateRequired()"
                                 class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
-                            @foreach(['Open','Paid','Delay'] as $s)
+                            @foreach(\App\Models\DeliverySupportPaymentTerm::STATUSES as $s)
                                 <option value="{{ $s }}">{{ $s }}</option>
                             @endforeach
                         </select>
                     </div>
                 </div>
             </div>
+
+            {{-- Footer --}}
             <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
                 <button type="button" onclick="SupportPaymentTermPlan.closeModal()"
                         class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
@@ -476,7 +551,9 @@
     </div>
 </div>
 
-{{-- TERM OF PAYMENT (TOP) — DELETE CONFIRMATION MODAL --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) — DELETE CONFIRMATION MODAL         --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
 <div id="paymentTermDeleteModal" class="fixed inset-0 z-50 hidden">
     <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeDeleteModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4">
@@ -496,6 +573,203 @@
                         Cancel
                     </button>
                     <button type="button" id="ptDeleteConfirmBtn" onclick="SupportPaymentTermPlan.confirmDelete()"
+                            class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
+                        Yes, Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — CONTRACT LINE ITEM ADD / EDIT MODAL                      --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="lineItemModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeLineItemModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900" id="lineItemModalTitle">Add Line Item</h3>
+                <button type="button" onclick="SupportPaymentTermPlan.closeLineItemModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="li_id" value="">
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Line Item <span class="text-red-500">*</span></label>
+                    <input type="text" id="li_name" maxlength="255" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus"
+                           placeholder="e.g. SAP License, Implementation Service, ATS">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Type <span class="text-red-500">*</span></label>
+                        <select id="li_type" onchange="SupportPaymentTermPlan.onLineItemTypeChange()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="one_time">One-time</option>
+                            <option value="recurring">Recurring</option>
+                            <option value="milestone">Milestone / Term-based</option>
+                        </select>
+                    </div>
+                    <div id="li_frequency_wrap" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency <span class="text-red-500">*</span></label>
+                        <select id="li_frequency" onchange="SupportPaymentTermPlan.previewLineItem()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="semiannual">Semi-annual</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div id="li_start_wrap">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <span id="li_start_label">Billing Month</span> <span id="li_start_req" class="text-red-500 hidden">*</span>
+                        </label>
+                        <input type="text" id="li_start_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                    <div id="li_end_wrap" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End <span class="text-red-500">*</span></label>
+                        <input type="text" id="li_end_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <span id="li_amount_label">Nominal</span> <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                        <input type="text" id="li_amount" inputmode="numeric" autocomplete="off"
+                               oninput="SupportPaymentTermPlan.onAmountInput(this); SupportPaymentTermPlan.previewLineItem()"
+                               class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right" placeholder="0">
+                    </div>
+                </div>
+
+                <div id="li_preview" class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2 text-xs text-gray-600"></div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="SupportPaymentTermPlan.closeLineItemModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="lineItemSaveBtn" onclick="SupportPaymentTermPlan.saveLineItem()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — GENERATE SCHEDULE (LINE ITEM RECURRING) MODAL            --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="generateScheduleModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeGenerateModal()"></div>
+    <div class="relative flex items-center justify-center min-h-screen p-4">
+        <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                <h3 class="text-base font-semibold text-gray-900">Generate Schedule: <span id="gs_title"></span></h3>
+                <button type="button" onclick="SupportPaymentTermPlan.closeGenerateModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4">
+                <input type="hidden" id="gs_id" value="">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nominal per period</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500 pointer-events-none">Rp.</span>
+                            <input type="text" id="gs_amount" inputmode="numeric" autocomplete="off"
+                                   oninput="SupportPaymentTermPlan.onAmountInput(this); SupportPaymentTermPlan.previewGenerate()"
+                                   class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus text-right" placeholder="0">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                        <select id="gs_frequency" onchange="SupportPaymentTermPlan.previewGenerate()"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus">
+                            <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
+                            <option value="semiannual">Semi-annual</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Start</label>
+                        <input type="text" id="gs_start_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">End</label>
+                        <input type="text" id="gs_end_date" autocomplete="off"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="dd/mm/yyyy">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Payment Requirements</label>
+                    <input type="text" id="gs_requirements" autocomplete="off"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm primary-focus" placeholder="e.g. Monthly invoice">
+                </div>
+                <div id="gs_preview" class="rounded-lg border px-3 py-2 text-sm"></div>
+                <p class="text-xs text-gray-400">Every generated term can still be edited per row. Periods that already have a payment term are skipped, and the schedule above is saved back to the line item.</p>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+                <button type="button" onclick="SupportPaymentTermPlan.closeGenerateModal()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <button type="button" id="generateScheduleBtn" onclick="SupportPaymentTermPlan.confirmGenerate()"
+                        class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
+                    Generate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TOP — CONTRACT LINE ITEM DELETE CONFIRMATION MODAL             --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+<div id="lineItemDeleteModal" class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="SupportPaymentTermPlan.closeLineItemDeleteModal()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm">
+            <div class="p-6 text-center">
+                <div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                </div>
+                <h3 class="text-base font-semibold text-gray-900 mb-1">Delete line item "<span id="liDeleteName"></span>"?</h3>
+                <p class="text-sm text-gray-500 mb-5">Only possible when no payment term uses it.</p>
+                <input type="hidden" id="liDeleteId" value="">
+                <div class="flex gap-3 justify-center">
+                    <button type="button" onclick="SupportPaymentTermPlan.closeLineItemDeleteModal()"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" id="liDeleteConfirmBtn" onclick="SupportPaymentTermPlan.confirmDeleteLineItem()"
                             class="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg transition">
                         Yes, Delete
                     </button>

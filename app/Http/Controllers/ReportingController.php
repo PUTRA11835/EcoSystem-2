@@ -1435,24 +1435,22 @@ class ReportingController extends Controller
             // Filter opsional berdasarkan Type support (analog filter AE di project).
             $filterType = trim((string) $request->input('type', ''));
 
-            $terms = DB::table('delivery_support_payment_terms as pt')
-                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
-                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
-                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
-                ->select(
-                    'pt.*',
-                    's.name as support_name',
-                    's.io_number as io_number',
-                    's.type as support_type',
-                    's.revenue as support_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookSupportTerms($filterType);
 
-            $rows = [];
+            $rows    = [];
+            $undated = [];
             foreach ($terms as $t) {
                 $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
                 if (!$placementRaw) {
+                    // Tanpa tanggal → tidak bisa ditempatkan di kolom bulan. Dilaporkan
+                    // terpisah supaya user tahu TOP mana yang belum masuk outlook.
+                    $undated[] = [
+                        'support_id'   => (int) $t->delivery_support_id,
+                        'support_name' => $t->support_name ?? '-',
+                        'term_number'  => (int) $t->term_number,
+                        'payment_term' => $t->payment_term,
+                        'amount'       => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
+                    ];
                     continue;
                 }
                 $key = Carbon::parse($placementRaw)->format('Y-m');
@@ -1469,13 +1467,17 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    // Amount basis % = nilai turunan (revenue x % / 100), dihitung ulang di
+                    // sini supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0). Basis Contract
+                    // Line Item (fixed / % of line item) memakai nilai tersimpan, yang
+                    // selalu disinkronkan ke nilai line item (SupportTopPlan).
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
-                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    'line_item_name'      => $t->line_item_name,
                     'requirements'        => $t->requirements,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
@@ -1500,10 +1502,16 @@ class ReportingController extends Controller
                 ->pluck('type')
                 ->values();
 
+            usort($undated, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
             return response()->json([
                 'success'      => true,
                 'months'       => $months,
                 'rows'         => $rows,
+                'undated'      => $undated,
                 'type_options' => $typeOptions,
             ]);
 
@@ -1527,13 +1535,16 @@ class ReportingController extends Controller
             }
 
             $validated = $request->validate([
-                'status'              => 'required|string|in:Open,Paid,Delay',
+                'status'              => ['required', 'string', \Illuminate\Validation\Rule::in(\App\Models\DeliverySupportPaymentTerm::STATUSES)],
+                // Konsisten dengan TOP Plan di Financial Information: Paid wajib punya
+                // tanggal, Invoiced wajib punya Submit Invoice Date.
                 'paid_date'           => 'nullable|required_if:status,Paid|date',
-                'submit_invoice_date' => 'nullable|date',
+                'submit_invoice_date' => 'nullable|required_if:status,Invoiced|date',
                 'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
             ], [
-                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
-                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+                'paid_date.required_if'           => 'Paid Date is required when Status is Paid.',
+                'submit_invoice_date.required_if' => 'Submit Invoice Date is required when Status is Invoiced.',
+                'invoice_number.required_with'    => 'Invoice Number is required when Submit Invoice Date is filled.',
             ]);
 
             if ($validated['status'] !== 'Paid') {
@@ -1600,19 +1611,7 @@ class ReportingController extends Controller
                 $guard++;
             }
 
-            $terms = DB::table('delivery_support_payment_terms as pt')
-                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
-                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
-                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
-                ->select(
-                    'pt.*',
-                    's.name as support_name',
-                    's.io_number as io_number',
-                    's.type as support_type',
-                    's.revenue as support_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookSupportTerms($filterType);
 
             $rows = [];
             foreach ($terms as $t) {
@@ -1632,11 +1631,11 @@ class ReportingController extends Controller
                     'support_type'        => $t->support_type ?: '-',
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
-                    'payment_percentage'  => (float) $t->payment_percentage,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'line_item_name'      => $t->line_item_name ?: '',
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    // Sama dengan tampilan halaman — lihat collectionOutlookSupport().
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
@@ -1658,6 +1657,26 @@ class ReportingController extends Controller
             Log::error('exportCollectionOutlookSupport error: ' . $e->getMessage());
             abort(500, $e->getMessage());
         }
+    }
+
+    /** Sumber baris Collection Outlook Support (halaman & export) — semua TOP support + konteksnya. */
+    private function collectionOutlookSupportTerms(string $filterType): \Illuminate\Support\Collection
+    {
+        return DB::table('delivery_support_payment_terms as pt')
+            ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+            ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+            ->leftJoin('delivery_support_contract_line_items as li', 'pt.contract_line_item_id', '=', 'li.id')
+            ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+            ->select(
+                'pt.*',
+                's.name as support_name',
+                's.io_number as io_number',
+                's.type as support_type',
+                's.revenue as support_revenue',
+                'li.name as line_item_name',
+                DB::raw("COALESCE(cbd.name_1, '') as client_name")
+            )
+            ->get();
     }
 
     // ── Web: Ticketing Overview page ────────────────────────────────────────

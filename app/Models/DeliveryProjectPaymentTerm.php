@@ -8,7 +8,7 @@ use App\Traits\Auditable;
 
 class DeliveryProjectPaymentTerm extends Model
 {
-    use HasFactory, Auditable, Concerns\TouchesProjectActivity;
+    use HasFactory, Auditable, Concerns\TouchesProjectActivity, Concerns\HasPaymentTermBasis;
 
     protected static ?string $auditModule = 'Delivery Project';
 
@@ -93,24 +93,6 @@ class DeliveryProjectPaymentTerm extends Model
         return round(((float) $lineItemTotal) * ((float) $percentage) / 100, 2);
     }
 
-    public function effectiveAmount($revenue): float
-    {
-        return self::amountFor($this->basis, $this->payment_percentage, $this->amount, $revenue);
-    }
-
-    public function isFixed(): bool
-    {
-        return $this->basis === 'fixed';
-    }
-
-    public function isLineItemShare(): bool
-    {
-        return $this->basis === 'line_item';
-    }
-
-    /** Basis % dari revenue (termasuk data lama tanpa basis). */
-    public function isRevenueShare(): bool
-    {
-        return !$this->isFixed() && !$this->isLineItemShare();
-    }
+    // effectiveAmount() / isFixed() / isLineItemShare() / isRevenueShare()
+    // → Concerns\HasPaymentTermBasis (dipakai juga oleh Delivery Support).
 }
