@@ -47,6 +47,7 @@ class SettingsController extends Controller
         'attachment'     => 'Attachment',
         'hr_profile'     => 'HR Profile', // HC-D20: 1:1 employee_hr_profile (slug dibuat 2026_10_02_000001)
         'salary'         => 'Salary Components', // kotak di tab Contract; slug dibuat 2026_10_07_000004
+        'compensation'   => 'Compensation', // Payroll Fase 0 (HC-D21): komponen gaji + PTKP/BPJS; hanya Master > Employee (slug 2026_10_08_000002)
     ];
 
     public function index(Request $request)

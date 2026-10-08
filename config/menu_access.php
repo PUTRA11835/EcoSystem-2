@@ -45,7 +45,10 @@ return [
         'master.employee.action',
         'employee.section.contract.*', 'employee.section.payment.*', 'employee.section.bank.*',
         'employee.section.engagement_rate.*', 'employee.section.hr_profile.*', 'employee.section.salary.*',
+        'employee.section.compensation.*',
+        'finance.payroll', 'finance.payroll.*',
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
+        'general.contracts.salary',
     ],
 
     'crud_enforced' => [
@@ -57,6 +60,13 @@ return [
         'general.recruitment.offers',
         'general.recruitment.offers.settings',
         'general.letter-templates',
+        'general.contracts.list',
+        'general.contracts.templates',
+        'finance.payroll.periods',               // Create = new period / adjustment, Edit = calculate / remove adjustment, Delete = delete an open period
+        'finance.payroll.settings',              // Edit = change calculation policy
+        'finance.bpjs.letters',                  // Create = generate a BPJS letter, Delete = void a BPJS letter
+        'finance.bpjs.settings',                 // Create = save a new BPJS setting version
+        'finance.pph21.settings',                // Create = new tax year, Edit = edit PTKP / progressive / TER rates
         'general.letters.requests',
         'general.letters.register',
         'general.letters.compose',
@@ -92,6 +102,10 @@ return [
         ['key' => 'recruitment',    'label' => 'Recruitment',         'tabs' => ['general.recruitment', 'general.recruitment.candidates', 'general.recruitment.schedule', 'general.recruitment.jobs', 'general.recruitment.settings']],
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
+        ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates']],
+        ['key' => 'payroll',       'label' => 'Payroll',              'tabs' => ['finance.payroll.periods', 'finance.payroll.settings', 'finance.payroll.simulation']],
+        ['key' => 'bpjs',          'label' => 'BPJS',                 'tabs' => ['finance.bpjs.settings', 'finance.bpjs.report', 'finance.bpjs.letters']],
+        ['key' => 'pph21',         'label' => 'PPh 21',               'tabs' => ['finance.pph21.settings', 'finance.pph21.report']],
         ['key' => 'kpi-eval',       'label' => 'KPI Evaluation',      'tabs' => ['general.kpi-evaluation', 'general.kpi-evaluation.templates', 'general.kpi-evaluation.teams']],
         ['key' => 'my-kpi',         'label' => 'My KPI',              'tabs' => ['general.my-kpi', 'general.my-kpi.tab-self', 'general.my-kpi.tab-lead', 'general.my-kpi.tab-peer', 'general.my-kpi.tab-upward']],
         ['key' => 'leave-permit',   'label' => 'Leave & Permit',      'tabs' => ['hr_general.leave_permit', 'hr_general.leave_permit.tab-inbox', 'hr_general.leave_permit.tab-types', 'hr_general.leave_permit.tab-quotas', 'hr_general.leave_permit.tab-report']],
@@ -111,6 +125,13 @@ return [
      * yang sebenarnya sebagai tooltip (kotak lain tidak dirender, jadi tak ada yang mengira "Delete" berfungsi).
      */
     'crud_labels' => [
+        'general.contracts.list'              => ['c' => 'Create a contract', 'e' => 'Edit a contract / change its status', 'd' => 'Delete a Draft contract'],
+        'finance.payroll.periods'             => ['c' => 'Create a period or an adjustment', 'e' => 'Calculate / recalculate, remove an adjustment', 'd' => 'Delete an open period'],
+        'finance.payroll.settings'            => ['e' => 'Change the payroll calculation policy'],
+        'finance.bpjs.letters'                => ['c' => 'Generate a BPJS letter', 'd' => 'Void a BPJS letter'],
+        'finance.bpjs.settings'               => ['c' => 'Add a new BPJS setting version (earlier versions are never changed)'],
+        'finance.pph21.settings'              => ['c' => 'Create a tax year (copy of another year)', 'e' => 'Edit PTKP, progressive and TER rates'],
+        'general.contracts.templates'         => ['c' => 'Add a template', 'e' => 'Edit a template', 'd' => 'Delete a template (not a system default)'],
         'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
         'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
         'hr_general.leave_permit.tab-types'   => ['c' => 'Add a leave type', 'e' => 'Edit or (de)activate a leave type'],
@@ -137,6 +158,8 @@ return [
         ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'match' => [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
+        ['key' => 'hr-contract', 'label' => 'HR · Contract', 'match' => ['general.contracts', 'general.contracts.*']],
+        ['key' => 'finance',     'label' => 'Commercial & Finance',     'match' => ['finance', 'finance.*']],
         ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'match' => [
             'general.letter-templates', 'general.letter-templates.*', 'general.letters', 'general.letters.*',
         ]],

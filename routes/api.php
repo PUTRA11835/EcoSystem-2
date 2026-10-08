@@ -14,6 +14,7 @@ use App\Http\Controllers\EmployeeBankController;
 use App\Http\Controllers\EmployeePaymentController;
 use App\Http\Controllers\EmployeeSalaryComponentController;
 use App\Http\Controllers\EmployeeAttachmentController;
+use App\Http\Controllers\EmployeeCompensationController;
 use App\Http\Controllers\EmployeeHrProfileController;
 use App\Http\Controllers\EmployeeEngagementController;
 use App\Http\Controllers\CustomerController;
@@ -206,6 +207,14 @@ Route::middleware(['web'])->group(function () {
         Route::post('/photo/delete', [EmployeeHrProfileController::class, 'deletePhoto'])->middleware(['employee.section:hr_profile', 'throttle:30,1']);
         Route::post('/signature', [EmployeeHrProfileController::class, 'uploadSignature'])->middleware(['employee.section:hr_profile', 'throttle:30,1']);
         Route::post('/signature/delete', [EmployeeHrProfileController::class, 'deleteSignature'])->middleware(['employee.section:hr_profile', 'throttle:30,1']);
+    });
+
+    // Employee Compensation endpoints (Payroll; HC-D21): penanda pajak & BPJS (PTKP, BPJS, ikut payroll) + ringkasan gaji.
+    // Komponen gaji sendiri diedit di kotak Salary Components (employee.section.salary, di atas). Hanya GET/POST.
+    // GET butuh .view; POST butuh .update. Tidak ada padanan my-profile (gaji tidak diedit pemilik).
+    Route::prefix('employees/{employeeId}/compensation')->group(function () {
+        Route::get('/', [EmployeeCompensationController::class, 'show'])->middleware('employee.section:compensation,view');
+        Route::post('/tax', [EmployeeCompensationController::class, 'saveTax'])->middleware(['employee.section:compensation', 'throttle:60,1']);
     });
 
     // Employee Engagement endpoints — konsultan External (HC-D47). Hanya GET/POST. Tarif butuh izin terpisah

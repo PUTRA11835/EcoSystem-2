@@ -78,6 +78,17 @@ class TableAccess
             'self_permission' => 'my-profile.section.contract.view',
             'permission' => 'employee.section.contract.view',
         ],
+        // Payroll (Fase 3): gaji, potongan, dan pajak seluruh karyawan. Tertutup bagi asisten AI kecuali pemegang slug periode
+        // payroll; belum ada padanan "slip saya" (paystub ESS), jadi tak ada akses diri sendiri.
+        'payroll_periods'     => ['permission' => 'finance.payroll.periods'],
+        'payroll_slips'       => ['permission' => 'finance.payroll.periods'],
+        'payroll_slip_items'  => ['permission' => 'finance.payroll.periods'],
+        'payroll_adjustments' => ['permission' => 'finance.payroll.periods'],
+        // Komponen gaji (kotak Salary Components; sumber kebenaran gaji pokok payroll). Hanya pemegang slug
+        // `employee.section.salary.view`; tanpa self_field, karyawan pun tak membacanya lewat asisten.
+        'employee_salary_components' => [
+            'permission' => 'employee.section.salary.view',
+        ],
         // HC-D20/D21: profil HR memuat data kesehatan, kontak darurat pihak ketiga, dan data payroll
         // NONAKTIF. Slug `*.hr_profile.view` dibuat di langkah H3.4; SEBELUM itu tak seorang pun
         // memilikinya sehingga tabel tertutup untuk asisten AI (default aman, tabel juga masih kosong).

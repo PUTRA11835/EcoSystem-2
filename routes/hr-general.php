@@ -9,6 +9,8 @@ use App\Http\Controllers\HR_General\BranchController;
 use App\Http\Controllers\HR_General\CashAdvanceController;
 use App\Http\Controllers\HR_General\CashAdvanceReportController;
 use App\Http\Controllers\HR_General\CashAdvanceSettingController;
+use App\Http\Controllers\HR_General\ContractController;
+use App\Http\Controllers\HR_General\ContractTemplateController;
 use App\Http\Controllers\HR_General\DashboardAttendanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceReportController;
@@ -1158,6 +1160,55 @@ Route::prefix('general')
                     Route::post('/{offer}/send', [RecruitmentOfferController::class, 'send'])->name('send')->middleware($can('edit'));
                     Route::post('/{offer}/accept', [RecruitmentOfferController::class, 'accept'])->name('accept')->middleware($can('edit'));
                     Route::post('/{offer}/reject', [RecruitmentOfferController::class, 'reject'])->name('reject')->middleware($can('edit'));
+                });
+            });
+        });
+
+        // =====================================================================
+        // CONTRACT — Contracts · Templates (HC-D66)
+        // =====================================================================
+        // 🔴 Dua tab, slug SENDIRI-SENDIRI; kotak V / C / E / D diatur di Management → Roles (keduanya masuk
+        // `crud_enforced`, dijaga `menu.can`). Nilai gaji butuh slug ketiga `general.contracts.salary`.
+        //
+        //   Contracts   V daftar, halaman karyawan, dokumen · C buat kontrak · E ubah / ganti status · D hapus Draft
+        //   Templates   V lihat & pratinjau · C buat · E ubah · D hapus (bukan bawaan sistem)
+        //
+        // Modul ini hanya GET & POST (aksi: /update, /delete). Rute statis (templates/…) ditaruh SEBELUM `{contractId}`.
+        Route::prefix('contracts')->name('contracts.')->group(function () {
+            $tabs = 'menu:general.contracts.list,general.contracts.templates';
+            $list = 'menu:general.contracts.list';
+            $listCan = fn (string $action) => "menu.can:general.contracts.list,{$action}";
+            $tplCan = fn (string $action) => "menu.can:general.contracts.templates,{$action}";
+
+            // Pintu masuk sidebar: membuka tab pertama yang boleh dibuka.
+            Route::get('/', [ContractController::class, 'home'])->name('index')->middleware($tabs);
+
+            Route::get('/list', [ContractController::class, 'index'])->name('list')->middleware($list);
+
+            Route::prefix('templates')->name('templates.')->middleware('menu:general.contracts.templates')->group(function () use ($tplCan) {
+                Route::get('/', [ContractTemplateController::class, 'index'])->name('index');
+                Route::get('/create', [ContractTemplateController::class, 'create'])->name('create')->middleware($tplCan('create'));
+                Route::post('/', [ContractTemplateController::class, 'store'])->name('store')->middleware($tplCan('create'));
+                Route::whereNumber('templateId')->group(function () use ($tplCan) {
+                    Route::get('/{templateId}', [ContractTemplateController::class, 'show'])->name('show');
+                    Route::get('/{templateId}/pdf', [ContractTemplateController::class, 'pdf'])->name('pdf');
+                    Route::get('/{templateId}/edit', [ContractTemplateController::class, 'edit'])->name('edit')->middleware($tplCan('edit'));
+                    Route::post('/{templateId}/update', [ContractTemplateController::class, 'update'])->name('update')->middleware($tplCan('edit'));
+                    Route::post('/{templateId}/delete', [ContractTemplateController::class, 'destroy'])->name('destroy')->middleware($tplCan('delete'));
+                });
+            });
+
+            Route::middleware($list)->group(function () use ($listCan) {
+                Route::get('/list/employee/{employeeId}', [ContractController::class, 'show'])->whereNumber('employeeId')->name('show');
+                Route::post('/list/employee/{employeeId}/store', [ContractController::class, 'store'])->whereNumber('employeeId')->name('store')->middleware($listCan('create'));
+                Route::whereNumber('contractId')->group(function () use ($listCan) {
+                    Route::get('/list/{contractId}/document', [ContractController::class, 'document'])->name('document');
+                    Route::get('/list/{contractId}/pdf', [ContractController::class, 'pdf'])->name('pdf');
+                    Route::get('/list/{contractId}/signed', [ContractController::class, 'signedCopy'])->name('signed');
+                    Route::post('/list/{contractId}/signed', [ContractController::class, 'uploadSigned'])->name('signed.upload')->middleware($listCan('edit'));
+                    Route::post('/list/{contractId}/signed/delete', [ContractController::class, 'removeSigned'])->name('signed.remove')->middleware($listCan('edit'));
+                    Route::post('/list/{contractId}/update', [ContractController::class, 'update'])->name('update')->middleware($listCan('edit'));
+                    Route::post('/list/{contractId}/delete', [ContractController::class, 'destroy'])->name('destroy')->middleware($listCan('delete'));
                 });
             });
         });

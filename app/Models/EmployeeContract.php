@@ -33,7 +33,29 @@ class EmployeeContract extends Model
         'is_active',
         'drive_link',
         'verify_link',
+        // Menu Contract (HC-D66) — kolom tambahan, semuanya boleh kosong.
+        'lifecycle_status',
+        'template_id',
+        'signed_date',
+        'department',
+        'work_location',
+        'salary_components',
+        'notes',
+        'body_html',
+        'created_by',
+        'signatory_employee_id',
+        'signatory_name',
+        'signatory_title',
+        'work_volume',
+        'signed_file_path',
+        'signed_file_name',
+        'signed_file_at',
+        'signed_file_by',
+        'stamp_method',
     ];
+
+    // Teks template beku bisa panjang; tidak ikut JSON seksi Contract di Master Employee.
+    protected $hidden = ['body_html', 'signed_file_path'];
 
     // Casting tipe data otomatis
     protected $casts = [
@@ -41,6 +63,9 @@ class EmployeeContract extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'is_active' => 'boolean',
+        'signed_date' => 'date',
+        'signed_file_at' => 'datetime',
+        'salary_components' => 'array',
         'contract_date' => 'datetime',
     ];
 

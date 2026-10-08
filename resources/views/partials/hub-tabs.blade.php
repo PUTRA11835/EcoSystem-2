@@ -47,6 +47,12 @@
     pengguna yang tidak berhak atas tab itu sama sekali. Tidak dirender bila
     hasilnya 0 — bukan ditampilkan sebagai "0 pending", yang terbaca seperti
     ada masalah padahal tidak ada. --}}
+{{-- $hubHideSingle (opsional): true = bila hanya SATU tab yang boleh dilihat pengguna, bilah tab tidak dirender —
+     judul halaman sudah menjelaskan, dan satu tab sendirian hanya menambah kekacauan. --}}
+@php
+    $hubVisibleCount = collect($hubTabs)->filter(fn ($t) => empty($t['gate']) || $can($t['gate']) || (empty($t['strict']) && $can('general')))->count();
+@endphp
+@if(empty($hubHideSingle) || $hubVisibleCount > 1)
 <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200">
     <nav class="flex flex-wrap gap-1 p-1" aria-label="Tabs">
         @foreach($hubTabs as $tab)
@@ -66,3 +72,4 @@
         @endforeach
     </nav>
 </div>
+@endif

@@ -75,6 +75,16 @@ class LetterTemplates
                 'purpose'       => ['type' => 'textarea', 'label' => 'For payment of', 'required' => true],
             ],
         ],
+        // Dibuat oleh Payroll Suite → BPJS → Letters (bulk, lampiran daftar karyawan); `system` = tidak ada di pilihan Create Letter,
+        // tetapi tetap muncul di Letter Register dan di pengaturan kop surat (Settings → letterhead).
+        'bpjs_deactivation' => [
+            'label'       => 'Surat Penonaktifan BPJS Kesehatan',
+            'label_en'    => 'BPJS Health Deactivation Letter',
+            'description' => 'Asks BPJS Kesehatan to deactivate the membership of the employees listed in the attachment. Generated from Finance → BPJS → Letters.',
+            'employee'    => false,
+            'system'      => true,
+            'fields'      => [],
+        ],
     ];
 
     public static function exists(?string $key): bool

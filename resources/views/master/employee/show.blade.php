@@ -5,6 +5,8 @@
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
+{{-- Brand colour of this page follows Settings → Appearance (Accent colour), like the sidebar. --}}
+@include('partials.accent-brand-red')
 
 {{-- ── Loading state ────────────────────────────────────────────────────────
      Halaman ini dirender server-side, TAPI isi form (Basic Data) baru diisi
@@ -116,7 +118,7 @@
     <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 text-center sm:text-left">
             <img id="headerPhoto" alt="" class="hidden w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover flex-shrink-0 border border-gray-200">
-            <div id="headerInitials" class="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl flex-shrink-0">
+            <div id="headerInitials" class="emp-avatar w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-red-800 to-red-950 text-white flex items-center justify-center font-bold text-3xl sm:text-4xl flex-shrink-0">
                 {{ strtoupper(substr(($employee->first_name ?? 'N'), 0, 1) . substr(($employee->last_name ?? 'A'), 0, 1)) }}
             </div>
             <div class="flex-1 w-full min-w-0">
@@ -210,6 +212,8 @@
             'bank'           => ['bank',            'Bank Account',  'bank'],
             'payment'        => ['payment',         'Basic Payment', 'payment'],
             'attachment'     => ['attachment',      'Attachment',    'attachment'],
+            // Payroll Fase 0: hanya Master > Employee (slug employee.section.compensation.*; My Profile tak punya padanannya).
+            'compensation'   => ['compensation',    'Compensation',  'compensation'],
         ];
         $visibleSections = array_filter($allSections, fn($k) => !($hidden[$k] ?? false), ARRAY_FILTER_USE_KEY);
         // HC-D54: fragmen data HR yang diletakkan di tab lain (golongan darah/ibu kandung di Basic Data, kontak darurat di Family).
