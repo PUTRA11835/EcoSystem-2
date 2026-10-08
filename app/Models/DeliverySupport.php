@@ -36,6 +36,8 @@ class DeliverySupport extends Model
         'plan_cost',
         'gross_profit',
         'gross_profit_percentage',
+        // Mode Term Of Payment: percentage | line_item
+        'top_mode',
         'created_by_id',
         'approval_date',
         'approval_name',
@@ -156,6 +158,16 @@ class DeliverySupport extends Model
     {
         return $this->hasMany(DeliverySupportPaymentTerm::class, 'delivery_support_id')
             ->orderBy('term_number');
+    }
+
+    /**
+     * Contract Line Items — acuan termin TOP mode "line_item" (mirror DeliveryProject::contractLineItems).
+     */
+    public function contractLineItems()
+    {
+        return $this->hasMany(DeliverySupportContractLineItem::class, 'delivery_support_id')
+            ->orderBy('order_sequence')
+            ->orderBy('id');
     }
 
     /**

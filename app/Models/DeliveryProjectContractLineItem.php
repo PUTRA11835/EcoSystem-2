@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
  */
 class DeliveryProjectContractLineItem extends Model
 {
-    use HasFactory, Auditable, Concerns\TouchesProjectActivity;
+    use HasFactory, Auditable, Concerns\TouchesProjectActivity, Concerns\HasContractLineItemSchedule;
 
     protected static ?string $auditModule = 'Delivery Project';
 
@@ -73,34 +73,6 @@ class DeliveryProjectContractLineItem extends Model
         return $this->hasMany(DeliveryProjectPaymentTerm::class, 'contract_line_item_id');
     }
 
-    public function isRecurring(): bool
-    {
-        return $this->type === 'recurring';
-    }
-
-    public function isMilestone(): bool
-    {
-        return $this->type === 'milestone';
-    }
-
-    /**
-     * Periode tagihan untuk item recurring: [['label' => 'Jan 2027', 'start' => Carbon], ...].
-     * Item one-time → satu periode (label bulan mulai bila ada).
-     *
-     * @return array<int,array{label:?string,start:?Carbon}>
-     */
-    public function periods(): array
-    {
-        if (!$this->isRecurring()) {
-            return [[
-                'label' => $this->start_date?->format('M Y'),
-                'start' => $this->start_date?->copy(),
-            ]];
-        }
-
-        return self::buildPeriods($this->frequency, $this->start_date, $this->end_date);
-    }
-
     /** @return array<int,array{label:string,start:Carbon}> */
     public static function buildPeriods(?string $frequency, $start, $end): array
     {
@@ -127,40 +99,7 @@ class DeliveryProjectContractLineItem extends Model
         return $periods;
     }
 
-    public function occurrences(): int
-    {
-        return $this->isRecurring() ? count($this->periods()) : 1;
-    }
-
-    /** Nilai kontrak line item = nominal per periode × jumlah periode. */
-    public function total(): float
-    {
-        return round((float) $this->amount * $this->occurrences(), 2);
-    }
-
-    /** Teks kolom "Schedule", mis. "Once" atau "Jan 2027 – Dec 2027 (12x)". */
-    public function scheduleLabel(): string
-    {
-        if ($this->isMilestone()) {
-            return 'Billed per milestone';
-        }
-
-        if (!$this->isRecurring()) {
-            return $this->start_date ? 'Once · ' . $this->start_date->format('M Y') : 'Once';
-        }
-
-        $n = $this->occurrences();
-        return $this->start_date->format('M Y') . ' – ' . $this->end_date->format('M Y') . " ({$n}x)";
-    }
-
-    public function typeLabel(): string
-    {
-        if ($this->isMilestone()) {
-            return 'Milestone / Term-based';
-        }
-
-        return $this->isRecurring()
-            ? 'Recurring ' . strtolower(self::FREQUENCY_LABELS[$this->frequency] ?? '')
-            : 'One-time';
-    }
+    // isRecurring() / isMilestone() / periods() / occurrences() / total() /
+    // scheduleLabel() / typeLabel() → Concerns\HasContractLineItemSchedule
+    // (dipakai juga oleh DeliverySupportContractLineItem).
 }

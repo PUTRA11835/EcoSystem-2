@@ -644,15 +644,18 @@ class DeliverySupportController extends Controller
 
     /**
      * Keep derived TOP amounts in sync with the current support revenue.
+     * Termin basis Contract Line Item (fixed / % of line item) tidak diturunkan
+     * dari revenue → dilewati.
      */
     private function syncPaymentTermAmounts(DeliverySupport $support): void
     {
         $revenue = (float) ($support->revenue ?? 0);
 
         DeliverySupportPaymentTerm::where('delivery_support_id', $support->id)
+            ->where('basis', 'percentage')
             ->get()
             ->each(function (DeliverySupportPaymentTerm $term) use ($revenue) {
-                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                $amount = $term->effectiveAmount($revenue);
                 if (abs((float) $term->amount - $amount) > 0.001) {
                     $term->update(['amount' => $amount]);
                 }
