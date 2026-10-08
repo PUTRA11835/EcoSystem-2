@@ -35,6 +35,8 @@
         };
     }
     $offering = \App\Models\Letterhead::TYPE_OFFERING_LETTER;
+    // The employment contract is written and numbered in HR & General → Contract, not here; it is listed so a letterhead can be tied to it.
+    $contract = \App\Models\Letterhead::TYPE_EMPLOYMENT_CONTRACT;
 @endphp
 
 @section('content')
@@ -226,9 +228,13 @@
                                     @if($type === $offering)
                                         <span class="block text-[10px] text-gray-400">Written in Recruitment → Offering Letter</span>
                                     @endif
+                                    @if($type === $contract)
+                                        <span class="block text-[10px] text-gray-400">Written and numbered in Contract → Templates
+                                            @if($can('general.contracts.templates')) · <a href="{{ route('general.contracts.templates.index') }}" class="font-semibold underline primary-text">open</a>@endif</span>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-2.5">
-                                    @if($type === $offering)
+                                    @if($type === $offering || $type === $contract)
                                         <span class="text-[11px] text-gray-400">Always</span>
                                     @else
                                         @include('hr-general.recruitment.components.toggle-switch', [
@@ -237,12 +243,19 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-2.5">
+                                    @if($type === $contract)
+                                        <span class="text-[11px] text-gray-400">Bahasa Indonesia</span>
+                                    @else
                                     @include('hr-general.recruitment.components.language-switch', [
                                         'switchName' => "types[{$type}][language]", 'switchId' => "language-{$type}", 'languages' => $languages,
                                         'switchValue' => $old('language', $setting->language ?? 'id'), 'switchDisabled' => !$canEdit,
                                     ])
+                                    @endif
                                 </td>
                                 <td class="px-4 py-2.5">
+                                    @if($type === $contract)
+                                        <span class="text-[11px] text-gray-400">Own number</span>
+                                    @else
                                     <select name="types[{{ $type }}][letter_code_id]" aria-label="Code of {{ $typeLabel }}" data-type-code class="{{ $input }}">
                                         <option value="" data-code="">-- None --</option>
                                         @foreach($codes as $code)
@@ -251,9 +264,12 @@
                                             </option>
                                         @endforeach
                                     </select>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-2.5 whitespace-nowrap">
-                                    @if($type === $offering)
+                                    @if($type === $contract)
+                                        <span class="text-[11px] text-gray-400">SPKWT / SPKWTT / PKS + year/month</span>
+                                    @elseif($type === $offering)
                                         <span class="text-[11px] text-gray-400">Its own format, same running number</span>
                                     @else
                                         <span class="font-mono text-[11px] text-gray-700" data-type-preview></span>

@@ -265,7 +265,7 @@ class AttendanceRecord extends Model
         $match = $this->{$side . '_match_type'};
 
         if ($match === self::MATCH_NONE || $match === null) {
-            return 'Device GPS is unavailable';
+            return $this->unverifiedLocationNote($side);
         }
 
         $meters = (int) round((float) $this->{$side . '_distance_m'});
@@ -273,5 +273,59 @@ class AttendanceRecord extends Model
         $verdict = str_ends_with($match, '_out') ? 'Outside' : 'Inside';
 
         return "{$verdict} {$label} radius ({$meters} m)";
+    }
+
+    /**
+     * Penjelasan bila vonis geofence TIDAK ada (match_type = none/null).
+     *
+     * "Tidak ada vonis" punya dua penyebab yang berbeda, dan HR menindaklanjutinya
+     * secara berbeda: (a) perangkat memang tidak mengirim koordinat, atau
+     * (b) koordinat ada tetapi tidak ada lokasi kantor/proyek terdaftar untuk
+     * dibandingkan. Dulu keduanya ditulis "Device GPS is unavailable" sehingga (b)
+     * terlihat bertentangan dengan koordinat yang tampil di sebelahnya.
+     */
+    private function unverifiedLocationNote(string $side): string
+    {
+        $hasCoordinates = $this->{$side . '_latitude'} !== null && $this->{$side . '_longitude'} !== null;
+
+        if ($hasCoordinates) {
+            return 'Location received, but not checked against an office radius';
+        }
+
+        return match ($this->{$side . '_gps_status'}) {
+            self::GPS_PERMISSION_DENIED, self::GPS_SYSTEM_DENIED => 'Location access was blocked on the device',
+            self::GPS_TIMEOUT                                    => 'Location request timed out on the device',
+            self::GPS_INSECURE_CONTEXT, self::GPS_UNSUPPORTED    => 'The browser could not share a location',
+            default                                              => 'No location was received from the device',
+        };
+    }
+
+    /** Catatan akurasi GPS rendah untuk satu sisi (null bila akurasinya cukup). */
+    public function accuracyNote(string $side = 'check_in'): ?string
+    {
+        if (!$this->{$side . '_at'} || !$this->hasFlag(self::sideFlag($side, self::FLAG_LOW_ACCURACY))) {
+            return null;
+        }
+
+        return 'Low GPS accuracy, please review the location';
+    }
+
+    /** Sudah check-in tetapi belum check-out — berlaku untuk status hari apa pun (Present/Late). */
+    public function isMissingCheckOut(): bool
+    {
+        return $this->check_in_at !== null && $this->check_out_at === null;
+    }
+
+    /**
+     * Filter "Incomplete" = belum lengkap: ada check-in tanpa check-out.
+     * `day_status` tidak pernah bernilai 'incomplete' (hanya present/late), jadi
+     * memfilter kolom itu selalu kosong; datanya ada di check_out_at.
+     */
+    public function scopeMissingCheckOut($query)
+    {
+        return $query->where(function ($q) {
+            $q->where(fn ($in) => $in->whereNotNull('check_in_at')->whereNull('check_out_at'))
+              ->orWhere('day_status', self::STATUS_INCOMPLETE);
+        });
     }
 }

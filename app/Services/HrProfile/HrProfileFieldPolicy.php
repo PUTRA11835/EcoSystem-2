@@ -29,8 +29,8 @@ class HrProfileFieldPolicy
     ];
 
     /**
-     * Payroll NONAKTIF (HC-D21): butuh izin `employee.section.compensation.update` DAN saklar
-     * `hc_payroll.enabled`. Tidak diterima lewat jalur profil HR biasa.
+     * Payroll NONAKTIF (HC-D21): butuh izin `employee.section.compensation.update` (seksi Compensation, tab
+     * Master → Employee). Tidak diterima lewat jalur profil HR biasa.
      */
     public const PAYROLL_DORMANT = [
         'ptkp_code', 'dependents_count', 'bpjs_health_active', 'bpjs_employment_active',

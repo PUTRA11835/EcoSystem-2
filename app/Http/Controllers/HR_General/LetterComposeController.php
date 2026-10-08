@@ -190,6 +190,7 @@ class LetterComposeController extends Controller
         });
 
         $activeTemplates = collect(LetterTemplates::TEMPLATES)
+            ->filter(fn ($template, $key) => empty($template['system']) || $letter?->template_key === $key)
             ->filter(fn ($template, $key) => ($typeSettings[$key]->is_active ?? true) || $letter?->template_key === $key || $letterRequest?->template_key === $key);
 
         return view('hr-general.letters.compose', [

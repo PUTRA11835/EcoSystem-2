@@ -69,7 +69,7 @@
                 <div class="space-y-2 js-section-action">
                     @if($hrIsSelf)
                         <input type="file" id="hrSigInput" accept="image/png,image/jpeg" class="hidden">
-                        <button type="button" onclick="hrOpenSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900">
+                        <button type="button" onclick="hrOpenSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90">
                             Draw signature
                         </button>
                         <button type="button" onclick="document.getElementById('hrSigInput').click()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
@@ -191,18 +191,18 @@
 
 {{-- Papan tanda tangan (hanya pemilik). Gambar dengan mouse/jari/stylus; hasilnya PNG transparan. --}}
 @if($hrIsSelf)
-<div id="hrSigModal" class="hidden fixed inset-0 z-[60] bg-black/50 items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="hrSigTitle">
+<div id="hrSigModal" class="hidden fixed inset-0 z-[200] bg-black/50 items-center justify-center p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="hrSigTitle">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5">
         <h3 id="hrSigTitle" class="text-base font-bold text-gray-900">Draw your signature</h3>
         <p class="text-xs text-gray-500 mt-1 mb-3">Use your mouse, finger or stylus and sign inside the box. This is a drawn signature image used on your documents; it is not a certified digital signature.</p>
-        <canvas id="hrSigCanvas" class="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white" style="height:200px;touch-action:none;cursor:crosshair"></canvas>
+        <canvas id="hrSigCanvas" tabindex="0" aria-label="Signature drawing area" class="w-full rounded-lg border-2 border-dashed border-gray-300 bg-white focus:outline-none" style="height:200px;touch-action:none;cursor:crosshair"></canvas>
         <div class="flex items-center justify-between mt-4">
             <button type="button" onclick="hrSigClear()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
                 Clear
             </button>
             <div class="flex gap-2">
                 <button type="button" onclick="hrCloseSigPad()" class="px-3 py-2 text-xs font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button type="button" id="hrSigUse" onclick="hrSigSave()" class="px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900">Use this signature</button>
+                <button type="button" id="hrSigUse" onclick="hrSigSave()" class="px-3 py-2 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90">Use this signature</button>
             </div>
         </div>
     </div>
@@ -416,10 +416,19 @@
 
         window.hrSigClear = function () { ctx.clearRect(0, 0, cv.width, cv.height); hasInk = false; box = null; };
         window.hrOpenSigPad = function () {
-            const m = $('hrSigModal'); m.classList.remove('hidden'); m.classList.add('flex');
-            requestAnimationFrame(fit);
+            const m = $('hrSigModal');
+            // The page header sits above a dialog that is nested in the page content (stacking context), which hid the drawing box
+            // when the page was scrolled. At the top level of <body> it always covers the whole screen and is centred in view.
+            if (m.parentElement !== document.body) { document.body.appendChild(m); }
+            document.body.style.overflow = 'hidden'; // the page behind stays put while signing
+            m.classList.remove('hidden'); m.classList.add('flex');
+            requestAnimationFrame(function () {
+                fit();
+                cv.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                cv.focus({ preventScroll: true });
+            });
         };
-        window.hrCloseSigPad = function () { const m = $('hrSigModal'); m.classList.add('hidden'); m.classList.remove('flex'); };
+        window.hrCloseSigPad = function () { const m = $('hrSigModal'); m.classList.add('hidden'); m.classList.remove('flex'); document.body.style.overflow = ''; };
         window.hrSigSave = async function () {
             if (!hasInk || !box) { notify('Please draw your signature first.', 'warning'); return; }
             // Potong ke kotak tinta + margin agar tanda tangan tidak mengecil di dokumen

@@ -678,3 +678,7 @@ require __DIR__ . '/delivery-support.php';
 // ==================== HR & GENERAL ROUTES ====================
 // Include HR & General module routes (KPI, Attendance, Branches, Shifts, Reimbursement, Purchase Request)
 require __DIR__ . '/hr-general.php';
+
+// ==================== COMMERCIAL & FINANCE ROUTES ====================
+// Payroll, BPJS, PPh 21 (berkas baru; modul aditif)
+require __DIR__ . '/finance.php';

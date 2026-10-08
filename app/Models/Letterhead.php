@@ -25,15 +25,18 @@ class Letterhead extends Model
 
     public const TYPE_OFFERING_LETTER = 'offering_letter';
 
+    /** Kontrak kerja (menu Contract, HC-D66): kop suratnya dipasang di sini seperti surat lain. */
+    public const TYPE_EMPLOYMENT_CONTRACT = 'employment_contract';
+
     /**
-     * Letters that can be printed on a letterhead: the offering letter, every
+     * Letters that can be printed on a letterhead: the offering letter, the employment contract, every
      * template of App\Support\Letters\LetterTemplates and the custom letter.
      *
      * @return array<string, string> [letter type => label]
      */
     public static function letterTypes(): array
     {
-        return [self::TYPE_OFFERING_LETTER => 'Offering Letter'] + LetterTemplates::letterTypes();
+        return [self::TYPE_OFFERING_LETTER => 'Offering Letter', self::TYPE_EMPLOYMENT_CONTRACT => 'Employment Contract'] + LetterTemplates::letterTypes();
     }
 
     protected static function booted(): void

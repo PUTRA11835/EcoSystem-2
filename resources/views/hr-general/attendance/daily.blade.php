@@ -66,7 +66,7 @@
                     <select name="status"
                             class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
                         <option value="">All Statuses</option>
-                        @foreach(['present' => 'Present', 'late' => 'Late', 'incomplete' => 'Incomplete'] as $value => $label)
+                        @foreach(['present' => 'Present', 'late' => 'Late', 'incomplete' => 'Incomplete (no check-out)'] as $value => $label)
                             <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -171,6 +171,9 @@
                                 <span class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded {{ $badgeClass }}">
                                     {{ $verdict }}
                                 </span>
+                                @if($accNote = $record->accuracyNote($side))
+                                    <span class="block mt-1 text-xs text-amber-600">{{ $accNote }}</span>
+                                @endif
                                 @if($record->{$side . '_latitude'})
                                 <button type="button"
                                         onclick="showPunchMap({{ $record->{$side . '_latitude'} }}, {{ $record->{$side . '_longitude'} }}, @js(($basic?->nick_name ?? 'Employee') . ' — ' . str_replace('_', '-', $side)))"
@@ -187,6 +190,9 @@
                                 {{ $record->day_status === 'late' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' }}">
                                 {{ ucfirst($record->day_status) }}
                             </span>
+                            @if($record->isMissingCheckOut())
+                                <span class="block mt-1 text-xs text-blue-600">No check-out yet</span>
+                            @endif
                             @if($record->source === 'correction')
                                 <span class="block mt-1 text-xs text-purple-600">Corrected</span>
                             @endif
@@ -201,7 +207,11 @@
                         <td colspan="15" class="px-4 py-12 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-400">
                                 <i class="fas fa-calendar-xmark text-3xl"></i>
-                                <p class="text-sm font-medium">No attendance recorded for this date.</p>
+                                <p class="text-sm font-medium">
+                                    {{ ($filters['status'] ?? '') !== '' || ($filters['search'] ?? '') !== '' || ($filters['department'] ?? '') !== ''
+                                        ? 'No records match these filters. Try another status, or clear the search and department.'
+                                        : 'No attendance recorded for this date.' }}
+                                </p>
                             </div>
                         </td>
                     </tr>

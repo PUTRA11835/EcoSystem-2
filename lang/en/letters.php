@@ -26,6 +26,7 @@ return [
         'assignment_letter'      => 'ASSIGNMENT LETTER',
         'goods_receipt'          => 'GOODS RECEIPT',
         'payment_receipt'        => 'PAYMENT RECEIPT',
+        'bpjs_deactivation'      => 'BPJS HEALTH MEMBERSHIP DEACTIVATION LETTER',
     ],
 
     // Email that carries a letter as a PDF.

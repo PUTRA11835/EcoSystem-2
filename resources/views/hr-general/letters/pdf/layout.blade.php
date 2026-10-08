@@ -65,5 +65,8 @@
             <td><strong><u>{{ $letter->signatory_name }}</u></strong><br>{{ $letter->signatory_title }}</td>
         </tr>
     </table>
+
+    {{-- Optional extra pages after the signature block (e.g. an attachment list). Empty for letters that do not define it. --}}
+    @yield('after')
 </body>
 </html>

@@ -107,7 +107,9 @@ class AttendanceRecapController extends Controller
                 'checkOutProjectSite:id,name',
             ])
             ->whereDate('attendance_date', $filters['date']->toDateString())
-            ->when($filters['status'] !== '', fn ($q) => $q->where('day_status', $filters['status']))
+            // 'incomplete' = check-in tanpa check-out (day_status hanya present/late, tak pernah 'incomplete').
+            ->when($filters['status'] === AttendanceRecord::STATUS_INCOMPLETE, fn ($q) => $q->missingCheckOut())
+            ->when($filters['status'] !== '' && $filters['status'] !== AttendanceRecord::STATUS_INCOMPLETE, fn ($q) => $q->where('day_status', $filters['status']))
             ->when($filters['department'] !== '', fn ($q) => $q->whereHas(
                 'employee.basicData',
                 fn ($b) => $b->where('department', $filters['department'])

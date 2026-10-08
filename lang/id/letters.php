@@ -26,6 +26,7 @@ return [
         'assignment_letter'      => 'SURAT TUGAS',
         'goods_receipt'          => 'TANDA TERIMA',
         'payment_receipt'        => 'KWITANSI',
+        'bpjs_deactivation'      => 'SURAT PENONAKTIFAN KEPESERTAAN BPJS KESEHATAN',
     ],
 
     // Email that carries a letter as a PDF.

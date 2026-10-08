@@ -494,6 +494,20 @@
             @endif
 @php $sb['onboarding'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
+            {{-- Contract (HC-D66) — contracts + templates as two tabs of one page; opens the first tab the person holds. --}}
+            @if($can('general.contracts.list') || $can('general.contracts.templates'))
+                <div class="mb-2">
+                    <a href="{{ route('general.contracts.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/contracts*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-file-contract"></i>
+                        </span>
+                        <span class="nav-text font-medium">Contract</span>
+                    </a>
+                </div>
+            @endif
+@php $sb['contracts'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             @if($can('financial'))
                 <!-- FINANCIAL -->
                 <div class="mb-2">
@@ -507,6 +521,48 @@
                 </div>
             @endif
 @php $sb['financial'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
+            @if($can('finance.pph21.settings') || $can('finance.pph21.report'))
+                <div class="mb-2">
+                    <a href="{{ route('finance.pph21.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('finance/pph21*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-percent"></i>
+                        </span>
+                        <span class="nav-text font-medium">PPh 21</span>
+                    </a>
+                </div>
+            @endif
+@php $sb['pph21'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Commercial & Finance → BPJS (Payroll Fase 2) — one hub; opens its first tab (Settings). --}}
+            @if($can('finance.bpjs.settings') || $can('finance.bpjs.report') || $can('finance.bpjs.letters'))
+                <div class="mb-2">
+                    <a href="{{ route('finance.bpjs.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('finance/bpjs*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-heart-pulse"></i>
+                        </span>
+                        <span class="nav-text font-medium">BPJS</span>
+                    </a>
+                </div>
+            @endif
+@php $sb['bpjs'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Commercial & Finance → Payroll (Fase 3) — one hub; opens the first tab the person holds. --}}
+            @if($can('finance.payroll.periods') || $can('finance.payroll.settings') || $can('finance.payroll.simulation'))
+                <div class="mb-2">
+                    <a href="{{ route('finance.payroll.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('finance/payroll*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-money-check-dollar"></i>
+                        </span>
+                        <span class="nav-text font-medium">Payroll</span>
+                    </a>
+                </div>
+            @endif
+@php $sb['payroll'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
                         @if($can('hr_general.leave_permit') || $can('general'))
                             <a href="{{ route('hr-general.leave-permit') }}"
@@ -1287,8 +1343,9 @@
             @php
                 $sbSections = [
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
-                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
+                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
                     ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
+                    ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
                     ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],

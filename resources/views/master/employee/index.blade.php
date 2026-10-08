@@ -4,6 +4,8 @@
 @section('page-title', 'Employee Management')
 
 @section('content')
+{{-- Brand colour of this page follows Settings → Appearance (Accent colour), like the sidebar. --}}
+@include('partials.accent-brand-red')
 <script>
 const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }};
 </script>
