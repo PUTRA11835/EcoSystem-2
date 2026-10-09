@@ -16,8 +16,10 @@
       $form         — id of the GET form the filter submits
       $name         — query parameter
       $label        — column title
-      $type         — 'search' | 'options' | 'checkboxes'
-      $value        — current value (string; array for 'checkboxes')
+      $type         — 'search' | 'options' | 'checkboxes' | 'range' | 'daterange'
+      $value        — current value (string; array for 'checkboxes'; ['min' => , 'max' => ] for 'range' and
+                      ['from' => , 'to' => ] for 'daterange' — the query parameters are {name}_min / _max and
+                      {name}_from / _to; a daterange input is a [data-date] box, wired by inventory's modal-helpers with ['dates' => true])
       $options      — [value => label] for 'options' / 'checkboxes'
       $placeholder  — 'search' input placeholder
       $allLabel     — 'options': label of the "no filter" row
@@ -37,8 +39,12 @@
     $align = $align ?? 'left';
     $popoverId = 'hf-' . $form . '-' . $name;
 
-    $selected = $type === 'checkboxes' ? array_map('strval', (array) ($value ?? [])) : (string) ($value ?? '');
-    $active = $type === 'checkboxes' ? $selected !== [] : ($selected !== '' && $selected !== (string) $default);
+    $isRange = in_array($type, ['range', 'daterange'], true);
+    $rangeValue = $isRange ? (array) ($value ?? []) : [];
+    $selected = $isRange ? '' : ($type === 'checkboxes' ? array_map('strval', (array) ($value ?? [])) : (string) ($value ?? ''));
+    $active = $isRange
+        ? array_filter($rangeValue, fn ($v) => $v !== '' && $v !== null) !== []
+        : ($type === 'checkboxes' ? $selected !== [] : ($selected !== '' && $selected !== (string) $default));
     $optionRow = 'w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors';
 @endphp
 @unless($inline ?? false)<th class="px-4 py-3 {{ $thClass ?? '' }}">@endunless
@@ -76,6 +82,28 @@
                     <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
                 </div>
                 <p class="text-[10px] text-gray-400 mt-1.5">{{ $note ?? 'Results update as you type.' }}</p>
+            </div>
+        @elseif($isRange)
+            @php
+                $isDate = $type === 'daterange';
+                $parts = $isDate ? ['from' => 'From', 'to' => 'To'] : ['min' => 'Min', 'max' => 'Max'];
+            @endphp
+            <div class="p-2.5 space-y-2">
+                @foreach($parts as $part => $partLabel)
+                    <div>
+                        <label class="block text-[10px] font-semibold text-gray-400 mb-0.5">{{ $partLabel }}</label>
+                        <input type="text" name="{{ $name }}_{{ $part }}" form="{{ $form }}" value="{{ $rangeValue[$part] ?? '' }}" autocomplete="off"
+                            @if($isDate) data-date placeholder="Select date" @else inputmode="numeric" placeholder="Any" @endif
+                            onkeydown="if (event.key === 'Enter') { event.preventDefault(); hfSubmit('{{ $form }}'); }"
+                            aria-label="{{ $label }} {{ strtolower($partLabel) }}"
+                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200 font-normal">
+                    </div>
+                @endforeach
+            </div>
+            <div class="px-3 py-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                <span class="text-[10px] text-gray-400 leading-tight">{{ $note ?? '' }}</span>
+                <button type="button" onclick="hfSubmit('{{ $form }}')"
+                    class="px-2.5 py-1 text-[10px] font-semibold text-white primary-gradient rounded-md hover:opacity-90 shrink-0">Apply</button>
             </div>
         @elseif($type === 'options')
             <input type="hidden" name="{{ $name }}" form="{{ $form }}" value="{{ $selected }}" data-hf-value>
@@ -182,7 +210,7 @@
         const pop = document.getElementById(popoverId);
         pop.querySelectorAll('input[name]').forEach(input => {
             if (input.type === 'checkbox') input.checked = false;
-            else input.value = '';
+            else { input.value = ''; input._flatpickr?.clear(false); }
         });
 
         const search = pop.querySelector('input[type="text"][name]');
@@ -263,7 +291,7 @@
     }
 
     document.addEventListener('click', function (e) {
-        if (!e.target.closest('.header-filter-popover') && !e.target.closest('[data-hf-btn]')) closeAllHF();
+        if (!e.target.closest('.header-filter-popover') && !e.target.closest('[data-hf-btn]') && !e.target.closest('.flatpickr-calendar')) closeAllHF();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAllHF(); });
     window.addEventListener('scroll', e => {
