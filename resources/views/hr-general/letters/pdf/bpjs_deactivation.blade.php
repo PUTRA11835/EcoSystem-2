@@ -9,24 +9,46 @@
 
 @section('title', __('letters.titles.bpjs_deactivation'))
 
-@php $rows = $f['employees'] ?? []; $count = count($rows); @endphp
+@php $rows = $f['employees'] ?? []; $count = count($rows); $en = $lang === 'en'; @endphp
 
-@section('body')
-    @if($lang === 'en')
-        <p>To:<br><strong>BPJS Kesehatan</strong><br>Branch Office</p>
-        <p>Dear Sir / Madam,</p>
-        <p>Due to changes in the employment status of our staff, <strong>{{ $company }}</strong> hereby requests the deactivation of the BPJS Kesehatan membership of the {{ $count }} employee(s) listed in the attachment to this letter.</p>
-        <p>The employment relationship of the employee(s) concerned with the company has ended or changed, so they are no longer registered under the company's membership from the date of this letter. All contributions until their last working period have been or will be settled by the company.</p>
-        <p>@if(!empty($f['staff_name']))For further information please contact {{ $f['staff_name'] }}.@endif Thank you for your attention and cooperation.</p>
-    @else
-        <p>Kepada Yth.<br><strong>BPJS Kesehatan</strong><br>Di Tempat</p>
-        <p>Dengan hormat,</p>
-        <p>Sehubungan dengan perubahan status kepegawaian di perusahaan kami, <strong>{{ $company }}</strong> dengan ini mengajukan permohonan penonaktifan kepesertaan BPJS Kesehatan atas {{ $count }} (jumlah) karyawan yang tercantum pada lampiran surat ini.</p>
-        <p>Hubungan kerja karyawan yang bersangkutan dengan perusahaan telah berakhir atau berubah, sehingga sejak tanggal surat ini tidak lagi terdaftar dalam kepesertaan badan usaha kami. Seluruh iuran sampai dengan masa kerja terakhir telah atau akan diselesaikan oleh perusahaan.</p>
-        <p>@if(!empty($f['staff_name']))Untuk informasi lebih lanjut dapat menghubungi {{ $f['staff_name'] }}.@endif Demikian surat ini kami sampaikan, atas perhatian dan kerja samanya kami ucapkan terima kasih.</p>
-    @endif
+@section('header')
+    <table class="meta" style="margin-bottom:10pt;">
+        <tr><td style="width:60pt">{{ $en ? 'Number' : 'Nomor' }}</td><td>: {{ $number }}</td></tr>
+        <tr><td>{{ $en ? 'Attachment' : 'Lampiran' }}</td><td>: 1 {{ $en ? '(one) list of employees' : '(satu) daftar karyawan' }}</td></tr>
+    </table>
+    <p style="text-align:left;margin-bottom:14pt;">
+        {{ $en ? 'Absolute Statement of Responsibility' : 'Surat Pernyataan Tanggung Jawab Mutlak' }}<br>
+        {{ $en ? 'Reporting of Termination (PHK) by the Employer' : 'Pelaporan PHK dari Badan Usaha' }}
+    </p>
+    <p style="text-align:center;font-weight:bold;">{{ $en ? 'ABSOLUTE STATEMENT OF RESPONSIBILITY BY COMPANY MANAGEMENT' : 'SURAT PERNYATAAN TANGGUNG JAWAB MUTLAK PIMPINAN PERUSAHAAN' }}</p>
 @endsection
 
+@section('closing', '')
+
+@section('body')
+    <table class="details" style="margin-left:0;">
+        <tr><td class="label">{{ $en ? 'Full name' : 'Nama Lengkap' }}</td><td class="colon">:</td><td>{{ $letter->signatory_name }}</td></tr>
+        <tr><td class="label">{{ $en ? 'Company name' : 'Nama Perusahaan' }}</td><td class="colon">:</td><td>{{ $company }}</td></tr>
+        <tr><td class="label">{{ $en ? 'Position' : 'Jabatan' }}</td><td class="colon">:</td><td>{{ $letter->signatory_title }}</td></tr>
+        @if(!empty($f['contact']))<tr><td class="label">{{ $en ? 'Phone / email' : 'No. HP/Alamat email' }}</td><td class="colon">:</td><td>{{ $f['contact'] }}</td></tr>@endif
+    </table>
+    <p><strong>{{ $en ? 'HEREBY DECLARES:' : 'DENGAN INI MENYATAKAN :' }}</strong></p>
+    @if($en)
+        <p>1. That the company has terminated the employment (PHK) of a number of employees, and proposes that these employees be deactivated from National Health Insurance (JKN) membership (list attached).</p>
+        <p>2. That all data, information and documents attached to this letter are correct, and their accuracy is the responsibility of the company.</p>
+        <p>3. That the employees proposed for deactivation have been informed of their rights and obligations related to National Health Insurance (JKN).</p>
+        <p>4. That no employee has objected to the termination of employment, which was carried out in accordance with applicable laws and regulations.</p>
+        <p>5. That if the company deactivates an employee who is still in a termination dispute or is still active, the company is obliged to re-register that employee and fulfil the contributions in accordance with applicable regulations.</p>
+        <p>6. That if the company has provided incorrect documents, the company is ready to accept sanctions in accordance with laws and regulations.</p>
+    @else
+        <p>1. Bahwa telah dilakukan Pemutusan Hubungan Kerja (PHK) terhadap sejumlah karyawan dan PHK atas sejumlah karyawan tersebut diusulkan untuk dinonaktifkan dari kepesertaan JKN (daftar nama terlampir).</p>
+        <p>2. Bahwa seluruh data, informasi, dan dokumen yang dilampirkan dalam surat ini adalah benar dan kebenarannya menjadi tanggung jawab perusahaan.</p>
+        <p>3. Bahwa telah dilakukan sosialisasi kepada pekerja yang diusulkan untuk dinonaktifkan terkait hak dan kewajiban yang berkaitan dengan Jaminan Kesehatan Nasional (JKN).</p>
+        <p>4. Bahwa tidak terdapat penolakan pekerja atas pemutusan hubungan kerja yang telah dilakukan sesuai dengan peraturan perundang-undangan yang berlaku.</p>
+        <p>5. Apabila perusahaan melakukan penonaktifan kepada pekerja yang masih dalam proses perselisihan PHK atau masih berstatus aktif, maka perusahaan wajib mendaftarkan kembali pekerja tersebut dan memenuhi kewajiban iuran sesuai peraturan yang berlaku.</p>
+        <p>6. Dalam hal perusahaan memberikan dokumen yang tidak benar, perusahaan siap menerima sanksi sesuai ketentuan perundang-undangan.</p>
+    @endif
+@endsection
 @section('after')
     <div style="clear: both; page-break-before: always;"></div>
     <p style="text-align:left;"><strong>{{ $lang === 'en' ? 'ATTACHMENT' : 'LAMPIRAN' }}</strong><br>

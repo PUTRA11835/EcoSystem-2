@@ -135,12 +135,12 @@
                         'active'  => Request::is('general/my-reimbursement*'),
                         'visible' => !empty($essConfig['expense_reimbursement']),
                     ],
-                    // route('coming-soon', ...) — belum menunjuk halaman sungguhan.
+                    // Paystub: slip gaji sendiri yang sudah dipublikasikan (Finance → Payroll → Publish Payslip).
                     'paystub' => [
                         'label'   => 'Paystub',
                         'icon'    => 'fas fa-file-invoice-dollar',
-                        'href'    => route('coming-soon', ['feature' => 'Paystub']),
-                        'active'  => false,
+                        'href'    => route('general.my-paystub.index'),
+                        'active'  => Request::is('general/my-paystub*'),
                         'visible' => !empty($essConfig['paystub']),
                     ],
                     'purchase_request' => [
@@ -1411,6 +1411,8 @@
         margin-left: auto; padding: 2px 4px; border-radius: 6px; font-size: 12px; line-height: 1;
         color: rgba(255, 255, 255, 0.75); opacity: 0; cursor: pointer; transition: opacity .15s;
     }
+    #sidebar a.nav-link { position: relative; }
+    #sidebar .sb-pin:not(.on) { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); margin: 0; }
     #sidebar a.nav-link:hover .sb-pin, #sidebar .sb-pin:focus, #sidebar .sb-pin.on { opacity: 1; }
     #sidebar .sb-pin.on { color: #fde047; }
     #sidebar .sb-pin:hover { background: rgba(255, 255, 255, 0.18); }
@@ -1424,7 +1426,7 @@
     #sidebar .sb-sec-btn {
         display: flex; align-items: center; width: 100%; padding: .375rem 1rem; text-align: left;
         font-size: .6875rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.62); border-radius: .5rem; transition: color .15s, background-color .15s;
+        color: rgba(255, 255, 255, 0.78); border-radius: .5rem; transition: color .15s, background-color .15s;
     }
     #sidebar .sb-sec-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
     #sidebar .sb-sec-btn:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: -2px; }
@@ -1455,11 +1457,18 @@
         position: relative; background-color: rgba(255, 255, 255, 0.24) !important;
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
     }
+    /* Aksen emas HANYA sebagai penanda tipis (garis kiri + ikon aktif); teks tetap putih supaya kontras terjaga
+       (emas di atas teal hanya ±2,6:1, terlalu rendah untuk teks). Satu variabel untuk seluruh sidebar. */
+    #sidebar { --sb-accent: #f2c14e; }
     #sidebar a.nav-link.active::before,
     #sidebar a.nav-link.bg-opacity-15::before {
-        content: ''; position: absolute; left: 0; top: 22%; bottom: 22%; width: 3px;
-        border-radius: 0 3px 3px 0; background: #fff;
+        content: ''; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px;
+        border-radius: 0 3px 3px 0; background: var(--sb-accent);
     }
+    #sidebar a.nav-link.active .nav-icon,
+    #sidebar a.nav-link.bg-opacity-15 .nav-icon { color: var(--sb-accent); }
+    #sidebar a.nav-link.active .nav-text,
+    #sidebar a.nav-link.bg-opacity-15 .nav-text { font-weight: 600; }
     #sidebar button.nav-link.active { background-color: rgba(255, 255, 255, 0.11) !important; box-shadow: none !important; }
     /* Lencana angka "perlu tindakan" — satu gaya untuk CAR, Offering Letter, Ticket Validation. */
     #sidebar .sb-badge {
@@ -1528,15 +1537,18 @@
         html[data-sb-layout="rail"] #sidebar .sb-sec.has-active > .sb-sec-btn { background: rgba(255, 255, 255, 0.22); color: #fff; }
         html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-btn { background: rgba(255, 255, 255, 0.16); color: #fff; }
         html[data-sb-layout="rail"] #sidebar .sb-sec.has-active > .sb-sec-btn::before {
-            content: ''; position: absolute; left: -.5rem; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: #fff;
+            content: ''; position: absolute; left: -.5rem; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--sb-accent, #f2c14e);
         }
         html[data-sb-layout="rail"] #sidebar .sb-dot { position: absolute; top: .45rem; right: .55rem; margin: 0; }
         /* panel kedua: isi seksi muncul di sebelah rail */
         html[data-sb-layout="rail"] #sidebar .sb-sec > .sb-sec-body { display: none !important; }
         html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-body {
-            display: block !important; position: absolute; left: 100%; top: 0; bottom: 0; width: 16.5rem; margin: 0;
-            padding: .75rem; overflow-y: auto; z-index: 60; background: var(--primary-surface);
-            box-shadow: 8px 0 28px rgba(0, 0, 0, 0.28); border-radius: 0 .75rem .75rem 0;
+            /* Panel ringkas: setinggi isinya dan sejajar dengan ikon yang diklik (top diisi sbToggleFlyout),
+               bukan memanjang selayar penuh. */
+            display: block !important; position: absolute; left: calc(100% + .375rem); top: var(--fly-top, 0px); bottom: auto;
+            width: 15.5rem; margin: 0; padding: .5rem; max-height: var(--fly-max, 80vh); overflow-y: auto; z-index: 60;
+            background: var(--primary-surface); border: 1px solid rgba(255, 255, 255, 0.14);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.30); border-radius: .75rem;
         }
         html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-body::before {
             content: attr(data-title); display: block; padding: .25rem .5rem .6rem; font-size: .6875rem; font-weight: 600;
@@ -1581,6 +1593,20 @@
         sbCloseFlyouts(open ? sec : null);
         sec.classList.toggle('rail-open', open);
         sec.querySelector('.sb-sec-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) { sbPlaceFlyout(sec); }
+    }
+    // Sejajarkan panel dengan ikon yang diklik; bila isinya lebih tinggi dari sisa ruang di bawah, geser ke atas
+    // seperlunya (tidak pernah keluar layar) dan batasi tingginya.
+    function sbPlaceFlyout(sec) {
+        var body = sec.querySelector('.sb-sec-body'), btn = sec.querySelector('.sb-sec-btn'), aside = document.getElementById('sidebar');
+        if (!body || !btn || !aside) { return; }
+        var asideTop = aside.getBoundingClientRect().top, btnTop = btn.getBoundingClientRect().top - asideTop;
+        var avail = window.innerHeight - asideTop - 16;
+        body.style.setProperty('--fly-max', avail + 'px');
+        body.style.setProperty('--fly-top', btnTop + 'px');
+        var h = body.offsetHeight;
+        var top = Math.max(0, Math.min(btnTop, avail - h));
+        body.style.setProperty('--fly-top', top + 'px');
     }
     function sbApplyLayout(rail, persist) {
         if (rail && !sbRailAllowed()) { rail = false; }

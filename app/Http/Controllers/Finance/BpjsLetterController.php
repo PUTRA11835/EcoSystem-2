@@ -109,6 +109,7 @@ class BpjsLetterController extends Controller
             'signer_name' => ['required', 'string', 'max:150'],
             'signer_position' => ['required', 'string', 'max:150'],
             'staff_name' => ['nullable', 'string', 'max:150'],
+            'contact' => ['nullable', 'string', 'max:200'],
             'city' => ['required', 'string', 'max:100'],
             'employee_ids' => ['required', 'array', 'min:1', 'max:200'],
             'employee_ids.*' => ['integer'],
@@ -153,7 +154,7 @@ class BpjsLetterController extends Controller
             'letter_date' => $data['letter_date'], 'language' => 'id', 'letter_code_id' => $typeSetting?->letter_code_id,
             'signatory_name' => $data['signer_name'], 'signatory_title' => $data['signer_position'],
             'use_letterhead' => (bool) $letterhead, 'letterhead_id' => $letterhead?->id,
-            'fields' => ['employees' => $employees, 'staff_name' => $data['staff_name'] ?? null, 'city' => $data['city']],
+            'fields' => ['employees' => $employees, 'staff_name' => $data['staff_name'] ?? null, 'contact' => $data['contact'] ?? null, 'city' => $data['city']],
         ], (int) session('user.id'));
 
         return redirect()->route('finance.bpjs.letters')
@@ -161,11 +162,12 @@ class BpjsLetterController extends Controller
             ->with('bpjs_letter_id', $letter->id);
     }
 
-    public function pdf(int $letter)
+    /** ?download=1 → langsung terunduh (dipakai otomatis setelah Generate); tanpa itu dibuka di tab. */
+    public function pdf(Request $request, int $letter)
     {
         $l = Letter::where('template_key', self::TEMPLATE)->findOrFail($letter);
 
-        return $l->toPdf()->stream($l->fileName());
+        return $request->boolean('download') ? $l->toPdf()->download($l->fileName()) : $l->toPdf()->stream($l->fileName());
     }
 
     public function void(Request $request, int $letter): RedirectResponse

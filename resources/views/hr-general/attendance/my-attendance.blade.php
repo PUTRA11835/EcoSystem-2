@@ -23,61 +23,71 @@
     $hasCheckOut= (bool) $record?->check_out_at;
 @endphp
 
-<div class="space-y-5">
+<div class="w-full space-y-6">
 
-    {{-- ── Kartu identitas ────────────────────────────────────────────── --}}
-    {{-- Warna kartu mengikuti sidebar: kelas `primary-surface` didefinisikan di
-         layout dan berakar pada variabel yang sama dengan sidebar, sehingga
-         mengganti Accent color atau Sidebar style di Settings langsung terlihat
-         di sini juga. --}}
-    <div class="primary-surface rounded-xl p-6 shadow-sm text-white">
-        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-            <div class="min-w-0">
-                <p class="text-xs text-white text-opacity-60 mb-1">
-                    {{ $employee?->eci ?? '—' }}
-                    @if($basic?->department) · {{ $basic->department }} @endif
-                </p>
-                <h2 class="text-2xl font-bold truncate">{{ $basic?->nick_name ?? 'Employee' }}</h2>
-                <p class="text-sm text-white text-opacity-70 mt-0.5">
-                    {{ $basic?->position ?: 'Position not set' }}, shift {{ $shift?->name ?? '–' }}
-                </p>
-                <p class="text-sm text-white text-opacity-70">
-                    Active Project: {{ $activeProject ?: '–' }}
-                </p>
+    {{-- ── Header halaman ──────────────────────────────────────────────── --}}
+    {{-- Kartu putih bersih, selaras dengan Dashboard (bukan blok berwarna penuh): identitas di kiri, tanggal di kanan.
+         "ECI · Department · Active Project" yang dulu bertumpuk di blok berwarna kini jadi chip kecil; Active Project
+         hanya tampil bila ada isinya. --}}
+    <section aria-label="Employee" class="rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            <div class="flex min-w-0 items-center gap-4">
+                <span class="primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm">
+                    {{ \App\Support\Initials::make($basic?->full_name ?: $basic?->nick_name, 'U') }}
+                </span>
+                <div class="min-w-0">
+                    <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-gray-900">{{ $basic?->full_name ?: ($basic?->nick_name ?? 'Employee') }}</h2>
+                    <p class="mt-0.5 truncate text-sm text-gray-500">
+                        {{ $basic?->position ?: 'Position not set' }}@if($basic?->department)<span class="mx-1 text-gray-300">&middot;</span>{{ $basic->department }}@endif
+                    </p>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span class="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 font-mono text-xs font-medium text-gray-700">
+                            <i class="fas fa-id-badge text-[10px] text-gray-400"></i>{{ $employee?->eci ?? '—' }}
+                        </span>
+                        <span class="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            <i class="far fa-clock text-[10px] text-gray-400"></i>{{ $shift ? $shift->name . ' · ' . $shift->time_range : 'Shift not set' }}
+                        </span>
+                        @if($activeProject)
+                        <span class="inline-flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+                            <i class="fas fa-diagram-project text-[10px] text-gray-400"></i>{{ $activeProject }}
+                        </span>
+                        @endif
+                    </div>
+                </div>
             </div>
-            <div class="sm:text-right shrink-0">
-                <p class="text-xs text-white text-opacity-60">Today</p>
-                <p class="text-xl font-bold">{{ $today->translatedFormat('d F Y') }}</p>
-                <p class="text-xs text-white text-opacity-60 mt-0.5">
-                    {{ $shift ? $shift->time_range : 'Shift not set' }}
-                </p>
+            <div class="sm:text-right">
+                <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Today</p>
+                <p class="text-base font-semibold text-gray-900">{{ $today->translatedFormat('l, d F Y') }}</p>
             </div>
         </div>
-    </div>
+    </section>
 
-    {{-- ── Kartu statistik ────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        @foreach([
-            ['label' => 'Present This Month', 'value' => $summary['present'], 'id' => 'statPresent', 'hint' => 'days recorded'],
-            ['label' => 'Late',               'value' => $summary['late'],    'id' => 'statLate',    'hint' => 'days late'],
-            ['label' => 'Work Hours',         'value' => $duration($summary['work_minutes']),     'id' => 'statWork',     'hint' => 'this month'],
-            ['label' => 'Overtime Hours',     'value' => $duration($summary['overtime_minutes']), 'id' => 'statOvertime', 'hint' => 'this month'],
-        ] as $card)
-        <div class="bg-white rounded-xl p-5 shadow-sm">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ $card['label'] }}</p>
-            <p class="text-3xl font-bold text-gray-900 mt-1" id="{{ $card['id'] }}">{{ $card['value'] }}</p>
-            <p class="text-xs text-gray-400 mt-0.5">{{ $card['hint'] }}</p>
+    {{-- ── Statistik bulan ini (satu kartu bersekat, seperti Dashboard) ──── --}}
+    <section aria-label="This month">
+        <h3 class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">This month &middot; {{ $today->translatedFormat('F Y') }}</h3>
+        <div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="grid grid-cols-2 xl:grid-cols-4 divide-x divide-y divide-gray-100 xl:divide-y-0">
+            @foreach([
+                ['label' => 'Present This Month', 'value' => $summary['present'], 'id' => 'statPresent', 'hint' => 'days recorded'],
+                ['label' => 'Late',               'value' => $summary['late'],    'id' => 'statLate',    'hint' => 'days late'],
+                ['label' => 'Work Hours',         'value' => $duration($summary['work_minutes']),     'id' => 'statWork',     'hint' => 'this month'],
+                ['label' => 'Overtime Hours',     'value' => $duration($summary['overtime_minutes']), 'id' => 'statOvertime', 'hint' => 'this month'],
+            ] as $card)
+            <div class="px-5 py-4">
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $card['label'] }}</p>
+                <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-gray-900" id="{{ $card['id'] }}">{{ $card['value'] }}</p>
+                <p class="mt-1 text-xs text-gray-500">{{ $card['hint'] }}</p>
+            </div>
+            @endforeach
         </div>
-        @endforeach
-    </div>
+        </div>
+    </section>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div class="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
 
+        <div class="space-y-6">
         {{-- ── Panel presensi ─────────────────────────────────────────── --}}
-        <div class="bg-white rounded-xl p-6 shadow-sm">
-            <h3 class="text-lg font-bold text-gray-900">Check-in / Check-out</h3>
-            <p class="text-sm text-gray-500 mb-5">Recorded from the account you are signed in with.</p>
-
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             @php
                 /**
                  * Label sumber dibaca PER SISI. Check-in dan check-out dapat
@@ -95,22 +105,68 @@
                         $code ?? \App\Models\Attendance\AttendanceSource::webCheckinCode()
                     );
                 };
+
+                // Bahasa manusia untuk data teknis lokasi (kode mentah seperti "gps_ok" tak berguna bagi karyawan).
+                $gpsLabels = [
+                    'gps_ok'               => 'Location captured',
+                    'gps_timeout'          => 'Location request timed out',
+                    'gps_permission_denied'=> 'Location permission denied',
+                    'gps_system_denied'    => 'Blocked by the operating system',
+                    'gps_unsupported'      => 'Not supported by this browser',
+                    'gps_insecure_context' => 'Needs a secure (HTTPS) connection',
+                    'gps_unavailable'      => 'Location unavailable',
+                ];
+                // Mutu akurasi dibandingkan ambang di Attendance Settings (min_accuracy_meters).
+                $accuracyQuality = function ($meters) use ($settings): ?array {
+                    if ($meters === null) return null;
+                    $limit = max(1, (int) $settings->min_accuracy_meters);
+                    $m = (float) $meters;
+                    return $m <= $limit * 0.5 ? ['Good', 'text-emerald-700'] : ($m <= $limit ? ['Fair', 'text-amber-700'] : ['Low', 'text-amber-700']);
+                };
             @endphp
-            <div class="grid grid-cols-2 gap-4 mb-5">
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Check-in Time</p>
-                    <p class="text-2xl font-bold text-gray-900" id="displayCheckIn">{{ $record?->check_in_at?->format('H:i') ?? '–' }}</p>
+
+            <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-gray-900">Check-in / Check-out</h3>
+                    <p class="text-xs text-gray-500">Recorded from the account you are signed in with.</p>
+                </div>
+                {{-- Badge status (id dipertahankan) --}}
+                <div class="flex flex-wrap gap-1.5" id="statusBadges">
+                    @if(!$hasCheckIn)
+                        <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">Not checked in</span>
+                    @elseif(!$hasCheckOut)
+                        <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Checked in</span>
+                    @else
+                        <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">Completed</span>
+                    @endif
+                    <span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ ($record?->late_minutes ?? 0) > 0 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-600' }}">
+                        Late {{ $record?->late_minutes ?? 0 }} m
+                    </span>
+                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">
+                        Worked {{ $duration($record?->work_minutes ?? 0) }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 gap-3">
+                <div class="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                    <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <i class="fas fa-arrow-right-to-bracket text-[10px] text-emerald-600"></i> Check-in
+                    </p>
+                    <p class="mt-1.5 text-2xl font-semibold leading-none tabular-nums text-gray-900" id="displayCheckIn">{{ $record?->check_in_at?->format('H:i') ?? '–' }}</p>
                     @if($hasCheckIn)
                         @php $inLabel = $sideSourceLabel($record->check_in_source); @endphp
-                        <span class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded {{ $inLabel === 'Correction' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700' }}">{{ $inLabel }}</span>
+                        <span class="mt-2 inline-block rounded px-2 py-0.5 text-xs font-semibold {{ $inLabel === 'Correction' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700' }}">{{ $inLabel }}</span>
                     @endif
                 </div>
-                <div class="border border-gray-200 rounded-lg p-4">
-                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Check-out Time</p>
-                    <p class="text-2xl font-bold text-gray-900" id="displayCheckOut">{{ $record?->check_out_at?->format('H:i') ?? '–' }}</p>
+                <div class="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                    <p class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                        <i class="fas fa-arrow-right-from-bracket text-[10px] text-rose-500"></i> Check-out
+                    </p>
+                    <p class="mt-1.5 text-2xl font-semibold leading-none tabular-nums text-gray-900" id="displayCheckOut">{{ $record?->check_out_at?->format('H:i') ?? '–' }}</p>
                     @if($hasCheckOut)
                         @php $outLabel = $sideSourceLabel($record->check_out_source); @endphp
-                        <span class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded {{ $outLabel === 'Correction' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700' }}">{{ $outLabel }}</span>
+                        <span class="mt-2 inline-block rounded px-2 py-0.5 text-xs font-semibold {{ $outLabel === 'Correction' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700' }}">{{ $outLabel }}</span>
                     @endif
                 </div>
             </div>
@@ -118,8 +174,8 @@
             {{-- Presensi hanya sekali sehari; setelah keduanya terisi, jalur
                  perbaikan satu-satunya adalah pengajuan koreksi di bawah. --}}
             @if($hasCheckIn && $hasCheckOut)
-            <div class="flex items-start gap-2 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3 mb-4">
-                <i class="fas fa-circle-check text-gray-400 mt-0.5"></i>
+            <div class="mt-4 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+                <i class="fas fa-circle-check mt-0.5 text-emerald-500"></i>
                 <div>
                     Today's attendance is complete. Check-in and check-out are recorded once per day —
                     if any time needs fixing, submit an <strong class="text-gray-700">Attendance Correction</strong> below.
@@ -127,13 +183,13 @@
             </div>
             @endif
 
-            <div class="flex flex-col sm:flex-row gap-3 mb-4">
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row">
                 <button type="button" id="btnCheckIn" @disabled($hasCheckIn)
-                        class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                        class="primary-surface flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40">
                     <i class="fas fa-right-to-bracket"></i> Check-in
                 </button>
                 <button type="button" id="btnCheckOut" @disabled(!$hasCheckIn || $hasCheckOut)
-                        class="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                        class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
                     <i class="fas fa-right-from-bracket"></i> Check-out
                 </button>
             </div>
@@ -149,17 +205,17 @@
                  sudah berhenti sendiri bila tombolnya tidak dirender
                  (`if (!btn) return;`), jadi menyembunyikan markup-nya cukup. --}}
             @if($settings->show_location_diagnostic)
-            <div class="mb-4">
+            <div class="mt-3">
                 <button type="button" id="btnDiagnose"
-                        class="inline-flex items-center gap-2 px-3 py-1.5 bg-white text-gray-700 text-xs font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50">
                     <i class="fas fa-stethoscope"></i> Test location access
                 </button>
-                <span class="text-xs text-gray-400 ml-2">Checks what your browser reports, without recording attendance.</span>
+                <span class="ml-2 text-xs text-gray-500">Checks what your browser reports, without recording attendance.</span>
 
-                <div id="diagnosePanel" class="hidden mt-3 border border-gray-200 rounded-lg bg-gray-50 p-3">
-                    <pre id="diagnoseOutput" class="text-xs text-gray-700 whitespace-pre-wrap break-all font-mono leading-relaxed"></pre>
+                <div id="diagnosePanel" class="mt-3 hidden rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <pre id="diagnoseOutput" class="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed text-gray-700"></pre>
                     <button type="button" id="btnCopyDiagnose"
-                            class="mt-2 px-2.5 py-1 bg-gray-800 text-white text-xs font-semibold rounded hover:bg-gray-900 transition-all">
+                            class="mt-2 rounded bg-gray-800 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-gray-900">
                         Copy result
                     </button>
                 </div>
@@ -167,101 +223,165 @@
             @endif
 
             {{-- Pemberitahuan privasi. Tetap tampil, tidak dapat ditutup. --}}
-            <p class="text-xs text-gray-500 leading-relaxed mb-4">
-                When you check in or out, the system records your device GPS location, connection type, IP address,
-                and browser details. <strong class="text-gray-700">Location is captured only at the moment you press
-                the button</strong> — nothing is tracked in the background.
+            <p class="mt-4 flex items-start gap-2 text-xs leading-relaxed text-gray-500">
+                <i class="fas fa-shield-halved mt-0.5 text-gray-400"></i>
+                <span>
+                    When you check in or out, the system records your device location, connection type, IP address, and
+                    browser details. <strong class="text-gray-700">Location is captured only at the moment you press the
+                    button</strong> — nothing is tracked in the background.
+                </span>
             </p>
 
-            {{-- Badge status --}}
-            <div class="flex flex-wrap gap-2 mb-4" id="statusBadges">
-                @if(!$hasCheckIn)
-                    <span class="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-600">Not checked in</span>
-                @elseif(!$hasCheckOut)
-                    <span class="px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-700">Checked in</span>
-                @else
-                    <span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-700">Completed</span>
-                @endif
+            {{-- Detail lokasi per sisi: ringkas dan mudah dibaca; data teknis (IP, koordinat, kode status) dilipat. --}}
+            <div class="mt-5 grid grid-cols-1 gap-3 border-t border-gray-100 pt-5 sm:grid-cols-2">
+                @foreach([['check_in', 'Check-in'], ['check_out', 'Check-out']] as [$side, $label])
+                @php
+                    $punched = (bool) $record?->{$side . '_at'};
+                    $verdict = $record?->geofenceVerdict($side);
+                    $badgeClass = match (true) {
+                        $verdict === null                          => 'bg-gray-100 text-gray-500',
+                        str_starts_with($verdict, 'Inside')        => 'bg-emerald-50 text-emerald-700',
+                        // Kuning, BUKAN merah: pada mode flag presensinya tetap sah,
+                        // hanya perlu ditinjau. Warna merah membuat karyawan mengira
+                        // dirinya bersalah dan menimbulkan pertanyaan yang tak perlu.
+                        str_starts_with($verdict, 'Outside')       => 'bg-amber-50 text-amber-700',
+                        default                                    => 'bg-gray-100 text-gray-600',
+                    };
+                    $lat   = $record?->{$side . '_latitude'};
+                    $lng   = $record?->{$side . '_longitude'};
+                    $acc   = $record?->{$side . '_accuracy_m'};
+                    $q     = $accuracyQuality($acc);
+                    $gps   = $record?->{$side . '_gps_status'};
+                    $conn  = $record?->{$side . '_connection'};
+                    $ip    = $record?->{$side . '_ip'};
+                    $dev   = $record?->{$side . '_device'};
+                    $note  = $record?->accuracyNote($side);
+                @endphp
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $label }} location</p>
+                            @if($punched)
+                            <span class="mt-1.5 inline-block rounded-full px-2.5 py-1 text-xs font-semibold {{ $badgeClass }}">{{ $verdict }}</span>
+                            @else
+                            <p class="mt-1.5 text-sm text-gray-400">Not recorded yet.</p>
+                            @endif
+                        </div>
+                        @if($lat)
+                        <button type="button"
+                                onclick="showPunchMap({{ $lat }}, {{ $lng }}, @js($label . ' point'))"
+                                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50">
+                            <i class="fas fa-location-dot text-gray-400"></i> View on map
+                        </button>
+                        @endif
+                    </div>
 
-                <span class="px-2 py-1 text-xs font-semibold rounded {{ ($record?->late_minutes ?? 0) > 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600' }}">
-                    Late {{ $record?->late_minutes ?? 0 }} m
-                </span>
-                <span class="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-600">
-                    Worked {{ $duration($record?->work_minutes ?? 0) }}
-                </span>
-            </div>
+                    @if($punched)
+                    <dl class="mt-3 grid grid-cols-1 gap-y-1.5 text-sm">
+                        <div>
+                            <dt class="text-xs text-gray-500">GPS accuracy</dt>
+                            <dd class="font-medium text-gray-900">
+                                @if($acc !== null)
+                                    &plusmn;{{ (int) round((float) $acc) }} m <span class="text-xs font-semibold {{ $q[1] }}">{{ $q[0] }}</span>
+                                @else
+                                    <span class="text-gray-400">&ndash;</span>
+                                @endif
+                            </dd>
+                        </div>
+                        <div>
+                            <dt class="text-xs text-gray-500">Location</dt>
+                            <dd class="font-medium text-gray-900">{{ $gpsLabels[$gps] ?? ($gps ?: '–') }}</dd>
+                        </div>
+                    </dl>
+                    @if($note)
+                    <p class="mt-2 flex items-center gap-1.5 text-xs text-amber-700"><i class="fas fa-triangle-exclamation"></i> {{ $note }}</p>
+                    @endif
 
-            {{-- Lokasi --}}
-            @foreach([['check_in', 'Check-in'], ['check_out', 'Check-out']] as [$side, $label])
-            @php
-                $verdict = $record?->geofenceVerdict($side);
-                $badgeClass = match (true) {
-                    $verdict === null                          => 'bg-gray-100 text-gray-500',
-                    str_starts_with($verdict, 'Inside')        => 'bg-green-100 text-green-700',
-                    // Kuning, BUKAN merah: pada mode flag presensinya tetap sah,
-                    // hanya perlu ditinjau. Warna merah membuat karyawan mengira
-                    // dirinya bersalah dan menimbulkan pertanyaan yang tak perlu.
-                    str_starts_with($verdict, 'Outside')       => 'bg-amber-100 text-amber-700',
-                    default                                    => 'bg-gray-100 text-gray-500',
-                };
-            @endphp
-            <div class="mb-3">
-                <p class="text-sm font-semibold text-gray-700">{{ $label }} location:</p>
-                <p class="text-xs text-gray-500 font-mono break-all">{{ $record?->locationSummary($side) ?: '–' }}</p>
-                <span class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded {{ $badgeClass }}">
-                    {{ $verdict ?? 'Geofence status unavailable' }}
-                </span>
-                @if($record?->{$side . '_latitude'})
-                <button type="button"
-                        onclick="showPunchMap({{ $record->{$side . '_latitude'} }}, {{ $record->{$side . '_longitude'} }}, @js($label . ' point'))"
-                        class="block mt-1 text-xs text-blue-600 hover:text-blue-800 hover:underline">
-                    View {{ strtolower($label) }} point on map
-                </button>
-                @endif
+                    <details class="mt-3 group">
+                        <summary class="cursor-pointer select-none text-xs font-medium text-gray-500 hover:text-gray-700">Technical details</summary>
+                        <dl class="mt-2 grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg bg-gray-50 p-3 text-xs sm:grid-cols-2">
+                            <div><dt class="text-gray-500">IP address</dt><dd class="font-mono text-gray-800">{{ $ip ?: '–' }}</dd></div>
+                            <div><dt class="text-gray-500">Network</dt><dd class="font-medium text-gray-800">{{ $conn ? strtoupper($conn) : '–' }}</dd></div>
+                            <div class="sm:col-span-2"><dt class="text-gray-500">Coordinates</dt>
+                                <dd class="font-mono text-gray-800">@if($lat !== null){{ number_format((float) $lat, 6, '.', '') }}, {{ number_format((float) $lng, 6, '.', '') }}@else&ndash;@endif</dd></div>
+                            <div class="sm:col-span-2"><dt class="text-gray-500">Device</dt><dd class="font-medium text-gray-800">{{ $dev ?: '–' }}</dd></div>
+                        </dl>
+                    </details>
+                    @endif
+                </div>
+                @endforeach
             </div>
-            @endforeach
         </div>
 
-        {{-- ── Sumber presensi + riwayat ──────────────────────────────── --}}
-        <div class="space-y-5">
+        {{-- Jarang dipakai -> dilipat agar halaman fokus ke aksi harian. Terbuka otomatis bila ada galat validasi / isian lama. --}}
+        <details id="correctionDetails" class="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" @if($errors->any() || old('reason')) open @endif>
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 sm:px-6">
+                <span>
+                    <span class="block text-sm font-semibold text-gray-900">Need to fix a time?</span>
+                    <span class="block text-xs text-gray-500">Submit an attendance correction &mdash; HR will review it.</span>
+                </span>
+                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform group-open:rotate-180"></i>
+            </summary>
+            <div class="border-t border-gray-100 p-5 sm:p-6">
+            <p class="mb-5 text-xs text-gray-500">
+                Check-in and check-out are recorded once per day. Submit a correction if a time
+                needs adjusting.
+            </p>
 
-            <div class="bg-white rounded-xl p-6 shadow-sm">
-                <div class="flex items-start justify-between gap-3 mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-gray-900">Attendance Source</h3>
-                        <p class="text-sm text-gray-500">Selected by the administrator in company settings.</p>
-                    </div>
-                    <button type="button" disabled
-                            title="Fingerprint import is not available yet"
-                            class="px-3 py-1.5 text-xs font-semibold text-gray-400 border border-gray-200 rounded-lg cursor-not-allowed whitespace-nowrap">
-                        <i class="fas fa-upload mr-1"></i> Import Fingerprint
-                    </button>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    @forelse($sources as $source)
-                    <div class="border rounded-lg p-3 {{ $source->is_active ? 'border-green-200 bg-green-50' : 'border-gray-200' }}">
-                        <p class="text-sm font-semibold {{ $source->is_active ? 'text-green-800' : 'text-gray-700' }}">
-                            {{ $source->name }}
-                            @if($source->is_web_checkin)
-                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700 align-middle">Web check-in</span>
-                            @endif
-                        </p>
-                        <p class="text-xs text-gray-500 mt-0.5">{{ $source->description ?: '—' }}</p>
-                        <p class="text-xs font-semibold mt-1 {{ $source->is_active ? 'text-green-700' : 'text-gray-400' }}">
-                            {{ $source->is_active ? 'Currently active.' : 'Currently inactive.' }}
-                        </p>
-                    </div>
-                    @empty
-                    <p class="text-sm text-gray-400">No attendance source configured yet.</p>
-                    @endforelse
-                </div>
+            @if(!$settings->allow_self_correction)
+            <div class="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                Self-service corrections are currently disabled. Please contact HR directly.
             </div>
+            @else
+            <form method="POST" action="{{ route('general.my-attendance.correction.store') }}" id="correctionForm" class="space-y-4">
+                @csrf
 
-            <div class="bg-white rounded-xl p-6 shadow-sm">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date <span class="text-red-500">*</span></label>
+                    <input type="date" name="attendance_date" required
+                           value="{{ old('attendance_date', $today->toDateString()) }}"
+                           min="{{ $today->copy()->subDays($settings->correction_max_days)->toDateString() }}"
+                           max="{{ $today->toDateString() }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    <p class="text-xs text-gray-400 mt-1">Up to {{ $settings->correction_max_days }} days back.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-in Time</label>
+                        <input type="time" name="requested_check_in" value="{{ old('requested_check_in') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-out Time</label>
+                        <input type="time" name="requested_check_out" value="{{ old('requested_check_out') }}"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 -mt-2">Fill in at least one of the two.</p>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reason <span class="text-red-500">*</span></label>
+                    <textarea name="reason" rows="3" required minlength="10" maxlength="1000"
+                              placeholder="Explain what happened, e.g. forgot to check out after a client visit"
+                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">{{ old('reason') }}</textarea>
+                </div>
+
+                <button type="submit"
+                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
+                    <i class="fas fa-paper-plane"></i> Submit Correction
+                </button>
+            </form>
+            @endif
+            </div>
+        </details>
+        </div>
+
+        <div class="space-y-6">
+            <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-bold text-gray-900">30-Day History</h3>
-                    <span class="text-xs text-gray-400">{{ $history->count() }} record(s)</span>
+                    <h3 class="text-sm font-semibold text-gray-900">30-Day History</h3>
+                    <span class="text-xs text-gray-500">{{ $history->count() }} record(s)</span>
                 </div>
 
                 <div class="border border-gray-200 rounded-lg overflow-x-auto max-h-96 overflow-y-auto">
@@ -327,7 +447,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="px-3 py-10 text-center text-gray-400">
+                                <td colspan="8" class="px-3 py-6 text-center text-gray-400">
                                     <i class="fas fa-calendar-xmark text-2xl mb-2 block"></i>
                                     <span class="text-sm font-medium">No attendance data yet.</span>
                                 </td>
@@ -337,68 +457,10 @@
                     </table>
                 </div>
             </div>
-        </div>
-    </div>
-
-    {{-- ── Pengajuan koreksi ──────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div class="bg-white rounded-xl p-6 shadow-sm">
-            <h3 class="text-lg font-bold text-gray-900">Attendance Correction</h3>
-            <p class="text-sm text-gray-500 mb-5">
-                Check-in and check-out are recorded once per day. Submit a correction if a time
-                needs adjusting — HR will review it.
-            </p>
-
-            @if(!$settings->allow_self_correction)
-            <div class="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                Self-service corrections are currently disabled. Please contact HR directly.
-            </div>
-            @else
-            <form method="POST" action="{{ route('general.my-attendance.correction.store') }}" id="correctionForm" class="space-y-4">
-                @csrf
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date <span class="text-red-500">*</span></label>
-                    <input type="date" name="attendance_date" required
-                           value="{{ old('attendance_date', $today->toDateString()) }}"
-                           min="{{ $today->copy()->subDays($settings->correction_max_days)->toDateString() }}"
-                           max="{{ $today->toDateString() }}"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-gray-400 mt-1">Up to {{ $settings->correction_max_days }} days back.</p>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-in Time</label>
-                        <input type="time" name="requested_check_in" value="{{ old('requested_check_in') }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-out Time</label>
-                        <input type="time" name="requested_check_out" value="{{ old('requested_check_out') }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-                </div>
-                <p class="text-xs text-gray-400 -mt-2">Fill in at least one of the two.</p>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reason <span class="text-red-500">*</span></label>
-                    <textarea name="reason" rows="3" required minlength="10" maxlength="1000"
-                              placeholder="Explain what happened, e.g. forgot to check out after a client visit"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">{{ old('reason') }}</textarea>
-                </div>
-
-                <button type="submit"
-                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-                    <i class="fas fa-paper-plane"></i> Submit Correction
-                </button>
-            </form>
-            @endif
-        </div>
 
         {{-- Riwayat pengajuan --}}
-        <div class="bg-white rounded-xl p-6 shadow-sm">
-            <h3 class="text-lg font-bold text-gray-900 mb-4">My Correction Requests</h3>
+        <div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+            <h3 class="mb-4 text-sm font-semibold text-gray-900">My Correction Requests</h3>
 
             <div class="border border-gray-200 rounded-lg overflow-x-auto">
                 <table class="w-full text-sm">
@@ -448,7 +510,7 @@
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="5" class="px-3 py-10 text-center text-gray-400">
+                            <td colspan="5" class="px-3 py-6 text-center text-gray-400">
                                 <i class="fas fa-inbox text-2xl mb-2 block"></i>
                                 <span class="text-sm font-medium">No correction requests yet.</span>
                             </td>
@@ -456,6 +518,20 @@
                         @endforelse
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+            {{-- Sumber presensi: informasi konfigurasi (diatur admin) — cukup satu baris, tak perlu kartu besar. --}}
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-gray-200 bg-white px-5 py-3.5 shadow-sm">
+                <span class="text-xs font-semibold uppercase tracking-wide text-gray-500">Attendance source</span>
+                @forelse($sources->where('is_active', true) as $source)
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700" title="{{ $source->description }}">
+                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>{{ $source->name }}
+                </span>
+                @empty
+                <span class="text-xs text-gray-500">No attendance source configured yet.</span>
+                @endforelse
+                <span class="text-xs text-gray-400">Selected by the administrator in company settings.</span>
             </div>
         </div>
     </div>

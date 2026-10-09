@@ -75,7 +75,7 @@
         $hrTiles[] = ['href' => route('general.attendance.corrections.index'), 'icon' => 'fa-pen-to-square', 'bg' => 'bg-amber-50', 'color' => 'text-amber-600', 'title' => 'Attendance Corrections', 'desc' => 'Review time corrections submitted by employees.', 'badge' => 'dashAttPendingBadge'];
     }
     if ($canLeaveAdmin) {
-        $hrTiles[] = ['href' => route('hr-general.leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Review leave and permit applications from employees.'];
+        $hrTiles[] = ['href' => route('hr-general.leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit Review', 'desc' => 'Review leave and permit applications from employees.'];
     }
     if ($can('general.settings.attendance')) {
         $hrTiles[] = ['href' => route('general.attendance.settings.edit'), 'icon' => 'fa-sliders', 'bg' => 'bg-gray-100', 'color' => 'text-gray-600', 'title' => 'Attendance Settings', 'desc' => 'Geofence mode, tolerance, and attendance rules.'];
@@ -89,111 +89,125 @@
     // lagi di sini hanya menggandakan pintu yang sama.
     $selfTiles = [];
     if ($canSelf) {
-        $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-fingerprint', 'bg' => 'bg-green-50', 'color' => 'text-green-600', 'title' => 'Check-in / Check-out', 'desc' => "Check in, check out, and view today's attendance status."];
+        // Tile 'Check-in / Check-out' dihapus: aksinya kini tombol utama kontekstual di header (satu pintu, bukan empat).
         $selfTiles[] = ['href' => route('general.my-attendance.index'), 'icon' => 'fa-clock-rotate-left', 'bg' => 'bg-sky-50', 'color' => 'text-sky-600', 'title' => 'Attendance History', 'desc' => 'View your personal history and submit corrections.'];
     }
     if ($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general')) {
-        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-check', 'bg' => 'bg-purple-50', 'color' => 'text-purple-600', 'title' => 'Leave & Permit', 'desc' => 'Apply for leave, permit, or view request history.'];
+        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-check', 'bg' => 'bg-purple-50', 'color' => 'text-purple-600', 'title' => 'My Leave & Permit', 'desc' => 'Track the status of your leave and permit requests.'];
     }
-    if ($canLeaveSelf) {
-        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'Leave & Permit', 'desc' => 'Submit a leave or permit request and track its approval.'];
+    // Tile ke-2 hanya bila tile pertama (izin Leave) tidak tampil, supaya tak ada dua tile identik.
+    if ($canLeaveSelf && !($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'))) {
+        $selfTiles[] = ['href' => route('my-leave-permit'), 'icon' => 'fa-calendar-minus', 'bg' => 'bg-pink-50', 'color' => 'text-pink-600', 'title' => 'My Leave & Permit', 'desc' => 'Track the status of your leave and permit requests.'];
     }
 
-    $tileClass = 'group relative flex flex-col gap-2 p-4 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all';
+    // Placeholder pemuatan: menggantikan "–" yang menyesatkan (terlihat seperti data kosong). Dihapus otomatis saat
+    // text() mengisi nilai; bila fetch gagal, diganti "–" (lihat clearSkeletons()).
+    $skSm = '<span class="inline-block h-4 w-12 animate-pulse rounded bg-gray-200 align-middle" aria-hidden="true"></span>';
+    $sk = '<span class="inline-block h-6 w-16 animate-pulse rounded bg-gray-200 align-middle" aria-hidden="true"></span>';
+
+    // Zona waktu PERUSAHAAN (config app.timezone), bukan zona browser — satu sumber untuk sapaan, jam, dan progres shift.
+    $tz       = config('app.timezone');
+    $tzLabel  = ['Asia/Jakarta' => 'WIB', 'Asia/Makassar' => 'WITA', 'Asia/Jayapura' => 'WIT'][$tz] ?? $tz;
+
+    // Grid tile: auto-fit di lebar penuh; saat dua kartu berdampingan (2xl) -> 2 kolom dan tile ganjil terakhir
+    // direntangkan, jadi tak ada sel kosong di baris terakhir.
+    $tilesGrid = 'grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 xl:grid-cols-[repeat(auto-fit,minmax(15rem,1fr))]'
+        . (($canRecap && $canSelf) ? ' 2xl:grid-cols-2 2xl:[&>a:last-child:nth-child(odd)]:col-span-2' : '');
+
+    $tileClass = 'group relative flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-3.5 transition hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm';
 @endphp
 
-{{-- ── HERO — menggantikan sapaan teks polos ──────────────────────────── --}}
-<div class="primary-surface rounded-2xl p-5 sm:p-6 shadow-sm text-white">
-    <div class="flex flex-col lg:flex-row lg:items-stretch lg:justify-between gap-5">
+{{-- ── HEADER HALAMAN ─────────────────────────────────────────────────────
+     Pola kartu "identitas + strip status" (Linear/Notion/Stripe):
+       baris atas  = siapa saya + aksi utama
+       strip bawah = status presensi hari ini, satu baris, label di kiri nilai di kanan
+     Satu kelompok informasi per baris, rata kiri, tanpa kolom yang berdesakan.
+     Warna merek hanya pada avatar dan tombol utama (mengikuti Accent di Settings). --}}
+@php $canLeaveAny = $can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'); @endphp
+<section aria-label="Welcome" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-        <div class="min-w-0 flex flex-col justify-center">
-            <span class="inline-flex items-center gap-2 self-start bg-white bg-opacity-15 text-xs font-semibold px-3 py-1 rounded-full mb-3 backdrop-blur-sm">
-                <i class="fas fa-wand-magic-sparkles text-[10px]"></i> Employee daily home
+    <div class="flex flex-col gap-4 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+
+        {{-- Identitas --}}
+        <div class="flex min-w-0 items-center gap-4">
+            <span class="primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm">
+                {{ \App\Support\Initials::make($user['name'] ?? $firstName, 'U') }}
             </span>
-            <h2 class="text-xl sm:text-2xl font-bold truncate">{{ $greeting }}, {{ $firstName }}</h2>
-            <p class="text-sm text-white text-opacity-80 mt-1">
-                {{ $roleName }}@if(!empty($user['position'])) &middot; {{ $user['position'] }}@endif
-            </p>
-            <p class="text-xs text-white text-opacity-70 mt-0.5">
-                {{-- 'l' = nama hari penuh pada translatedFormat() (token gaya date() PHP,
-                     BUKAN gaya moment.js). 'dddd' pernah dipakai di sini dan menghasilkan
-                     "03030303": empat huruf 'd' masing-masing berarti "tanggal 2 digit",
-                     bukan token nama hari. Untuk token gaya moment.js pakai isoFormat(),
-                     seperti profile/edit.blade.php:442. --}}
-                {{ now()->translatedFormat('l, d F Y') }}
-                <span id="dashAttShift"></span>
-            </p>
-
-            <!-- Quick Access Buttons (Mobile & Desktop) -->
-            <div class="mt-4 flex flex-wrap gap-2">
-                @if($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'))
-                <a href="{{ route('my-leave-permit') }}"
-                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition backdrop-blur-sm shadow-sm border border-white/25 active:scale-95">
-                    <i class="fas fa-calendar-check text-xs"></i> Apply Leave & Permit
-                </a>
-                @endif
-                @if($canSelf)
-                <a href="{{ route('general.my-attendance.index') }}"
-                   class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition backdrop-blur-sm shadow-sm border border-white/25 active:scale-95">
-                    <i class="fas fa-fingerprint text-xs"></i> My Attendance
-                </a>
-                @endif
+            <div class="min-w-0">
+                {{-- 'l' = nama hari penuh pada translatedFormat() (token date() PHP, BUKAN moment.js:
+                     'dddd' pernah menghasilkan "03030303"). --}}
+                <p class="text-xs font-medium text-gray-500">
+                    {{ now()->translatedFormat('l, d F Y') }}
+                    <span class="mx-1 text-gray-300">&middot;</span>
+                    <span class="tabular-nums"><span id="dashHeroClock">{{ now()->format('H:i') }}</span> {{ $tzLabel }}</span>
+                </p>
+                <h2 class="mt-0.5 truncate text-2xl font-bold leading-tight tracking-tight text-gray-900">{{ $greeting }}, {{ $firstName }}</h2>
             </div>
         </div>
 
-        @if($canSelf)
-        {{-- Kartu presensi hari ini --}}
-        <div class="bg-white rounded-xl p-4 sm:p-5 shadow-sm w-full lg:max-w-md shrink-0 text-gray-900">
-            <div class="flex items-start justify-between gap-3 mb-3">
-                <div>
-                    <p class="text-sm font-bold text-gray-900">Today's Attendance</p>
-                    <span id="dashAttBadge" class="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded bg-gray-100 text-gray-600">Loading…</span>
-                </div>
-                <div class="text-right">
-                    <p class="text-xs text-gray-400">{{ now()->translatedFormat('l') }}</p>
-                    <p class="text-sm font-bold text-gray-800">{{ now()->translatedFormat('d F Y') }}</p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <div class="border border-gray-200 rounded-lg p-2.5 sm:p-3">
-                    <p class="text-xs text-gray-500 mb-1">Check-in</p>
-                    <p class="text-lg sm:text-xl font-bold text-gray-900" id="dashAttCheckIn">–</p>
-                </div>
-                <div class="border border-gray-200 rounded-lg p-2.5 sm:p-3">
-                    <p class="text-xs text-gray-500 mb-1">Check-out</p>
-                    <p class="text-lg sm:text-xl font-bold text-gray-900" id="dashAttCheckOut">–</p>
-                </div>
-            </div>
-
-            <!-- Original Check-in / Check-out button -->
-            <a href="{{ route('general.my-attendance.index') }}"
-               class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-black transition-all">
-                <i class="fas fa-fingerprint"></i> Open details
+        {{-- Aksi --}}
+        @if($canLeaveAny || $canSelf)
+        <div class="flex shrink-0 flex-wrap items-center gap-2.5">
+            @if($canLeaveAny)
+            <a href="{{ route('my-leave-permit') }}"
+               class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 active:scale-95">
+                <i class="fas fa-calendar-check text-xs text-gray-500"></i> Apply Leave &amp; Permit
             </a>
-
-            <!-- Dedicated div below attendance for Leave & Permit -->
-            @if($can('my-leave-permit') || $can('hr_general.leave_permit') || $can('general'))
-            <div class="mt-3 pt-3 border-t border-gray-100">
-                <a href="{{ route('my-leave-permit') }}"
-                   class="flex items-center justify-between gap-2 w-full px-3.5 py-2.5 bg-purple-50 border border-purple-200 text-purple-800 hover:bg-purple-100 rounded-lg transition-all text-xs font-semibold group shadow-sm active:scale-95">
-                    <span class="flex items-center gap-2">
-                        <span class="w-6.5 h-6.5 rounded-md bg-purple-700 text-white flex items-center justify-center text-[11px] shadow-sm">
-                            <i class="fas fa-calendar-plus"></i>
-                        </span>
-                        <span>Apply Leave & Permit</span>
-                    </span>
-                    <span class="flex items-center gap-1 text-[11px] text-purple-600 font-medium">
-                        Apply now <i class="fas fa-chevron-right text-[10px] group-hover:translate-x-0.5 transition-transform"></i>
-                    </span>
-                </a>
-            </div>
+            @endif
+            @if($canSelf)
+            <a href="{{ route('general.my-attendance.index') }}"
+               class="primary-surface inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95">
+                <i id="dashAttCtaIcon" class="fas fa-fingerprint text-xs"></i> <span id="dashAttCta">Open attendance</span>
+            </a>
             @endif
         </div>
         @endif
-
     </div>
-</div>
+
+    @if($canSelf)
+    {{-- Panel presensi hari ini — SENGAJA menonjol: check-in/check-out adalah kewajiban harian, jadi angka dibuat besar dan
+         panel berubah menjadi pengingat (kuning) saat ada yang terlewat. Status warna selalu disertai teks (bukan warna saja). --}}
+    <div id="dashAttBand" class="border-t border-gray-100 bg-gray-50/60 px-5 py-4 transition-colors sm:px-6">
+        <div class="flex flex-wrap items-center gap-x-10 gap-y-4">
+
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Today's attendance</p>
+                <span id="dashAttBadge" class="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-600">Loading…</span>
+            </div>
+
+            <div class="flex items-center gap-9">
+                <div>
+                    <p class="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                        <i class="fas fa-arrow-right-to-bracket text-xs text-emerald-600 w-3.5 text-center"></i> Check-in
+                    </p>
+                    <p class="mt-1 pl-5 text-xl font-semibold leading-none tabular-nums text-gray-900" id="dashAttCheckIn">{!! $sk !!}</p>
+                </div>
+                <span class="h-8 w-px bg-gray-200"></span>
+                <div>
+                    <p class="flex items-center gap-1.5 text-xs font-medium text-gray-500">
+                        <i class="fas fa-arrow-right-from-bracket text-xs text-rose-500 w-3.5 text-center"></i> Check-out
+                    </p>
+                    <p class="mt-1 pl-5 text-xl font-semibold leading-none tabular-nums text-gray-900" id="dashAttCheckOut">{!! $sk !!}</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 sm:ml-auto">
+                {{-- Pengingat: muncul hanya bila ada yang terlewat (lihat updateReminder()). --}}
+                <div id="dashAttReminder" class="hidden items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800" role="status">
+                    <i class="fas fa-bell text-xs"></i><span id="dashAttReminderText"></span>
+                </div>
+                {{-- Diisi dari fetch (shift aktif hari ini); tersembunyi sampai ada datanya. --}}
+                <div id="dashAttShiftChip" class="hidden items-center gap-2">
+                    <i class="far fa-clock text-xs text-gray-400"></i>
+                    <span class="text-xs text-gray-500">Shift</span>
+                    <span class="text-xs font-medium text-gray-700" id="dashAttShift"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+</section>
 
 {{-- ── COMMAND CENTER (HC-D37) ───────────────────────────────────────────
      Disisipkan di SINI, antara hero sapaan dan "Easy Access Daily" — bukan
@@ -201,110 +215,101 @@
      setelah seluruh blok presensi (terlalu jauh ke bawah, perlu scroll).
      Posisi ini hasil percobaan langsung pemilik 1 Okt: dua posisi lain sudah
      dicoba dan ditolak. --}}
+{{-- Slot: halaman induk (home) mendorong 'Company overview' ke sini agar tampil tepat di bawah header. --}}
+@stack('dash-after-hero')
+
 @include('home.command-center')
 
+{{-- Dua kartu presensi: berdampingan mulai 2xl (≥1536 px) bila pengguna memegang keduanya; selain itu bertumpuk. --}}
+<div class="grid grid-cols-1 items-start gap-6 {{ $canRecap && $canSelf ? '2xl:grid-cols-2' : '' }}">
 {{-- ── SISI HR ────────────────────────────────────────────────────────── --}}
 @if($canRecap)
-<div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-    <div class="flex items-center justify-between gap-3 mb-1">
-        <p class="text-sm font-semibold text-gray-800">Easy Access Daily</p>
+<section aria-label="Attendance administration" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3.5">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900">Attendance administration</h3>
+            <p class="text-xs text-gray-500">Daily shortcuts and today's company-wide numbers</p>
+        </div>
         <a href="{{ route('general.attendance.daily') }}" class="text-xs font-semibold primary-text hover:underline">Attendance Recap &rarr;</a>
     </div>
-    <p class="text-xs text-gray-400 mb-4">Quick shortcuts for daily access.</p>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        @foreach($hrTiles as $tile)
-        <a href="{{ $tile['href'] }}" class="{{ $tileClass }}">
-            @if(!empty($tile['badge']))
-            <span id="{{ $tile['badge'] }}" class="hidden absolute top-3 right-3 min-w-[1.25rem] h-5 px-1.5 bg-amber-500 text-white text-[10px] font-bold rounded-full items-center justify-center"></span>
-            @endif
-            <div class="w-9 h-9 rounded-xl {{ $tile['bg'] }} flex items-center justify-center">
-                <i class="fas {{ $tile['icon'] }} {{ $tile['color'] }} text-sm"></i>
-            </div>
-            <p class="text-sm font-semibold text-gray-800 leading-tight">{{ $tile['title'] }}</p>
-            <p class="text-xs text-gray-400 leading-snug">{{ $tile['desc'] }}</p>
-        </a>
+    {{-- Ringkasan hari ini se-perusahaan, satu baris bersekat.
+         Absent SENGAJA tidak ditampilkan: selama modul Cuti belum ada, angka itu hanya dapat
+         ditebak dan tebakannya menuduh karyawan yang sedang cuti sebagai alpa. --}}
+    <div class="grid grid-cols-2 xl:grid-cols-4 divide-x divide-y divide-gray-100 border-b border-gray-100 xl:divide-y-0">
+        @foreach([
+            ['id' => 'dashAttHrRecorded',  'label' => 'Recorded today', 'hint' => 'attendance rows'],
+            ['id' => 'dashAttHrCheckedIn', 'label' => 'Checked in',     'hint' => 'employees'],
+            ['id' => 'dashAttHrStillIn',   'label' => 'Still in',       'hint' => 'no check-out yet'],
+            ['id' => 'dashAttHrLate',      'label' => 'Late',           'hint' => 'employees'],
+        ] as $stat)
+        <div class="px-5 py-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $stat['label'] }}</p>
+            <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-gray-900" id="{{ $stat['id'] }}">{!! $sk !!}</p>
+            <p class="mt-1 text-xs text-gray-500">{{ $stat['hint'] }}</p>
+        </div>
         @endforeach
     </div>
 
-    {{-- Ringkasan hari ini se-perusahaan.
-         Absent SENGAJA tidak ditampilkan: selama modul Cuti belum ada, angka
-         itu hanya dapat ditebak dan tebakannya menuduh karyawan yang sedang
-         cuti sebagai alpa. --}}
-    <div class="mt-5 pt-5 border-t border-gray-100">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Today's Attendance &mdash; All Employees</p>
-        <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
-            @foreach([
-                ['id' => 'dashAttHrRecorded',  'label' => 'Recorded',    'hint' => 'rows today'],
-                ['id' => 'dashAttHrCheckedIn', 'label' => 'Checked in',  'hint' => 'employees'],
-                ['id' => 'dashAttHrStillIn',   'label' => 'Still In',    'hint' => 'no check-out yet'],
-                ['id' => 'dashAttHrLate',      'label' => 'Late',        'hint' => 'employees'],
-            ] as $stat)
-            <div class="border border-gray-200 rounded-xl p-4">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ $stat['label'] }}</p>
-                <p class="text-2xl font-bold text-gray-900 mt-1" id="{{ $stat['id'] }}">–</p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ $stat['hint'] }}</p>
-            </div>
-            @endforeach
-        </div>
+    <div class="{{ $tilesGrid }}">
+        @foreach($hrTiles as $tile)
+        <a href="{{ $tile['href'] }}" class="{{ $tileClass }}">
+            @if(!empty($tile['badge']))
+            <span id="{{ $tile['badge'] }}" class="absolute right-3 top-3 hidden h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-[10px] font-bold text-white"></span>
+            @endif
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $tile['bg'] }}">
+                <i class="fas {{ $tile['icon'] }} {{ $tile['color'] }} text-sm"></i>
+            </span>
+            <span class="min-w-0">
+                <span class="block text-sm font-semibold leading-tight text-gray-900">{{ $tile['title'] }}</span>
+                <span class="mt-0.5 block text-xs leading-snug text-gray-500">{{ $tile['desc'] }}</span>
+            </span>
+        </a>
+        @endforeach
     </div>
-</div>
+</section>
 @endif
 
 {{-- ── SISI PRIBADI ───────────────────────────────────────────────────── --}}
 @if($canSelf)
 
-<div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
-    @foreach($selfStats as $stat)
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-4">
-        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ $stat['label'] }}</p>
-        <p class="text-2xl font-bold text-gray-900 mt-1" id="{{ $stat['id'] }}">–</p>
-        <p class="text-xs text-gray-400 mt-0.5">{{ $stat['hint'] }}</p>
-    </div>
-    @endforeach
-</div>
-
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-        <p class="text-sm font-semibold text-gray-800">Daily Access</p>
-        <p class="text-xs text-gray-400 mb-4">Quick shortcuts for daily access.</p>
-        {{-- Tersisa dua ubin, jadi pada layar lebar keduanya DITUMPUK, bukan
-             berdampingan: dua ubin berdampingan di kolom sempit menyisakan
-             ruang kosong besar di bawahnya, dan kartu ini berdiri di samping
-             riwayat yang jauh lebih tinggi. --}}
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-            @foreach($selfTiles as $tile)
-            <a href="{{ $tile['href'] }}" class="{{ $tileClass }}">
-                <div class="w-9 h-9 rounded-xl {{ $tile['bg'] }} flex items-center justify-center">
-                    <i class="fas {{ $tile['icon'] }} {{ $tile['color'] }} text-sm"></i>
-                </div>
-                <p class="text-sm font-semibold text-gray-800 leading-tight">{{ $tile['title'] }}</p>
-                <p class="text-xs text-gray-400 leading-snug">{{ $tile['desc'] }}</p>
-            </a>
-            @endforeach
+<section aria-label="My attendance" class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-3.5">
+        <div>
+            <h3 class="text-sm font-semibold text-gray-900">My attendance</h3>
+            <p class="text-xs text-gray-500">Your numbers for {{ now()->translatedFormat('F Y') }}</p>
         </div>
+        <a href="{{ route('general.my-attendance.index') }}" class="text-xs font-semibold primary-text hover:underline">Open details &rarr;</a>
     </div>
 
-    <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-        <div class="flex items-start justify-between gap-3 mb-4">
-            <div>
-                <p class="text-sm font-semibold text-gray-800">My Attendance History</p>
-                <p class="text-xs text-gray-400">Your last 7 recorded days.</p>
-            </div>
-            <a href="{{ route('general.my-attendance.index') }}"
-               class="text-xs font-semibold px-3 py-1.5 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-all whitespace-nowrap">
-                Open details
-            </a>
+    <div class="grid grid-cols-2 xl:grid-cols-4 divide-x divide-y divide-gray-100 border-b border-gray-100 xl:divide-y-0">
+        @foreach($selfStats as $stat)
+        <div class="px-5 py-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">{{ $stat['label'] }}</p>
+            <p class="mt-1 text-2xl font-bold leading-none tabular-nums text-gray-900" id="{{ $stat['id'] }}">{!! $sk !!}</p>
+            <p class="mt-1 text-xs text-gray-500">{{ $stat['hint'] }}</p>
         </div>
-        <div id="dashAttHistory" class="space-y-3">
-            <p class="text-sm text-gray-400 py-8 text-center">Loading…</p>
-        </div>
+        @endforeach
     </div>
 
-</div>
+    {{-- Riwayat 7 hari dihapus atas permintaan pemilik (8 Okt): detailnya tetap ada di My Attendance. --}}
+    <div class="{{ $tilesGrid }}">
+        @foreach($selfTiles as $tile)
+        <a href="{{ $tile['href'] }}" class="{{ $tileClass }}">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg {{ $tile['bg'] }}">
+                <i class="fas {{ $tile['icon'] }} {{ $tile['color'] }} text-sm"></i>
+            </span>
+            <span class="min-w-0">
+                <span class="block text-sm font-semibold leading-tight text-gray-900">{{ $tile['title'] }}</span>
+                <span class="mt-0.5 block text-xs leading-snug text-gray-500">{{ $tile['desc'] }}</span>
+            </span>
+        </a>
+        @endforeach
+    </div>
+</section>
 
 @endif
+</div>
 
 {{-- Skrip hanya dimuat bila ada yang perlu diisi. Pengguna tanpa satu pun izin
      presensi tetap mendapat kartu hero-nya, tanpa permintaan HTTP tambahan. --}}
@@ -321,6 +326,68 @@
         if (el) el.textContent = value;
     };
 
+    // ── Jam & progres shift — zona waktu PERUSAHAAN, bukan zona browser. Selisih jam browser vs server dikoreksi
+    //    sekali (skew), jadi jam yang tampil sama dengan jam yang dipakai server menilai keterlambatan.
+    const TZ = @json($tz);
+    const skew = {{ now()->getTimestampMs() }} - Date.now();
+    const hm = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+    const minutesOfDay = () => {
+        const p = hm.formatToParts(new Date(Date.now() + skew));
+        return (parseInt(p.find(x => x.type === 'hour').value, 10) % 24) * 60 + parseInt(p.find(x => x.type === 'minute').value, 10);
+    };
+    let shiftRange = null, lastRecord = null;
+
+    /**
+     * Pengingat presensi (hanya bila ada rentang shift hari ini, jadi tidak muncul di hari libur/tanpa jadwal):
+     *  - belum check-in dan jam kerja sudah mulai  -> "You haven't checked in yet."
+     *  - sudah check-in, belum check-out, shift lewat -> "Shift has ended. Remember to check out."
+     * Panel berubah kuning agar terlihat; selain itu tampil netral.
+     */
+    function updateReminder() {
+        const box = document.getElementById('dashAttReminder'), band = document.getElementById('dashAttBand');
+        if (!box || !band) return;
+        let msg = '';
+        if (shiftRange) {
+            const now = minutesOfDay();
+            if (!lastRecord || !lastRecord.check_in_at) { if (now >= shiftRange[0]) msg = "You haven't checked in yet."; }
+            else if (!lastRecord.check_out_at && now >= shiftRange[1]) { msg = 'Shift has ended. Remember to check out.'; }
+        }
+        text('dashAttReminderText', msg);
+        box.classList.toggle('hidden', !msg);
+        box.classList.toggle('inline-flex', !!msg);
+        band.classList.toggle('bg-amber-50/60', !!msg);
+        band.classList.toggle('bg-gray-50/60', !msg);
+    }
+
+    function tick() { text('dashHeroClock', hm.format(new Date(Date.now() + skew))); updateReminder(); }
+    setInterval(tick, 15000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+
+    /** Jam presensi; kosong -> placeholder abu-abu "--:--" (bukan garis tebal "–"). */
+    function setTime(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = value || '--:--';
+        el.classList.toggle('text-gray-300', !value);
+        el.classList.toggle('text-gray-900', !!value);
+    }
+
+    /** Placeholder yang masih tersisa (mis. fetch gagal / tak ada datanya) diganti "–". */
+    function clearSkeletons() {
+        document.querySelectorAll('.animate-pulse[aria-hidden="true"]').forEach(el => { if (el.parentNode) el.parentNode.textContent = /^dashAttCheck/.test(el.parentNode.id) ? '--:--' : '–'; });
+    }
+
+    /** Tombol utama mengikuti kondisi: belum masuk -> Check in; sudah masuk -> Check out; selesai -> lihat detail. */
+    function renderCta(record) {
+        const cta = document.getElementById('dashAttCta'), icon = document.getElementById('dashAttCtaIcon');
+        if (!cta) return;
+        let label = 'Check in now', ic = 'fa-arrow-right-to-bracket';
+        if (record && record.check_in_at && !record.check_out_at) { label = 'Check out'; ic = 'fa-arrow-right-from-bracket'; }
+        else if (record && record.check_in_at && record.check_out_at) { label = 'View attendance'; ic = 'fa-fingerprint'; }
+        cta.textContent = label;
+        icon.className = 'fas ' + ic + ' text-xs';
+    }
+
     /** Menit -> "7 h 30 m". Sama dengan format di halaman My Attendance. */
     function duration(minutes) {
         if (!minutes || minutes <= 0) return '0 m';
@@ -329,77 +396,48 @@
         return ((h > 0 ? h + ' h ' : '') + (m > 0 ? m + ' m' : '')).trim();
     }
 
-    /** Badge status hari ini. Kuning = perlu ditinjau, BUKAN kesalahan. */
+    /** Badge status hari ini. Kuning = perlu ditinjau, BUKAN kesalahan. [label, kelas pil, kelas titik] */
     function todayBadge(record) {
-        if (!record || !record.check_in_at) return ['Not checked in', 'bg-gray-100 text-gray-600'];
-        if (!record.check_out_at)            return ['Checked in',     'bg-blue-100 text-blue-700'];
-        if (record.late_minutes > 0)         return ['Completed, late ' + record.late_minutes + ' m', 'bg-amber-100 text-amber-700'];
-        return ['Completed', 'bg-green-100 text-green-700'];
+        if (!record || !record.check_in_at) return ['Not checked in', 'bg-gray-100 text-gray-600', 'bg-gray-400'];
+        if (!record.check_out_at)            return ['Checked in',     'bg-blue-50 text-blue-700', 'bg-blue-500'];
+        if (record.late_minutes > 0)         return ['Completed, late ' + record.late_minutes + ' m', 'bg-amber-50 text-amber-700', 'bg-amber-500'];
+        return ['Completed', 'bg-emerald-50 text-emerald-700', 'bg-emerald-500'];
     }
 
     function renderSelf(self) {
         if (!self) return;
 
         const record = self.record;
-        text('dashAttCheckIn',  record && record.check_in_at  ? record.check_in_at  : '–');
-        text('dashAttCheckOut', record && record.check_out_at ? record.check_out_at : '–');
+        setTime('dashAttCheckIn',  record && record.check_in_at);
+        setTime('dashAttCheckOut', record && record.check_out_at);
 
         const badge = document.getElementById('dashAttBadge');
         if (badge) {
-            const [label, cls] = todayBadge(record);
-            badge.textContent = label;
-            badge.className = 'inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded ' + cls;
+            const [label, cls, dot] = todayBadge(record);
+            badge.className = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ' + cls;
+            badge.innerHTML = '<span class="h-1.5 w-1.5 rounded-full ' + dot + '"></span><span></span>';
+            badge.lastChild.textContent = label;
         }
 
+        renderCta(record);
+        lastRecord = record || null;
+
         if (self.shift) {
-            text('dashAttShift', ' · shift ' + self.shift.name + ' (' + self.shift.time_range + ')');
+            const m = /(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/.exec(self.shift.time_range || '');
+            // Shift lintas tengah malam (akhir <= awal) tidak diberi pengingat: perhitungannya perlu tanggal, bukan jam saja.
+            if (m && (+m[3] * 60 + +m[4]) > (+m[1] * 60 + +m[2])) { shiftRange = [+m[1] * 60 + +m[2], +m[3] * 60 + +m[4]]; }
+            text('dashAttShift', self.shift.name + ' (' + self.shift.time_range + ')');
+            const chip = document.getElementById('dashAttShiftChip');
+            if (chip) { chip.classList.remove('hidden'); chip.classList.add('inline-flex'); }
         }
+
+        updateReminder();
 
         const s = self.summary || {};
         text('dashAttPresent',  s.present ?? 0);
         text('dashAttLate',     s.late ?? 0);
         text('dashAttWork',     duration(s.work_minutes));
         text('dashAttOvertime', duration(s.overtime_minutes));
-
-        renderHistory(self.history || []);
-    }
-
-    function renderHistory(rows) {
-        const box = document.getElementById('dashAttHistory');
-        if (!box) return;
-
-        if (!rows.length) {
-            box.innerHTML = '<p class="text-sm text-gray-400 py-8 text-center">No attendance recorded in the last 7 days.</p>';
-            return;
-        }
-
-        box.innerHTML = rows.map(function (r) {
-            const late = r.late > 0;
-            const badgeCls = late ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700';
-            const badgeTxt = late ? 'Late ' + r.late + ' m' : 'Present';
-
-            const cell = (label, value) =>
-                '<div class="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">' +
-                    '<p class="text-[10px] text-gray-400">' + label + '</p>' +
-                    '<p class="text-sm font-semibold text-gray-800">' + (value || '–') + '</p>' +
-                '</div>';
-
-            return '' +
-                '<div class="border border-gray-200 rounded-xl p-3">' +
-                    '<div class="flex items-start justify-between gap-3 mb-2">' +
-                        '<div>' +
-                            '<p class="text-sm font-bold text-gray-800">' + r.date + '</p>' +
-                            '<p class="text-xs text-gray-400">' + r.day + '</p>' +
-                        '</div>' +
-                        '<span class="px-2 py-0.5 text-xs font-semibold rounded ' + badgeCls + '">' + badgeTxt + '</span>' +
-                    '</div>' +
-                    '<div class="grid grid-cols-3 gap-2">' +
-                        cell('Check-in', r.check_in) +
-                        cell('Check-out', r.check_out) +
-                        cell('Overtime', r.overtime) +
-                    '</div>' +
-                '</div>';
-        }).join('');
     }
 
     function renderAdmin(admin) {
@@ -427,8 +465,8 @@
         })
         .catch(() => {
             text('dashAttBadge', 'Unavailable');
-            renderHistory([]);
-        });
+        })
+        .finally(clearSkeletons);
 })();
 </script>
 @endpush
