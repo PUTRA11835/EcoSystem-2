@@ -30,10 +30,10 @@ final class MenuAccessRules
         return $this->config['other_module'];
     }
 
-    /** Urutan modul untuk kolom kiri (modul "lainnya" terakhir). @return array<int, array{key: string, label: string}> */
+    /** Urutan modul untuk kolom kiri (modul "lainnya" terakhir); `group` + `short` bila modul dilipat dalam satu blok. @return array<int, array{key: string, label: string, group?: string, short?: string, about?: string}> */
     public function modules(): array
     {
-        $list = array_map(fn ($m) => ['key' => $m['key'], 'label' => $m['label']], $this->config['modules']);
+        $list = array_map(fn ($m) => ['key' => $m['key'], 'label' => $m['label']] + array_filter(['group' => $m['group'] ?? null, 'short' => $m['short'] ?? null, 'about' => $m['about'] ?? null]), $this->config['modules']);
         $list[] = $this->config['other_module'];
 
         return $list;

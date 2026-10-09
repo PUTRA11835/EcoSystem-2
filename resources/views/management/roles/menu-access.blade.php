@@ -132,6 +132,13 @@
     .ma-mod:hover { background:#f3f4f6; }
     .ma-mod.is-on { background:rgba(var(--primary-rgb, 153,27,27), .10); color:var(--primary-color, #991b1b); font-weight:700; }
     .ma-count { font-size:.6875rem; color:#6b7280; white-space:nowrap; }
+    .ma-mod-group { display:flex; align-items:center; gap:.1rem; }
+    .ma-mod-group .ma-mod { flex:1; min-width:0; }
+    .ma-chev { padding:.45rem .55rem; border-radius:.5rem; color:#9ca3af; }
+    .ma-chev:hover { background:#f3f4f6; color:#374151; }
+    .ma-chev:focus-visible { outline:2px solid #991b1b; outline-offset:2px; }
+    .ma-mod-subs { margin:.1rem 0 .35rem .9rem; padding-left:.35rem; border-left:1px solid #e5e7eb; }
+    .ma-mod-sub { font-size:.78rem; padding:.35rem .6rem; }
     .ma-grid { display:grid; grid-template-columns:minmax(0,1fr) 3.75rem 3.75rem 3.75rem 3.75rem minmax(8rem,15rem); align-items:center; column-gap:.25rem; }
     .ma-row { padding:.5rem 1rem; }
     .ma-row:hover { background:#fafafa; }
@@ -183,6 +190,11 @@
     let grants = {};                 // menu_id -> {v,c,e,d} | undefined
     const draft = new Map();         // menu_id -> {v,c,e,d} | null   (keadaan yang DIINGINKAN, hanya yang berbeda dari server)
     let moduleSel = 'all', filter = 'all', query = '';
+    // Modules that share a `group` (Human Resources, Master, Work & Service ...) fold into one block of the left column;
+    // the block can be picked as a whole to see all its rows together. Modules without a group stand alone.
+    const groupKey = (g) => 'group:' + String(g).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const groupOpen = new Set();     // blocks the person opened by hand
+    let groupOf = {};                // module key -> its block's key
 
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const notify = (m, t) => (window.showNotification ? window.showNotification(m, t || 'info') : alert(m));
@@ -209,6 +221,8 @@
         const r = await call('GET', API);
         if (!r.ok) { notify('Could not load menu access (' + r.status + ').', 'error'); return; }
         data = r.json.data;
+        groupOf = {};
+        data.modules.forEach((m) => { if (m.group) { groupOf[m.key] = groupKey(m.group); } });
         grants = data.grants || {};
         menusById = {}; orderIndex = {};
         data.menus.forEach((m, i) => { menusById[m.id] = m; orderIndex[m.id] = i; });
@@ -235,6 +249,8 @@
     const rowLocked = (r) => locked(rowMain(r));
     const rowModule = (r) => rowMain(r).module;
     const rowChanged = (r) => r.menu_ids.some((id) => changed(id));
+    // Is this row in the module (or whole block of modules) picked on the left?
+    const inScope = (r) => moduleSel === 'all' || rowModule(r) === moduleSel || groupOf[rowModule(r)] === moduleSel;
     const rowOn = (r) => !!eff(r.main);
     const allCells = (r) => ['c', 'e', 'd'].map((k) => r.cells[k]).filter(Boolean);
 
@@ -248,7 +264,7 @@
     function visibleRows() {
         const q = query.trim().toLowerCase();
         const base = flatRows().filter((r) => {
-            if (moduleSel !== 'all' && rowModule(r) !== moduleSel) { return false; }
+            if (!inScope(r)) { return false; }
             if (q && !rowMatches(r, q)) { return false; }
             if (filter === 'granted' && !rowOn(r)) { return false; }
             if (filter === 'not' && rowOn(r)) { return false; }
@@ -271,7 +287,7 @@
     // kedalaman relatif: hanya hitung leluhur yang ikut tampil di modul yang sama
     function relDepth(r) {
         let d = 0, p = r.parent_key && rowByKey[r.parent_key];
-        while (p) { if (moduleSel === 'all' || rowModule(p) === moduleSel) { d++; } p = p.parent_key && rowByKey[p.parent_key]; }
+        while (p) { if (inScope(p)) { d++; } p = p.parent_key && rowByKey[p.parent_key]; }
         return d;
     }
 
@@ -292,12 +308,30 @@
             if (rowOn(r)) { c.on++; }
             if (rowChanged(r)) { c.changed++; }
         });
-        const li = (key, label, c) => `<li><button type="button" class="ma-mod ${moduleSel === key ? 'is-on' : ''}" data-mod="${esc(key)}" aria-pressed="${moduleSel === key}">
-            <span class="truncate">${esc(label)}${c.changed ? ' <span class="ml-1 px-1.5 rounded-full bg-amber-200 text-amber-900 text-[10px]">' + c.changed + '</span>' : ''}</span>
+        const changedPill = (c) => c.changed ? ' <span class="ml-1 px-1.5 rounded-full bg-amber-200 text-amber-900 text-[10px]">' + c.changed + '</span>' : '';
+        const li = (key, label, c, sub, about) => `<li><button type="button" class="ma-mod ${sub ? 'ma-mod-sub' : ''} ${moduleSel === key ? 'is-on' : ''}" data-mod="${esc(key)}" aria-pressed="${moduleSel === key}"${about ? ' title="' + esc(about) + '"' : ''}>
+            <span class="truncate">${esc(label)}${changedPill(c)}</span>
             <span class="ma-count">${c.on}/${c.total}</span></button></li>`;
-        const all = Object.values(counts).reduce((a, c) => ({ total: a.total + c.total, on: a.on + c.on, changed: a.changed + c.changed }), { total: 0, on: 0, changed: 0 });
-        document.getElementById('maModules').innerHTML = li('all', 'All modules', all)
-            + data.modules.filter((mod) => counts[mod.key] && (counts[mod.key].total > 0 || mod.key === 'ess')).map((mod) => li(mod.key, mod.label, counts[mod.key])).join('');
+        const sum = (list) => list.reduce((a, mod) => ({ total: a.total + counts[mod.key].total, on: a.on + counts[mod.key].on, changed: a.changed + counts[mod.key].changed }), { total: 0, on: 0, changed: 0 });
+        const all = sum(data.modules.filter((mod) => counts[mod.key]));
+        const shown = data.modules.filter((mod) => counts[mod.key] && (counts[mod.key].total > 0 || mod.key === 'ess'));
+
+        const html = [li('all', 'All modules', all)];
+        const done = {};
+        shown.forEach((mod) => {
+            if (!mod.group) { html.push(li(mod.key, mod.label, counts[mod.key], false, mod.about)); return; }
+            if (done[mod.group]) { return; }
+            done[mod.group] = true;
+            const members = shown.filter((x) => x.group === mod.group);
+            const gk = groupKey(mod.group), c = sum(members);
+            const open = groupOpen.has(gk) || moduleSel === gk || members.some((x) => x.key === moduleSel);
+            html.push(`<li><div class="ma-mod-group">
+                <button type="button" class="ma-mod ${moduleSel === gk ? 'is-on' : ''}" data-mod="${esc(gk)}" aria-pressed="${moduleSel === gk}" title="Show every ${esc(mod.group)} module together">
+                    <span class="truncate"><i class="fas fa-folder-tree text-[11px] mr-1.5 opacity-60"></i>${esc(mod.group)}${changedPill(c)}</span><span class="ma-count">${c.on}/${c.total}</span></button>
+                <button type="button" class="ma-chev" data-group-toggle="${esc(gk)}" aria-expanded="${open}" aria-label="${open ? 'Collapse' : 'Expand'} ${esc(mod.group)}"><i class="fas fa-chevron-${open ? 'down' : 'right'} text-[10px]"></i></button></div>
+                <ul class="ma-mod-subs ${open ? '' : 'hidden'}">${members.map((x) => li(x.key, x.short || x.label, counts[x.key], true, x.about)).join('')}</ul></li>`);
+        });
+        document.getElementById('maModules').innerHTML = html.join('');
     }
 
     function badge(cls, icon, text, title) {
@@ -399,9 +433,11 @@
         document.getElementById('maRows').innerHTML = items.map((i) => i.hub ? hubHtml(i) : rowHtml(i)).join('');
         document.getElementById('maEmpty').classList.toggle('hidden', shownRows.length > 0);
         const mod = data.modules.find((x) => x.key === moduleSel);
-        document.getElementById('maModuleTitle').textContent = moduleSel === 'all' ? 'All modules' : (mod ? mod.label : moduleSel);
+        const grp = data.modules.find((x) => x.group && groupKey(x.group) === moduleSel);
+        document.getElementById('maModuleTitle').textContent = moduleSel === 'all' ? 'All modules' : (grp ? grp.group + ' (all modules)' : (mod ? mod.label : moduleSel));
         const granted = shownRows.filter(rowOn).length;
-        document.getElementById('maShownInfo').textContent = `${shownRows.length} rows shown · ${granted} with View`;
+        const about = mod && mod.about ? mod.about + ' ' : '';
+        document.getElementById('maShownInfo').textContent = `${about}${shownRows.length} ${shownRows.length === 1 ? 'row' : 'rows'} shown · ${granted} with View`;
         document.getElementById('maBulkGrant').disabled = !shownRows.some((r) => canGrant(rowMain(r)) && !rowOn(r));
         document.getElementById('maBulkRevoke').disabled = !shownRows.some((r) => canRevoke(rowMain(r)) && rowOn(r));
     }
@@ -618,7 +654,12 @@
     }
 
     // ───────────────────────────────────────────────── peristiwa
-    document.getElementById('maModules').addEventListener('click', (e) => { const b = e.target.closest('[data-mod]'); if (b) { moduleSel = b.dataset.mod; render(); } });
+    document.getElementById('maModules').addEventListener('click', (e) => {
+        const t = e.target.closest('[data-group-toggle]');
+        if (t) { const k = t.dataset.groupToggle; if (groupOpen.has(k)) { groupOpen.delete(k); } else { groupOpen.add(k); } renderModules(); return; }
+        const b = e.target.closest('[data-mod]');
+        if (b) { moduleSel = b.dataset.mod; render(); }
+    });
     document.querySelectorAll('.ma-filter').forEach((b) => b.addEventListener('click', () => { filter = b.dataset.filter; syncFilter(); renderRows(); }));
     function syncFilter() { document.querySelectorAll('.ma-filter').forEach((b) => { const on = b.dataset.filter === filter; b.classList.toggle('is-on', on); b.setAttribute('aria-selected', on); }); }
     let t = null;
