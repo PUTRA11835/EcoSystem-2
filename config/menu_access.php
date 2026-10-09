@@ -62,6 +62,9 @@ return [
         'general.letter-templates',
         'general.contracts.list',
         'general.contracts.templates',
+        'general.inventory.items',               // Create = add a stock line, Edit = edit / adjust stock, Delete = delete a line
+        'general.inventory.assets',              // Create = add an asset, Edit = edit / assign, Delete = delete an asset
+        'general.inventory.settings',            // Create = add a dropdown option, Edit = rename / re-order / switch off, Delete = delete an unused option
         'finance.payroll.periods',               // Create = new period / adjustment, Edit = calculate / remove adjustment, Delete = delete an open period
         'finance.payroll.settings',              // Edit = change calculation policy
         'finance.bpjs.letters',                  // Create = generate a BPJS letter, Delete = void a BPJS letter
@@ -103,6 +106,7 @@ return [
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
         ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates']],
+        ['key' => 'inventory',     'label' => 'Inventory & Assets',   'tabs' => ['general.inventory.overview', 'general.inventory.items', 'general.inventory.assets', 'general.inventory.settings']],
         ['key' => 'payroll',       'label' => 'Payroll',              'tabs' => ['finance.payroll.periods', 'finance.payroll.settings', 'finance.payroll.simulation']],
         ['key' => 'bpjs',          'label' => 'BPJS',                 'tabs' => ['finance.bpjs.settings', 'finance.bpjs.report', 'finance.bpjs.letters']],
         ['key' => 'pph21',         'label' => 'PPh 21',               'tabs' => ['finance.pph21.settings', 'finance.pph21.report']],
@@ -131,6 +135,9 @@ return [
         'finance.bpjs.letters'                => ['c' => 'Generate a BPJS letter', 'd' => 'Void a BPJS letter'],
         'finance.bpjs.settings'               => ['c' => 'Add a new BPJS setting version (earlier versions are never changed)'],
         'finance.pph21.settings'              => ['c' => 'Create a tax year (copy of another year)', 'e' => 'Edit PTKP, progressive and TER rates'],
+        'general.inventory.items'             => ['c' => 'Add an inventory line', 'e' => 'Edit a line / adjust its stock', 'd' => 'Delete a line'],
+        'general.inventory.assets'            => ['c' => 'Add an asset', 'e' => 'Edit an asset / assign it to an employee', 'd' => 'Delete an asset'],
+        'general.inventory.settings'          => ['c' => 'Add a dropdown option', 'e' => 'Rename / re-order / switch an option on or off', 'd' => 'Delete an option nobody uses'],
         'general.contracts.templates'         => ['c' => 'Add a template', 'e' => 'Edit a template', 'd' => 'Delete a template (not a system default)'],
         'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
         'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
@@ -148,35 +155,39 @@ return [
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.
+    // `group` (opsional) = modul dengan group yang sama dilipat jadi satu blok di kolom kiri halaman Menu Access;
+    // `short` = nama pendeknya di dalam blok itu. `about` (opsional) = penjelasan satu kalimat, tampil di atas daftar baris modul itu.
     'modules' => [
-        ['key' => 'ess',         'label' => 'My Workspace (ESS)',        'match' => ['ess', 'ess.*', 'general.my-*', 'my-leave-permit', 'profile.my', 'my-profile', 'my-profile.*', 'general.my-kpi*']],
-        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'match' => ['general.attendance', 'general.attendance.*', 'general.settings.branches*', 'general.settings.shifts*', 'general.settings.attendance*']],
-        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*']],
-        ['key' => 'hr-reimb',    'label' => 'HR · Reimbursement',        'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*']],
-        ['key' => 'hr-pr',       'label' => 'HR · Purchase Request',     'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.settings.purchase-request*']],
-        ['key' => 'hr-ca',       'label' => 'HR · Cash Advance',         'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
-        ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'match' => [
+        ['key' => 'ess',         'label' => 'My Workspace (ESS)',        'group' => 'My Workspace', 'short' => 'Self-service (ESS)', 'match' => ['ess', 'ess.*', 'general.my-*', 'my-leave-permit', 'profile.my', 'my-profile', 'my-profile.*', 'general.my-kpi*']],
+        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Resources', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.branches*', 'general.settings.shifts*', 'general.settings.attendance*']],
+        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Resources', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*']],
+        ['key' => 'hr-reimb',    'label' => 'HR · Reimbursement',        'group' => 'Human Resources', 'short' => 'Reimbursement', 'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*']],
+        ['key' => 'hr-pr',       'label' => 'HR · Purchase Request',     'group' => 'Human Resources', 'short' => 'Purchase Request', 'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.settings.purchase-request*']],
+        ['key' => 'hr-ca',       'label' => 'HR · Cash Advance',         'group' => 'Human Resources', 'short' => 'Cash Advance', 'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
+        ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'group' => 'Human Resources', 'short' => 'Recruitment & Offering', 'match' => [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
-        ['key' => 'hr-contract', 'label' => 'HR · Contract', 'match' => ['general.contracts', 'general.contracts.*']],
+        ['key' => 'hr-contract', 'label' => 'HR · Contract', 'group' => 'Human Resources', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
+        ['key' => 'ga-inventory', 'label' => 'General Affairs · Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         ['key' => 'finance',     'label' => 'Commercial & Finance',     'match' => ['finance', 'finance.*']],
-        ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'match' => [
+        ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'group' => 'Human Resources', 'short' => 'Docs & Letters', 'match' => [
             'general.letter-templates', 'general.letter-templates.*', 'general.letters', 'general.letters.*',
         ]],
-        ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
-        ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
-        ['key' => 'hr-approval', 'label' => 'HR · Approval Workflow',    'match' => ['general.approval-workflow', 'general.approval-workflow.*']],
-        ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'match' => ['hr_general', 'hr_general.*']],
-        ['key' => 'hr-other',    'label' => 'HR & General (umbrella)',   'match' => ['general', 'general.*']],
-        ['key' => 'employee',    'label' => 'Master · Employee',         'match' => ['employee', 'employee.*', 'master.employee*']],
-        ['key' => 'customer',    'label' => 'Master · Customer',         'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
-        ['key' => 'ticketing',   'label' => 'Ticketing',                 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging']],
-        ['key' => 'delivery',    'label' => 'Delivery',                  'match' => ['delivery', 'delivery.*', 'delivery-project.*', 'delivery-support.*']],
+        ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Resources', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
+        ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Resources', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
+        ['key' => 'hr-approval', 'label' => 'HR · Approval Workflow',    'group' => 'Human Resources', 'short' => 'Approval Workflow', 'match' => ['general.approval-workflow', 'general.approval-workflow.*']],
+        ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Resources', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
+        ['key' => 'hr-other',    'label' => 'HR & General · root access', 'group' => 'Human Resources', 'short' => 'Root access (General)',
+            'about' => 'Only the parent row "HR & General" (slug general): the root above every HR & General page. The sidebar and the older tab bars use it as a fallback; pages with their own tab permission ignore it.', 'match' => ['general', 'general.*']],
+        ['key' => 'employee',    'label' => 'Master · Employee',         'group' => 'Master', 'short' => 'Employee', 'match' => ['employee', 'employee.*', 'master.employee*']],
+        ['key' => 'customer',    'label' => 'Master · Customer',         'group' => 'Master', 'short' => 'Customer', 'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
+        ['key' => 'ticketing',   'label' => 'Ticketing',                 'group' => 'Work & Service', 'short' => 'Ticketing', 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging']],
+        ['key' => 'delivery',    'label' => 'Delivery',                  'group' => 'Work & Service', 'short' => 'Delivery', 'match' => ['delivery', 'delivery.*', 'delivery-project.*', 'delivery-support.*']],
         ['key' => 'reporting',   'label' => 'Reporting',                 'match' => ['reporting', 'reporting.*']],
-        ['key' => 'calendar',    'label' => 'Calendar & Timesheet',      'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
-        ['key' => 'sla-rpmo',    'label' => 'SLA & RPMO',                'match' => ['sla', 'sla.*', 'rpmo', 'rpmo.*']],
-        ['key' => 'management',  'label' => 'Management',                'match' => ['management', 'management.*']],
-        ['key' => 'control',     'label' => 'Control Center',            'match' => ['control-center', 'control-center.*']],
+        ['key' => 'calendar',    'label' => 'Calendar & Timesheet',      'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
+        ['key' => 'sla-rpmo',    'label' => 'SLA & RPMO',                'group' => 'Work & Service', 'short' => 'SLA & RPMO', 'match' => ['sla', 'sla.*', 'rpmo', 'rpmo.*']],
+        ['key' => 'management',  'label' => 'Management',                'group' => 'Administration', 'short' => 'Management', 'match' => ['management', 'management.*']],
+        ['key' => 'control',     'label' => 'Control Center',            'group' => 'Administration', 'short' => 'Control Center', 'match' => ['control-center', 'control-center.*']],
         ['key' => 'apps',        'label' => 'Aplikasi lain',             'match' => ['dashboard', 'ai-assistant', 'ai-research', 'financial', 'business', 'legal']],
     ],
     'other_module' => ['key' => 'other', 'label' => 'Lainnya (belum dikelompokkan)'],
