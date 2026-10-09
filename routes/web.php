@@ -271,6 +271,10 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
         Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
 
+        // Pemakaian token + estimasi sisa saldo AI — dipegang super admin.
+        Route::get('/ai-usage', [\App\Http\Controllers\AiUsageController::class, 'index'])->name('ai-usage')->middleware('menu:control-center.ai-usage');
+        Route::post('/ai-usage/balance', [\App\Http\Controllers\AiUsageController::class, 'saveBalance'])->name('ai-usage.balance')->middleware('menu:control-center.ai-usage');
+
         // Tema musiman default untuk semua user (dashboard) + halaman login — dipegang super admin.
         Route::get('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'index'])->name('seasonal-theme')->middleware('menu:control-center.seasonal-theme');
         Route::post('/seasonal-theme', [\App\Http\Controllers\SeasonalThemeSettingsController::class, 'update'])->name('seasonal-theme.update')->middleware('menu:control-center.seasonal-theme');

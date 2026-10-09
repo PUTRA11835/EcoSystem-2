@@ -1,14 +1,14 @@
 @extends('dashboard')
 @section('title', 'Resource Timeline')
 @section('page-title', 'Resource Timeline')
-@section('page-subtitle', 'Daily customer assignment per SAP Consultant / PMO')
+@section('page-subtitle', 'Daily customer assignment per SAP / Salesforce Consultant / PMO')
 
 @section('content')
 
 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
     <div>
         <h2 class="text-xl font-bold text-gray-900">Resource Timeline</h2>
-        <p class="text-sm text-gray-500 mt-0.5">Where every SAP Consultant is assigned, day by day. Click a consultant's row to create or edit their timeline.</p>
+        <p class="text-sm text-gray-500 mt-0.5">Where every SAP / Salesforce Consultant is assigned, day by day. Click a consultant's row to create or edit their timeline.</p>
     </div>
     <div id="rtToolbar" class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
         <input type="search" id="rtCustomerSearch" placeholder="Search customer code…" autocomplete="off"
@@ -345,7 +345,7 @@
 
         const filtered = rows.length !== rtRows.length;
         document.getElementById('rtSummary').textContent =
-            `${filtered ? rows.length + ' of ' + rtRows.length : rtRows.length} SAP Consultant${rtRows.length === 1 ? '' : 's'}`;
+            `${filtered ? rows.length + ' of ' + rtRows.length : rtRows.length} Consultant${rtRows.length === 1 ? '' : 's'}`;
     }
 
     // Same header pattern as the Ticket list: one button (label + sort glyph +
@@ -395,7 +395,7 @@
         const tbody = document.getElementById('rtBody');
 
         if (!rows.length) {
-            tbody.innerHTML = `<tr><td colspan="${4 + (rtView === 'yearly' ? 12 : rtDays.length)}" class="text-center py-8 text-sm text-gray-400">No SAP Consultants found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${4 + (rtView === 'yearly' ? 12 : rtDays.length)}" class="text-center py-8 text-sm text-gray-400">No consultants found.</td></tr>`;
             return;
         }
 

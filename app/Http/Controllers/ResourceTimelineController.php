@@ -187,7 +187,7 @@ class ResourceTimelineController extends Controller
                 function ($attribute, $value, $fail) {
                     $isConsultant = $this->service->consultantsQuery()->where('employee.employee_id', $value)->exists();
                     if (!$isConsultant) {
-                        $fail('Selected employee is not an SAP Consultant or Project Management Officer.');
+                        $fail('Selected employee is not an SAP Consultant, Salesforce Consultant or Project Management Officer.');
                     }
                 },
             ],
