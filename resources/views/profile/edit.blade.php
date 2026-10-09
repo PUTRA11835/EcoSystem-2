@@ -11,11 +11,11 @@
 
     if ($isEmployee && $profile) {
         $displayName = trim(($profile->first_name ?? '') . ' ' . ($profile->last_name ?? ''));
-        $initials    = strtoupper(substr($profile->first_name ?? 'U', 0, 1) . substr($profile->last_name ?? '', 0, 1));
+        $initials    = \App\Support\Initials::make($displayName, 'U');
         $subtitle    = $profile->position ?? ($profile->role_name ?? 'Employee');
     } else {
         $displayName = trim(($profile->title ?? '') . ' ' . ($profile->name_1 ?? ''));
-        $initials    = strtoupper(substr($profile->name_1 ?? 'C', 0, 2));
+        $initials    = \App\Support\Initials::make($profile->name_1 ?? '', 'C');
         $subtitle    = $profile->customer_category ?? 'Customer';
     }
 @endphp

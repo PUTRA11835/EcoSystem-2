@@ -19,7 +19,7 @@
 
     <div class="flex items-center justify-between">
         <a href="{{ route('finance.payroll.periods.show', $p->id) }}" class="text-xs text-indigo-700 hover:underline"><i class="fas fa-arrow-left mr-1"></i>Back to {{ $p->name }}</a>
-        <a href="{{ route('finance.payroll.slips.pdf', [$p->id, $s->id]) }}" target="_blank" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-file-pdf mr-2"></i>Download PDF</a>
+        <a href="{{ route('finance.payroll.slips.pdf', [$p->id, $s->id, 'lang' => 'id']) }}" target="_blank" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-file-pdf mr-2"></i>PDF (Indonesia)</a>
     </div>
 
     {{-- Identity --}}

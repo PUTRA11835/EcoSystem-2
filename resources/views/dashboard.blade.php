@@ -1668,9 +1668,9 @@
                                 <div
                                     class="w-10 h-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-md">
                                     @if(isset($user['type']) && $user['type'] === 'customer')
-                                        {{ strtoupper(substr($user['company_name'] ?? 'C', 0, 2)) }}
+                                        {{ \App\Support\Initials::make($user['company_name'] ?? '', 'C') }}
                                     @else
-                                        {{ strtoupper(substr($user['name'] ?? 'U', 0, 2)) }}
+                                        {{ \App\Support\Initials::make($user['name'] ?? '', 'U') }}
                                     @endif
                                 </div>
                                 <div class="text-left hidden xl:block">

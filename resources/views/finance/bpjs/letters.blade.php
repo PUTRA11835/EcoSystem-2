@@ -16,8 +16,10 @@
     @if(session('bpjs_letter_id'))
         <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-green-800 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
             <span><i class="fas fa-circle-check mr-2"></i>{{ session('success') }}</span>
-            <a href="{{ route('finance.bpjs.letters.pdf', session('bpjs_letter_id')) }}" target="_blank" class="px-4 py-1.5 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-file-pdf mr-2"></i>Open PDF</a>
+            <a href="{{ route('finance.bpjs.letters.pdf', [session('bpjs_letter_id'), 'download' => 1]) }}" class="px-4 py-1.5 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-download mr-2"></i>Download again</a>
         </div>
+        {{-- Setelah Generate, PDF langsung terunduh. --}}
+        <iframe src="{{ route('finance.bpjs.letters.pdf', [session('bpjs_letter_id'), 'download' => 1]) }}" class="hidden" aria-hidden="true"></iframe>
     @endif
 
     @if(!$hasLetterhead)
@@ -88,6 +90,7 @@
                 <div><label class="{{ $label }}">Letter date</label><input type="date" name="letter_date" value="{{ old('letter_date', $defaults['letter_date']) }}" class="{{ $input }}" @disabled(!$canCreate)></div>
                 <div><label class="{{ $label }}">Signer name</label><input type="text" name="signer_name" maxlength="150" value="{{ old('signer_name', $defaults['signer_name']) }}" class="{{ $input }}" @disabled(!$canCreate)></div>
                 <div><label class="{{ $label }}">Signer position</label><input type="text" name="signer_position" maxlength="150" value="{{ old('signer_position', $defaults['signer_position']) }}" class="{{ $input }}" @disabled(!$canCreate)></div>
+                <div><label class="{{ $label }}">Contact (phone / email)</label><input type="text" name="contact" maxlength="200" value="{{ old('contact') }}" placeholder="Printed under the signer’s details" class="{{ $input }}" @disabled(!$canCreate)></div>
                 <div><label class="{{ $label }}">Staff name</label><input type="text" name="staff_name" maxlength="150" value="{{ old('staff_name') }}" placeholder="Optional — contact person in the letter" class="{{ $input }}" @disabled(!$canCreate)></div>
                 <div><label class="{{ $label }}">City</label><input type="text" name="city" maxlength="100" value="{{ old('city', $defaults['city']) }}" class="{{ $input }}" @disabled(!$canCreate)></div>
             </div>

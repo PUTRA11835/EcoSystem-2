@@ -49,10 +49,14 @@
         <div class="background"><img src="{{ $background }}"></div>
     @endif
 
-    <div class="title">
-        <u>@yield('title')</u><br>
-        {{ __('letters.number') }}: {{ $number }}
-    </div>
+    @hasSection('header')
+        @yield('header')
+    @else
+        <div class="title">
+            <u>@yield('title')</u><br>
+            {{ __('letters.number') }}: {{ $number }}
+        </div>
+    @endif
 
     @yield('body')
 

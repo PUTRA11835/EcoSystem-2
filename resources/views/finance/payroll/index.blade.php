@@ -6,10 +6,7 @@
 @php
     $m = fn ($n) => \App\Support\Payroll\Money::format($n);
     $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white';
-    $badge = [
-        'open' => 'bg-gray-100 text-gray-700', 'approved' => 'bg-blue-100 text-blue-700',
-        'paid' => 'bg-green-100 text-green-700', 'locked' => 'bg-gray-800 text-white',
-    ];
+    $badge = ['open' => 'bg-blue-100 text-blue-700', 'locked' => 'bg-gray-800 text-white'];
 @endphp
 
 @section('content')
@@ -18,8 +15,8 @@
     @include('hr-general.recruitment.components.form-errors')
 
     {{-- Summary --}}
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        @foreach([['Total periods', $summary['total'], 'text-gray-800'], ['Open', $summary['open'], 'text-blue-600'], ['Approved / paid', $summary['approved'], 'text-amber-600'], ['Locked', $summary['locked'], 'text-green-600']] as [$label, $n, $tone])
+    <div class="grid grid-cols-3 gap-3">
+        @foreach([['Total periods', $summary['total'], 'text-gray-800'], ['Open', $summary['open'], 'text-blue-600'], ['Locked', $summary['locked'], 'text-green-600']] as [$label, $n, $tone])
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4">
                 <p class="text-xs text-gray-500">{{ $label }}</p>
                 <p class="text-3xl font-bold mt-1 {{ $tone }}">{{ $n }}</p>
@@ -44,6 +41,15 @@
                 <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pay date</label>
                     <input type="date" name="pay_date" value="{{ old('pay_date', $defaults['pay']) }}" class="{{ $input }}"></div>
             </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mt-3">
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Attendance period start</label>
+                    <input type="date" name="attendance_start" value="{{ old('attendance_start', $defaults['start']) }}" class="{{ $input }}"></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Attendance period end</label>
+                    <input type="date" name="attendance_end" value="{{ old('attendance_end', $defaults['end']) }}" class="{{ $input }}"></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cut-off date (optional)</label>
+                    <input type="date" name="cutoff_date" value="{{ old('cutoff_date') }}" class="{{ $input }}"></div>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Attendance, leave and overtime are read from the attendance period. Workdays after the cut-off date are treated as fully present and corrected in the next payroll.</p>
             <div class="mt-3"><button type="submit" @disabled(!$enabled) class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90 disabled:opacity-50"><i class="fas fa-circle-plus mr-2"></i>Create period</button></div>
         </form>
     @endif
@@ -67,7 +73,7 @@
                             <td class="px-3 py-3 text-gray-600">
                                 @if($p->calculated_at)
                                     {{ $p->employee_count }} employees calculated
-                                    <p class="text-xs text-gray-500">{{ $p->status === 'open' ? 'Not approved yet' : 'Approved ' . \Carbon\Carbon::parse($p->approved_at)->format('d M Y') }}</p>
+                                    <p class="text-xs text-gray-500">{{ $p->status === 'locked' ? 'Locked ' . \Carbon\Carbon::parse($p->locked_at)->format('d M Y') : ($p->slips_generated_at ? 'Payslips generated' : 'Payslips not generated') }}</p>
                                 @else
                                     <span class="text-gray-400">Not calculated yet</span>
                                 @endif
@@ -86,7 +92,7 @@
                                         <button type="submit" @disabled(!$enabled) class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-green-300 text-green-700 hover:bg-green-50 disabled:opacity-50">{{ $p->calculated_at ? 'Recalculate' : 'Calculate' }}</button></form>
                                 @endif
                                 @if($p->status === 'open' && $caps['delete'])
-                                    <form method="POST" action="{{ route('finance.payroll.periods.destroy', $p->id) }}" class="inline" onsubmit="return confirm('Delete {{ addslashes($p->name) }} with all its payslips and adjustments? This cannot be undone.')">@csrf
+                                    <form method="POST" action="{{ route('finance.payroll.periods.destroy', $p->id) }}" class="inline" data-confirm="Delete {{ $p->name }} with all its payslips and corrections? This cannot be undone." data-confirm-title="Delete payroll period" data-confirm-ok="Delete" data-confirm-variant="danger">@csrf
                                         <button type="submit" @disabled(!$enabled) class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50">Delete</button></form>
                                 @endif
                             </td>
