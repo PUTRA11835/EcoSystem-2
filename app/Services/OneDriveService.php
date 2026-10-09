@@ -28,12 +28,46 @@ class OneDriveService
      * Sanitize a single path segment (folder name) for OneDrive/SharePoint.
      * Replaces illegal characters ( \ / : * ? " < > | ) with a space,
      * collapses whitespace, and trims. Falls back to a safe default if empty.
+     *
+     * Nama yang ditolak SharePoint TIDAK dijawab Graph sebagai "nama tidak valid",
+     * melainkan error menyesatkan seperti `itemNotFound` — contoh: customer
+     * "PT ADHI KARYA (PERSERO) TBK." (titik di ujung) membuat folder customer
+     * tidak pernah terbuat dan setiap upload deliverable gagal. Karena itu
+     * semua aturan nama SharePoint dibersihkan di sini:
+     *   - karakter ilegal & karakter kontrol
+     *   - titik/spasi di awal atau akhir, prefix "~$" (file lock Office)
+     *   - nama terlarang (CON, PRN, AUX, NUL, COM0-9, LPT0-9, desktop.ini)
+     *   - "_vti_" di mana pun dalam nama
+     * Idempotent: memanggilnya dua kali menghasilkan nama yang sama.
      */
     public static function sanitizeSegment(string $name, string $fallback = 'Folder'): string
     {
         $clean = preg_replace('~[\\\\/:*?"<>|]~', ' ', $name);
-        $clean = trim(preg_replace('~\s+~', ' ', $clean));
-        return $clean !== '' ? $clean : $fallback;
+        $clean = preg_replace('~[\x00-\x1F\x7F]~', '', $clean);
+        $clean = str_ireplace('_vti_', 'vti', $clean);
+        $clean = preg_replace('~\s+~', ' ', $clean);
+        // Ulang sampai stabil: membuang "~$" bisa memunculkan titik/spasi baru di
+        // depan, dan sebaliknya (mis. " .~$x" → "~$x" → "x").
+        do {
+            $before = $clean;
+            $clean  = trim(preg_replace('/^~\$/', '', trim($clean, ". \t")), ". \t");
+        } while ($clean !== $before);
+
+        // Batas panjang segmen OneDrive 255 karakter; 200 menyisakan ruang.
+        if (mb_strlen($clean) > 200) {
+            $clean = trim(mb_substr($clean, 0, 200), ". \t");
+        }
+
+        if ($clean === '') {
+            return $fallback;
+        }
+
+        // ".lock" tidak perlu dicek: titik di awal sudah dibuang di atas.
+        if (preg_match('~^(con|prn|aux|nul|com\d|lpt\d|desktop\.ini)$~i', $clean)) {
+            $clean .= ' Folder';
+        }
+
+        return $clean;
     }
 
     /**
@@ -103,7 +137,8 @@ class OneDriveService
      */
     public function createFolder(string $folderName): string
     {
-        $token = $this->getAccessToken();
+        $folderName = self::sanitizeSegment($folderName);
+        $token      = $this->getAccessToken();
 
         $response = Http::withToken($token)->post(
             "{$this->driveBase}/drive/root/children",
@@ -154,7 +189,8 @@ class OneDriveService
      */
     public function createFolderInPath(string $folderName, string $parentPath): string
     {
-        $token = $this->getAccessToken();
+        $folderName = self::sanitizeSegment($folderName);
+        $token      = $this->getAccessToken();
         $encodedParent = implode('/', array_map('rawurlencode', explode('/', $parentPath)));
 
         $response = Http::withToken($token)->post(
@@ -228,9 +264,13 @@ class OneDriveService
      */
     public function findOrCreateFolderInPath(string $parentPath, string $folderName): string
     {
-        $children = $this->listFolderChildrenByPath($parentPath);
+        // Sanitasi SEBELUM mencari, supaya nama yang dicocokkan sama dengan
+        // nama yang benar-benar dibuat — kalau tidak, upload berikutnya tidak
+        // menemukan foldernya dan membuat duplikat ("... 1").
+        $folderName = self::sanitizeSegment($folderName);
+        $children   = $this->listFolderChildrenByPath($parentPath);
 
-        $needle = mb_strtolower(trim($folderName));
+        $needle = mb_strtolower($folderName);
         foreach ($children as $child) {
             if (mb_strtolower($child['name']) === $needle) {
                 return $child['id'];
@@ -247,7 +287,8 @@ class OneDriveService
      */
     public function createSubFolder(string $parentFolderId, string $folderName): string
     {
-        $token = $this->getAccessToken();
+        $folderName = self::sanitizeSegment($folderName);
+        $token      = $this->getAccessToken();
 
         $response = Http::withToken($token)->post(
             "{$this->driveBase}/drive/items/{$parentFolderId}/children",
@@ -462,9 +503,11 @@ class OneDriveService
      */
     public function findOrCreateSubFolderById(string $parentFolderId, string $folderName): string
     {
-        $children = $this->listSubFoldersByParentId($parentFolderId);
+        // Lihat findOrCreateFolderInPath(): sanitasi sebelum mencari.
+        $folderName = self::sanitizeSegment($folderName);
+        $children   = $this->listSubFoldersByParentId($parentFolderId);
 
-        $needle = mb_strtolower(trim($folderName));
+        $needle = mb_strtolower($folderName);
         foreach ($children as $child) {
             if (mb_strtolower($child['name']) === $needle) {
                 return $child['id'];

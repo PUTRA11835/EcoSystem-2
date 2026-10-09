@@ -242,8 +242,10 @@ class DeliverySupport extends Model
             return null;
         }
 
-        return str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($this->client->basicData->name_1);
+        return \App\Services\OneDriveService::sanitizeSegment(
+            str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
+                . ' ' . strtoupper($this->client->basicData->name_1)
+        );
     }
 
     /**
