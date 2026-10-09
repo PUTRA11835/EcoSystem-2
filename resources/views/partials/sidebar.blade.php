@@ -30,7 +30,7 @@
          (overflow-y-auto) sehingga logo ikut terguling. Kini <aside> berupa kolom flex:
          header `flex-shrink-0` tidak pernah bergeser, hanya #sidebarScroll di bawahnya
          yang menggulung. --}}
-    <div id="sidebarHeader" class="flex-shrink-0 px-4 pt-4 pb-3">
+    <div id="sidebarHeader" class="shrink-0 px-4 pt-4 pb-3">
         <!-- Logo Section -->
         <div class="sidebar-logo flex items-center justify-center">
             <div class="w-full rounded-xl px-3 backdrop-blur-sm">
@@ -550,6 +550,20 @@
             @endif
 @php $sb['bpjs'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
+            {{-- General Affairs → Inventory & Assets — one hub (Overview | Inventory | Assets | Settings); opens the first tab the person holds. --}}
+            @if($can('general.inventory.overview') || $can('general.inventory.items') || $can('general.inventory.assets') || $can('general.inventory.settings'))
+                <div class="mb-2">
+                    <a href="{{ route('general.inventory.index') }}"
+                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/inventory*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-boxes-stacked"></i>
+                        </span>
+                        <span class="nav-text font-medium">Inventory & Assets</span>
+                    </a>
+                </div>
+            @endif
+@php $sb['inventory'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             {{-- Commercial & Finance → Payroll (Fase 3) — one hub; opens the first tab the person holds. --}}
             @if($can('finance.payroll.periods') || $can('finance.payroll.settings') || $can('finance.payroll.simulation'))
                 <div class="mb-2">
@@ -843,7 +857,7 @@
                                 @endif
                             </a>
                         @endif
-                        
+
                         {{-- Letter Templates — the letters hub; opens the first of its five tabs the person can view. --}}
                         @if($can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register')
                             || $can('general.letters.compose') || $can('general.letter-templates'))
@@ -1345,6 +1359,7 @@
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
                     ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
+                    ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
                     ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],

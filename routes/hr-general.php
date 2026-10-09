@@ -15,6 +15,8 @@ use App\Http\Controllers\HR_General\DashboardAttendanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceReportController;
 use App\Http\Controllers\HR_General\GeoLookupController;
+use App\Http\Controllers\HR_General\InventoryController;
+use App\Http\Controllers\HR_General\InventorySettingController;
 use App\Http\Controllers\HR_General\LetterComposeController;
 use App\Http\Controllers\HR_General\LetterDashboardController;
 use App\Http\Controllers\HR_General\LetterRegisterController;
@@ -1443,6 +1445,60 @@ Route::prefix('general/onboarding')
             Route::post('/preview', [OnboardingController::class, 'joinDatesPreview'])->name('preview');
             Route::post('/import',  [OnboardingController::class, 'joinDatesImport'])->name('import');
             Route::post('/remind',  [OnboardingController::class, 'joinDatesRemind'])->name('remind');
+        });
+    });
+
+/**
+ * GENERAL AFFAIRS — INVENTORY & ASSETS. Satu halaman, empat tab, slug sendiri-sendiri:
+ *
+ *   Overview   (general.inventory.overview)  V rekap kedua daftar
+ *   Inventory  (general.inventory.items)     V daftar · C tambah · E ubah / sesuaikan stok · D hapus   (stok barang habis pakai)
+ *   Assets     (general.inventory.assets)    V daftar · C tambah · E ubah / serahkan · D hapus         (satu baris per unit aset)
+ *   Settings   (general.inventory.settings)  V lihat · C tambah opsi · E ubah nama / urutan / nonaktifkan · D hapus opsi yang tak dipakai (daftar dropdown)
+ *
+ * Hanya GET & POST (aksi: /update, /delete). Tambah / ubah lewat modal di halaman daftar (tanpa halaman create/edit).
+ * Foto disajikan lewat rute `/photo` yang dijaga slug tabnya (disk privat, bukan URL publik).
+ */
+Route::prefix('general/inventory')
+    ->name('general.inventory.')
+    ->middleware(CheckAuthToken::class)
+    ->group(function () {
+        $itemsCan = fn (string $action) => "menu.can:general.inventory.items,{$action}";
+        $assetsCan = fn (string $action) => "menu.can:general.inventory.assets,{$action}";
+        $settingsCan = fn (string $action) => "menu.can:general.inventory.settings,{$action}";
+
+        Route::get('/', [InventoryController::class, 'home'])->name('index')->middleware('menu:general.inventory.overview,general.inventory.items,general.inventory.assets,general.inventory.settings');
+        Route::get('/overview', [InventoryController::class, 'overview'])->name('overview')->middleware('menu:general.inventory.overview');
+
+        Route::prefix('items')->name('items.')->middleware('menu:general.inventory.items')->group(function () use ($itemsCan) {
+            Route::get('/', [InventoryController::class, 'items'])->name('index');
+            Route::post('/', [InventoryController::class, 'storeItem'])->name('store')->middleware($itemsCan('create'));
+            Route::whereNumber('item')->group(function () use ($itemsCan) {
+                Route::get('/{item}/photo', [InventoryController::class, 'itemPhoto'])->name('photo');
+                Route::post('/{item}/update', [InventoryController::class, 'updateItem'])->name('update')->middleware($itemsCan('edit'));
+                Route::post('/{item}/delete', [InventoryController::class, 'destroyItem'])->name('destroy')->middleware($itemsCan('delete'));
+            });
+        });
+
+        Route::prefix('assets')->name('assets.')->middleware('menu:general.inventory.assets')->group(function () use ($assetsCan) {
+            Route::get('/', [InventoryController::class, 'assets'])->name('index');
+            Route::post('/', [InventoryController::class, 'storeAsset'])->name('store')->middleware($assetsCan('create'));
+            Route::whereNumber('asset')->group(function () use ($assetsCan) {
+                Route::get('/{asset}/photo', [InventoryController::class, 'assetPhoto'])->name('photo');
+                Route::post('/{asset}/update', [InventoryController::class, 'updateAsset'])->name('update')->middleware($assetsCan('edit'));
+                Route::post('/{asset}/delete', [InventoryController::class, 'destroyAsset'])->name('destroy')->middleware($assetsCan('delete'));
+            });
+        });
+
+        Route::prefix('settings')->name('settings.')->middleware('menu:general.inventory.settings')->group(function () use ($settingsCan) {
+            Route::get('/', [InventorySettingController::class, 'index'])->name('index');
+            Route::post('/', [InventorySettingController::class, 'store'])->name('store')->middleware($settingsCan('create'));
+            Route::whereNumber('option')->group(function () use ($settingsCan) {
+                Route::post('/{option}/update', [InventorySettingController::class, 'update'])->name('update')->middleware($settingsCan('edit'));
+                Route::post('/{option}/toggle', [InventorySettingController::class, 'toggle'])->name('toggle')->middleware($settingsCan('edit'));
+                Route::post('/{option}/move/{direction}', [InventorySettingController::class, 'move'])->whereIn('direction', ['up', 'down'])->name('move')->middleware($settingsCan('edit'));
+                Route::post('/{option}/delete', [InventorySettingController::class, 'destroy'])->name('destroy')->middleware($settingsCan('delete'));
+            });
         });
     });
 
