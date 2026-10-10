@@ -498,7 +498,7 @@
                                         <div id="sub-bar-${d.detail_id}" class="${progressBarColor(parseFloat(d.progress_percentage)||0)} h-1.5 rounded-full" style="width:${parseFloat(d.progress_percentage)||0}%"></div>
                                     </div>
                                     <span id="sub-pct-${d.detail_id}" class="font-bold text-gray-700">${parseFloat(d.progress_percentage)||0}%</span>
-                                    ${d.employee_id == myEmpId ? `
+                                    ${d.employee_id == myEmpId || t.is_lead ? `
                                     <button onclick="event.stopPropagation(); openCpModal(${t.ticket_id}, '${(t.ticket_number ?? '').replace(/'/g, "\\'")}', ${d.detail_id})"
                                         class="inline-flex items-center gap-1 text-xs font-semibold bg-indigo-500 hover:bg-indigo-600 text-white px-2.5 py-1 rounded-lg transition" title="Edit Progress">
                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
