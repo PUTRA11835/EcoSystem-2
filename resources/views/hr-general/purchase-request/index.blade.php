@@ -57,7 +57,6 @@
             </p>
         </div>
 
-        {{-- Filter --}}
         <form method="GET" action="{{ route('general.purchase-request.index') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -149,7 +148,7 @@
                         </td>
 
                         <td class="px-4 py-3 whitespace-nowrap text-gray-900">
-                            {{ $request->request_date->format('Y.m.d') }}
+                            {{ $request->request_date->format('d M Y') }}
                         </td>
 
                         <td class="px-4 py-3">
@@ -197,7 +196,7 @@
                                     Current step: {{ $request->currentStepName() ?? '—' }}
                                 @elseif($request->completed_at)
                                     {{ PurchaseRequest::STATUS_LABELS[$request->status] ?? ucfirst($request->status) }}:
-                                    {{ $request->completed_at->format('d.m.Y') }}
+                                    {{ $request->completed_at->format('d M Y') }}
                                 @endif
                             </div>
                             @if($isDeleted && $request->delete_reason)
@@ -209,8 +208,8 @@
                              disetujui, dibatalkan, atau diedit — jadi ia menjawab
                              "terakhir disentuh kapan", bukan sekadar kapan dibuat. --}}
                         <td class="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                            <div>Created : {{ $request->created_at?->format('d.m.Y') ?? '—' }}</div>
-                            <div>Update&nbsp; : {{ $request->updated_at?->format('d.m.Y') ?? '—' }}</div>
+                            <div>Created : {{ $request->created_at?->format('d M Y') ?? '—' }}</div>
+                            <div>Update&nbsp; : {{ $request->updated_at?->format('d M Y') ?? '—' }}</div>
                         </td>
 
                         <td class="px-4 py-3">

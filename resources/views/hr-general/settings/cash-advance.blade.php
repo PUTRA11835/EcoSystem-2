@@ -72,7 +72,6 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
-                {{-- Identitas cetakan --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Company name</label>
                     <input type="text" name="company_name" value="{{ old('company_name', $settings->company_name) }}"
@@ -90,7 +89,6 @@
                     </label>
                 </div>
 
-                {{-- Tanggal --}}
                 <div class="flex items-end">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" name="allow_future_date" value="1"
@@ -120,7 +118,6 @@
 
                 <div></div>
 
-                {{-- Nominal --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Minimum amount</label>
                     <input type="number" name="min_amount" step="0.01" min="0"
@@ -180,7 +177,6 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 primary-border">
                 </div>
 
-                {{-- Bukti pendukung --}}
                 <div class="flex items-end">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" name="require_detail_url" value="1"
@@ -200,7 +196,6 @@
                     </p>
                 </div>
 
-                {{-- Pembebanan — jawaban C4 --}}
                 <div class="flex items-end">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" name="require_cost_center" value="1"
@@ -225,7 +220,6 @@
                     <p class="text-xs text-gray-400 mt-1">Unchecking one removes its dropdown — no code change.</p>
                 </div>
 
-                {{-- Persetujuan --}}
                 <div class="flex items-end">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
                         <input type="checkbox" name="allow_self_approval" value="1"

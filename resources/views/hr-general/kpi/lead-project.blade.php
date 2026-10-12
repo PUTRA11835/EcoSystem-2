@@ -87,7 +87,6 @@
                     <tr>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-10">No</th>
 
-                        {{-- Employee --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-52.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Employee</span>
@@ -117,7 +116,6 @@
                             </div>
                         </th>
 
-                        {{-- Position --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-32.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Position</span>
@@ -151,7 +149,6 @@
                             </div>
                         </th>
 
-                        {{-- Project --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-42.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Project</span>
@@ -196,7 +193,6 @@
                             </div>
                         </th>
 
-                        {{-- Leader --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-57.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Leader</span>

@@ -42,7 +42,7 @@
                     <p class="text-[10px] text-gray-400 mt-0.5">The oldest requests still waiting on HR.</p>
                 </div>
                 @if($canRequests)
-                    <a href="{{ route('general.letters.requests.index') }}" class="text-xs font-semibold" style="color: var(--primary-color);">Open Requests <i class="fas fa-arrow-right text-[10px]"></i></a>
+                    <a href="{{ route('general.letters.requests.index') }}" class="text-xs font-semibold primary-text">Open Requests <i class="fas fa-arrow-right text-[10px]"></i></a>
                 @endif
             </div>
             <table class="w-full text-xs text-left">
@@ -96,7 +96,7 @@
                 <p class="text-[10px] text-gray-400 mt-0.5">The last ten letters in and out.</p>
             </div>
             @if($canRegister)
-                <a href="{{ route('general.letters.register.index') }}" class="text-xs font-semibold" style="color: var(--primary-color);">Open the register <i class="fas fa-arrow-right text-[10px]"></i></a>
+                <a href="{{ route('general.letters.register.index') }}" class="text-xs font-semibold primary-text">Open the register <i class="fas fa-arrow-right text-[10px]"></i></a>
             @endif
         </div>
         <div class="overflow-x-auto">

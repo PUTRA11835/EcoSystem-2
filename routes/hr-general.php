@@ -26,6 +26,7 @@ use App\Http\Controllers\HR_General\MyLetterRequestController;
 use App\Http\Controllers\HR_General\MyAttendanceController;
 use App\Http\Controllers\HR_General\MyOvertimeController;
 use App\Http\Controllers\HR_General\MyPurchaseRequestController;
+use App\Http\Controllers\HR_General\DataTransferController;
 use App\Http\Controllers\HR_General\MyReimbursementController;
 use App\Http\Controllers\HR_General\PurchaseRequestController;
 use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
@@ -1511,3 +1512,14 @@ Route::prefix('general/inventory')
 Route::post('/sidebar/favorites', [SidebarFavoriteController::class, 'sync'])
     ->middleware([CheckAuthToken::class, 'throttle:60,1'])
     ->name('sidebar.favorites.sync');
+
+// Excel export / import for HR & General tables (see App\Support\DataTransfer\Registry).
+// Permissions are checked per table inside the controller, using each page's own menu slug.
+Route::prefix('general/data')
+    ->name('general.data.')
+    ->middleware(CheckAuthToken::class)
+    ->group(function () {
+        Route::get('/{dataset}/export', [DataTransferController::class, 'export'])->name('export');
+        Route::get('/{dataset}/template', [DataTransferController::class, 'template'])->name('template');
+        Route::post('/{dataset}/import', [DataTransferController::class, 'import'])->name('import')->middleware('throttle:20,1');
+    });

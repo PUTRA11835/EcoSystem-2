@@ -99,7 +99,7 @@
                             </a>
                         </td>
 
-                        <td class="px-4 py-3 whitespace-nowrap">{{ $report->report_date->format('d.m.Y') }}</td>
+                        <td class="px-4 py-3 whitespace-nowrap">{{ $report->report_date->format('d M Y') }}</td>
 
                         <td class="px-4 py-3">{{ $report->description }}</td>
 

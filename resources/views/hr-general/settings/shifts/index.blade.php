@@ -5,6 +5,7 @@
 @section('page-subtitle', 'Working hour patterns used to calculate lateness and working time')
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'attendance.shifts'])
 @php
     $dayLabels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
 @endphp

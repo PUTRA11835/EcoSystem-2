@@ -40,6 +40,8 @@ use Illuminate\Support\Facades\Log;
  */
 class ReimbursementService
 {
+    public const DIRECTOR_STEP_NAME = 'Director Approval';
+
     public function __construct(private ReimbursementTotalService $totals)
     {
     }
@@ -65,18 +67,31 @@ class ReimbursementService
             return $gate + ['request' => null];
         }
 
-        $items = $this->normaliseItems($payload['items'] ?? []);
+        $currency = $this->resolveCurrency($payload['currency'] ?? null);
+
+        $approverId = $this->resolveApprover($payload['approver_id'] ?? null, $settings);
+        if ($approverId === false) {
+            return [
+                'allowed' => false,
+                'reason'  => 'Choose which director will approve this reimbursement.',
+                'request' => null,
+            ];
+        }
+
+        $items = $this->normaliseItems($payload['items'] ?? [], $currency);
 
         $gate = $this->checkItemRules($items, $settings);
         if (!$gate['allowed']) {
             return $gate + ['request' => null];
         }
 
-        $evaluated = $this->totals->evaluate($items, $this->rulesFrom($settings, $payload));
+        $evaluated = $this->totals->evaluate($items, $this->rulesFrom($settings, $payload, $currency));
 
         // Satu-satunya aturan item yang dapat MENOLAK, dan hanya bila pemilik
-        // sistem memilih mode `block` (Keputusan D107).
-        if ($settings->blocksOverLimit()
+        // sistem memilih mode `block` (Keputusan D107). Batas nominal berdenominasi
+        // rupiah, jadi hanya berlaku pada dokumen IDR.
+        if ($currency === ReimbursementRequest::DEFAULT_CURRENCY
+            && $settings->blocksOverLimit()
             && $this->totals->exceedsLimit($evaluated['total'], $settings->max_request_amount)) {
 
             return [
@@ -107,18 +122,19 @@ class ReimbursementService
         }
 
         $request = DB::transaction(function () use (
-            $employeeId, $createdBy, $date, $payload, $items, $evaluated, $flags, $steps
+            $employeeId, $createdBy, $date, $payload, $items, $evaluated, $flags, $steps, $currency, $approverId
         ) {
             $request = ReimbursementRequest::create([
                 'request_no'        => $this->nextRequestNo($date),
                 'employee_id'       => $employeeId,
                 'created_by'        => $createdBy,
+                'approver_id'       => $approverId,
                 'request_date'      => $date->toDateString(),
                 'title'             => $payload['title'],
                 'supporting_url'    => $payload['supporting_url'] ?? null,
                 'charged_branch_id' => $evaluated['charged_branch_id'],
                 'charged_to_label'  => $evaluated['charged_to_label'],
-                'currency'          => 'IDR',
+                'currency'          => $currency,
                 'total_amount'      => $evaluated['total'],
                 'item_count'        => $evaluated['item_count'],
                 'status'            => ReimbursementRequest::STATUS_SUBMITTED,
@@ -129,7 +145,7 @@ class ReimbursementService
             ]);
 
             $this->writeItems($request, $items);
-            $this->snapshotSteps($request, $steps);
+            $this->snapshotSteps($request, $steps, $approverId);
 
             return $request;
         });
@@ -166,14 +182,15 @@ class ReimbursementService
         }
 
         $settings = ReimbursementSetting::current();
-        $items    = $this->normaliseItems($payload['items'] ?? []);
+        $currency = $this->resolveCurrency($request->currency);
+        $items    = $this->normaliseItems($payload['items'] ?? [], $currency);
 
         $gate = $this->checkItemRules($items, $settings);
         if (!$gate['allowed']) {
             return $gate;
         }
 
-        $evaluated = $this->totals->evaluate($items, $this->rulesFrom($settings, $payload));
+        $evaluated = $this->totals->evaluate($items, $this->rulesFrom($settings, $payload, $currency));
 
         $previousTotal = (float) $request->total_amount;
 
@@ -580,7 +597,7 @@ class ReimbursementService
                                             : ['nullable', 'string', 'max:50'],
             'items.*.receipt_date_from' => ['required', 'date'],
             'items.*.receipt_date_to'   => ['nullable', 'date', $this->dateOrderRule($input)],
-            'items.*.amount'            => ['required', 'numeric', 'min:1'],
+            'items.*.amount'            => ['required', 'numeric', 'min:0.01'],
         ];
     }
 
@@ -659,6 +676,30 @@ class ReimbursementService
     }
 
     /**
+     * Direktur yang dapat dipilih pemohon, sesuai daftar di Settings.
+     *
+     * @return Collection<int, array{id: int, label: string}>
+     */
+    public function directorOptions(): Collection
+    {
+        $ids = ReimbursementSetting::current()->directorIds();
+
+        if ($ids === []) {
+            return collect();
+        }
+
+        return Employee::with('basicData:basic_data_id,employee_id,nick_name')
+            ->whereIn('employee_id', $ids)
+            ->get(['employee_id', 'eci'])
+            ->map(fn (Employee $e) => [
+                'id'    => (int) $e->employee_id,
+                'label' => $e->basicData?->nick_name ?? $e->eci,
+            ])
+            ->sortBy('label')
+            ->values();
+    }
+
+    /**
      * Cabang aktif untuk dropdown item, beserta labelnya yang sudah siap dibekukan.
      *
      * @return Collection<int, array{id: int, label: string}>
@@ -677,6 +718,36 @@ class ReimbursementService
     // =======================================================================
     // internal
     // =======================================================================
+
+    /** Kode mata uang yang tidak dikenal jatuh ke default, bukan disimpan apa adanya. */
+    private function resolveCurrency(?string $currency): string
+    {
+        $currency = strtoupper(trim((string) $currency));
+
+        return in_array($currency, ReimbursementRequest::CURRENCIES, true)
+            ? $currency
+            : ReimbursementRequest::DEFAULT_CURRENCY;
+    }
+
+    /**
+     * Direktur penyetuju yang sah untuk dokumen baru.
+     *
+     * @return int|null|false  id direktur; null bila daftar direktur belum
+     *                         dikonfigurasi (alur lama); false bila wajib tetapi
+     *                         tidak diisi atau bukan salah satu direktur.
+     */
+    private function resolveApprover($approverId, ReimbursementSetting $settings): int|null|false
+    {
+        $directors = $settings->directorIds();
+
+        if ($directors === []) {
+            return null;
+        }
+
+        $approverId = (int) $approverId;
+
+        return in_array($approverId, $directors, true) ? $approverId : false;
+    }
 
     /** @return array{allowed: bool, reason: string} */
     private function checkDateRules(Carbon $date, ReimbursementSetting $settings, bool $byAdmin): array
@@ -751,11 +822,15 @@ class ReimbursementService
      * Dikumpulkan di satu tempat supaya submit, edit, dan impor menilai dokumen
      * dengan aturan yang persis sama.
      */
-    private function rulesFrom(ReimbursementSetting $settings, array $payload): array
+    private function rulesFrom(ReimbursementSetting $settings, array $payload, string $currency = ReimbursementRequest::DEFAULT_CURRENCY): array
     {
+        // Kedua batas nominal berdenominasi rupiah; membandingkannya dengan
+        // angka USD/EUR akan menandai dokumen secara keliru.
+        $isDefault = $currency === ReimbursementRequest::DEFAULT_CURRENCY;
+
         return [
-            'max_request_amount' => (float) $settings->max_request_amount,
-            'min_item_amount'    => (float) $settings->min_item_amount,
+            'max_request_amount' => $isDefault ? (float) $settings->max_request_amount : 0.0,
+            'min_item_amount'    => $isDefault ? (float) $settings->min_item_amount : 0.0,
             'has_supporting_url' => trim((string) ($payload['supporting_url'] ?? '')) !== '',
         ];
     }
@@ -770,7 +845,7 @@ class ReimbursementService
      *
      * Label cabang DIBEKUKAN di sini juga (Keputusan D105), sekali, saat menulis.
      */
-    private function normaliseItems(array $rawItems): array
+    private function normaliseItems(array $rawItems, string $currency = ReimbursementRequest::DEFAULT_CURRENCY): array
     {
         $branches = Branch::withTrashed()
             ->get(['id', 'code', 'name'])
@@ -815,7 +890,7 @@ class ReimbursementService
                 // bukan membiarkan `to` kosong — dengan begitu penyaringan
                 // rentang tanggal tidak butuh cabang khusus.
                 'receipt_date_to'     => $to !== '' ? $to : $from,
-                'currency'            => 'IDR',
+                'currency'            => $currency,
                 'amount'              => max(0.0, round($amount, 2)),
             ];
         }
@@ -931,7 +1006,7 @@ class ReimbursementService
         return ['applied' => count($applied), 'request_nos' => $applied];
     }
 
-    private function snapshotSteps(ReimbursementRequest $request, Collection $steps): void
+    private function snapshotSteps(ReimbursementRequest $request, Collection $steps, ?int $approverId = null): void
     {
         foreach ($steps as $step) {
             ReimbursementRequestApproval::create([
@@ -941,6 +1016,21 @@ class ReimbursementService
                 'approver_type'            => $step->approver_type,
                 'approver_role_id'         => $step->approver_role_id,
                 'approver_employee_ids'    => $step->approver_employee_ids,
+                'status'                   => ReimbursementRequestApproval::STATUS_WAITING,
+            ]);
+        }
+
+        // Direktur pilihan pemohon menjadi langkah TERAKHIR, dan hanya dia yang
+        // dapat bertindak padanya. Langkah ini ikut disalin ke dokumen sehingga
+        // mengganti daftar direktur kelak tidak mengubah dokumen yang berjalan.
+        if ($approverId !== null) {
+            ReimbursementRequestApproval::create([
+                'reimbursement_request_id' => $request->id,
+                'order_seq'                => ((int) $steps->max('order_seq')) + 1,
+                'step_name'                => self::DIRECTOR_STEP_NAME,
+                'approver_type'            => ReimbursementApprovalStep::TYPE_EMPLOYEE,
+                'approver_role_id'         => null,
+                'approver_employee_ids'    => [$approverId],
                 'status'                   => ReimbursementRequestApproval::STATUS_WAITING,
             ]);
         }
@@ -998,7 +1088,7 @@ class ReimbursementService
     private function notify(ReimbursementRequest $request, string $outcome, ?string $notes = null): void
     {
         try {
-            $amount = ReimbursementRequest::formatRupiah($request->total_amount);
+            $amount = $request->totalLabel();
 
             $message = match ($outcome) {
                 'approved'   => "Your reimbursement {$request->request_no} ({$amount}) was approved.",

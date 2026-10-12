@@ -142,7 +142,6 @@
         </div>
 
         @if($canSelf)
-        {{-- Kartu presensi hari ini --}}
         <div class="bg-white rounded-xl p-4 sm:p-5 shadow-sm w-full lg:max-w-md shrink-0 text-gray-900">
             <div class="flex items-start justify-between gap-3 mb-3">
                 <div>
@@ -166,7 +165,6 @@
                 </div>
             </div>
 
-            <!-- Original Check-in / Check-out button -->
             <a href="{{ route('general.my-attendance.index') }}"
                class="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gray-900 text-white text-sm font-semibold rounded-lg hover:bg-black transition-all">
                 <i class="fas fa-fingerprint"></i> Open details

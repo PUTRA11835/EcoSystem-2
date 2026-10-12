@@ -173,7 +173,6 @@
                 the button</strong> — nothing is tracked in the background.
             </p>
 
-            {{-- Badge status --}}
             <div class="flex flex-wrap gap-2 mb-4" id="statusBadges">
                 @if(!$hasCheckIn)
                     <span class="px-2 py-1 text-xs font-semibold rounded bg-gray-100 text-gray-600">Not checked in</span>
@@ -191,7 +190,6 @@
                 </span>
             </div>
 
-            {{-- Lokasi --}}
             @foreach([['check_in', 'Check-in'], ['check_out', 'Check-out']] as [$side, $label])
             @php
                 $verdict = $record?->geofenceVerdict($side);
@@ -396,7 +394,6 @@
             @endif
         </div>
 
-        {{-- Riwayat pengajuan --}}
         <div class="bg-white rounded-xl p-6 shadow-sm">
             <h3 class="text-lg font-bold text-gray-900 mb-4">My Correction Requests</h3>
 

@@ -19,6 +19,7 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.interviews'])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')
@@ -59,7 +60,6 @@
             </span>
         </div>
 
-        {{-- Navigation --}}
         <div class="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3">
             <a href="{{ $calendarUrl(now()) }}" class="{{ $navButton }} px-3 py-1.5 inline-flex items-center gap-1.5">
                 <i class="far fa-calendar-check text-[11px]"></i> Today
@@ -103,7 +103,7 @@
                                         Not connected. Once it is, the account's other events appear here in grey, attendees are invited by email and Teams links are generated.
                                     </span>
                                     @if($can('general.recruitment.settings'))
-                                        <a href="{{ route('general.recruitment.settings.edit') }}" class="text-[11px] font-semibold" style="color: var(--primary-color);">Calendar settings</a>
+                                        <a href="{{ route('general.recruitment.settings.edit') }}" class="text-[11px] font-semibold primary-text">Calendar settings</a>
                                     @endif
                                 @endif
                             </span>

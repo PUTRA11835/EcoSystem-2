@@ -2,21 +2,21 @@
 
 @php
     $isEdit = $mode === 'edit';
+    $docCurrency = old('currency', $isEdit ? ($request->currency ?: 'IDR') : 'IDR');
 @endphp
 
 @section('title', $isEdit ? 'Edit Reimbursement' : 'New Reimbursement')
 @section('page-title', $isEdit ? 'Edit Reimbursement' : 'New Reimbursement')
 @section('page-subtitle', $isEdit
     ? 'Document ' . $request->request_no
-    : 'Create a reimbursement on behalf of an employee')
+    : 'Create a reimbursement for yourself or on behalf of another employee')
 
 {{--
-    Satu form untuk "New RB" dan Edit. Keduanya mengisi dokumen yang sama dengan
-    aturan yang sama; memisahkannya menjadi dua berkas berarti dua tempat yang
-    harus dijaga tetap sinkron.
+    Satu form untuk "New RB" dan Edit: keduanya mengisi dokumen yang sama dengan
+    aturan yang sama.
 
     Variabel: $mode · $request · $settings · $branches · $steps · $employees
-              $action · $backRoute · $minDate · $maxDate
+              $directors · $currencies · $action · $backRoute · $minDate · $maxDate
 --}}
 
 @section('page-actions')
@@ -27,7 +27,7 @@
 @endsection
 
 @section('content')
-<div class="max-w-6xl space-y-5">
+<div class="w-full space-y-5">
 
     @if(!$isEdit && $steps->isEmpty())
     <div class="bg-red-50 border border-red-200 rounded-xl px-5 py-4">
@@ -59,31 +59,6 @@
                 <input type="text" value="{{ $request->request_no }}" disabled
                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 font-mono">
             </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Requester</label>
-                <input type="text" disabled
-                       value="{{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}"
-                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
-                <p class="text-xs text-gray-400 mt-1">The requester cannot be changed after submission.</p>
-            </div>
-            @else
-            <div class="md:col-span-2">
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Employee <span class="text-red-600">*</span>
-                </label>
-                <select name="employee_id" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <option value="">— choose an employee —</option>
-                    @foreach($employees as $employee)
-                        <option value="{{ $employee->employee_id }}" @selected((string) old('employee_id') === (string) $employee->employee_id)>
-                            {{ $employee->basicData?->nick_name ?? $employee->eci }} — {{ $employee->eci }}
-                        </option>
-                    @endforeach
-                </select>
-                <p class="text-xs text-gray-400 mt-1">Your name is recorded as the creator of this document.</p>
-                @error('employee_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-            </div>
             @endif
 
             <div>
@@ -104,6 +79,25 @@
                     <p class="text-xs text-gray-400 mt-1">Locked — the document number is derived from this date.</p>
                 @endif
                 @error('request_date')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Currency <span class="text-red-600">*</span>
+                </label>
+                <select name="currency" id="reimbursementCurrency" required @disabled($isEdit)
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 @if($isEdit) bg-gray-50 text-gray-500 @endif">
+                    @foreach($currencies as $code)
+                        <option value="{{ $code }}" @selected($docCurrency === $code)>{{ $code }}</option>
+                    @endforeach
+                </select>
+                @if($isEdit)
+                    <input type="hidden" name="currency" value="{{ $docCurrency }}">
+                    <p class="text-xs text-gray-400 mt-1">Locked — all items share the document currency.</p>
+                @else
+                    <p class="text-xs text-gray-400 mt-1">Applies to every item in this document.</p>
+                @endif
+                @error('currency')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
             </div>
         </div>
 
@@ -135,6 +129,63 @@
         </div>
 
         @include('hr-general.reimbursement._item_rows', ['existingItems' => $isEdit ? $request->items : null])
+
+        {{-- Pemohon dan penyetuju berdampingan di bagian bawah. --}}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            @if($isEdit)
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Requester</label>
+                <input type="text" disabled
+                       value="{{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}"
+                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
+                <p class="text-xs text-gray-400 mt-1">The requester cannot be changed after submission.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Approver</label>
+                <input type="text" disabled
+                       value="{{ $request->approver?->basicData?->nick_name ?? $request->approver?->eci ?? '—' }}"
+                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
+                <p class="text-xs text-gray-400 mt-1">The approver is fixed once the document is submitted.</p>
+            </div>
+            @else
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Requester <span class="text-red-600">*</span>
+                </label>
+                <select name="employee_id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    <option value="">— choose an employee —</option>
+                    @foreach($employees as $employee)
+                        <option value="{{ $employee->employee_id }}" @selected((string) old('employee_id', session('user.id')) === (string) $employee->employee_id)>
+                            {{ $employee->basicData?->nick_name ?? $employee->eci }} — {{ $employee->eci }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-400 mt-1">Your name is recorded as the creator of this document.</p>
+                @error('employee_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            @if($directors->isNotEmpty())
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Approver <span class="text-red-600">*</span>
+                </label>
+                <select name="approver_id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    <option value="">— choose a director —</option>
+                    @foreach($directors as $director)
+                        <option value="{{ $director['id'] }}" @selected((string) old('approver_id') === (string) $director['id'])>
+                            {{ $director['label'] }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-400 mt-1">The director who gives the final approval.</p>
+                @error('approver_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+            @endif
+            @endif
+        </div>
 
         <div class="flex items-center gap-3 pt-2 border-t border-gray-100">
             <button type="submit"

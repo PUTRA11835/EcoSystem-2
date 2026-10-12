@@ -185,7 +185,7 @@
                                                     </div>
                                                 @endforeach
                                             </div>
-                                            <button type="button" data-item-add="{{ $key }}" data-item-name="{{ $name }}" class="mt-2 text-xs font-semibold" style="color: var(--primary-color);">
+                                            <button type="button" data-item-add="{{ $key }}" data-item-name="{{ $name }}" class="mt-2 text-xs font-semibold primary-text">
                                                 <i class="fas fa-plus text-[10px]"></i> Add an item
                                             </button>
                                             @break
@@ -348,7 +348,6 @@
         </div>
     </div>
 
-    {{-- Letters generated here. --}}
     <form id="{{ $filterForm }}" method="GET" action="{{ route('general.letters.compose.index') }}" data-filter-form class="hidden">
         <input type="hidden" name="mode" value="{{ $mode }}">
     </form>

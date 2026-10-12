@@ -31,8 +31,8 @@
 @endsection
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'leave-permit.applications'])
     <div class="w-full space-y-6 px-1 lg:px-2">
-        <!-- Header Section -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl primary-gradient flex items-center justify-center shadow-sm text-white">
@@ -46,7 +46,6 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <!-- Year Selector Filter -->
                 <div
                     class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm text-xs">
                     <i class="fas fa-calendar-alt text-gray-400"></i>
@@ -129,7 +128,6 @@
                             <tr>
                                 <th class="px-5 py-3">App No & Date</th>
 
-                                {{-- Employee Name filter --}}
                                 <th class="px-4 py-3 min-w-40">
                                     <div class="flex items-center justify-between gap-1.5">
                                         <span>Employee Name</span>
@@ -155,7 +153,6 @@
                                     </div>
                                 </th>
 
-                                {{-- Type filter --}}
                                 <th class="px-4 py-3 min-w-36">
                                     <div class="flex items-center justify-between gap-1.5">
                                         <span>Type</span>
@@ -177,7 +174,6 @@
                                 <th class="px-4 py-3 text-center">Total Days</th>
                                 <th class="px-4 py-3 text-center">Quota Limit Check</th>
 
-                                {{-- Status filter --}}
                                 <th class="px-4 py-3 text-center min-w-32">
                                     <div class="flex items-center justify-center gap-1.5">
                                         <span>Status</span>
@@ -247,7 +243,6 @@
                                 <th class="px-3 py-3 text-center">No</th>
                                 <th class="px-3 py-3">Code</th>
 
-                                {{-- Name/Code search filter --}}
                                 <th class="px-4 py-3 min-w-48">
                                     <div class="flex items-center justify-between gap-1.5">
                                         <span>Leave & Permit Type</span>
@@ -308,7 +303,6 @@
                                 </th>
                                 @endforeach
 
-                                {{-- Status filter --}}
                                 <th class="px-3 py-3 text-center min-w-28">
                                     <div class="flex items-center justify-center gap-1.5">
                                         <span>Status</span>
@@ -372,13 +366,11 @@
                                     <td class="px-4 py-3 text-right">
                                         <div class="inline-flex items-center justify-end gap-2">
                                             @if($canDo('hr_general.leave_permit.tab-types', 'edit'))
-                                            <!-- Edit Pencil Icon Button -->
                                             <button onclick='openEditTypeModal(@json($t))' title="Edit Leave Type"
                                                 class="w-8 h-8 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 inline-flex items-center justify-center transition-all">
                                                 <i class="fas fa-pencil-alt text-xs"></i>
                                             </button>
 
-                                            <!-- Toggle Switch On/Off -->
                                             <button onclick="toggleTypeActive({{ $t->id }}, {{ $t->is_active ? 1 : 0 }})"
                                                 title="{{ $t->is_active ? 'Click to Deactivate' : 'Click to Activate' }}"
                                                 class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none {{ $t->is_active ? 'bg-green-500' : 'bg-gray-300' }}">
@@ -624,7 +616,6 @@
                     <table class="w-full text-xs text-left">
                         <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
                             <tr>
-                                {{-- Employee Name filter --}}
                                 <th class="px-5 py-3 min-w-48">
                                     <div class="flex items-center justify-between gap-1.5">
                                         <span>Employee Name</span>
@@ -722,7 +713,6 @@
         </div>
     </div>
 
-    <!-- Modal Partial Views -->
     @include('hr-general.leave-permit.partials.modal-apply')
     @include('hr-general.leave-permit.partials.modal-type-form')
     @include('hr-general.leave-permit.partials.modal-review')

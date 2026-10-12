@@ -44,7 +44,6 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
 
-        <!-- Candidate details -->
         <form id="candidateForm" method="POST" enctype="multipart/form-data"
             action="{{ route('general.recruitment.candidates.update', $candidate) }}"
             class="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -129,7 +128,7 @@
                     <div class="flex items-center justify-between mb-1">
                         <span class="block text-xs font-semibold text-gray-600">Documents</span>
                         @if($canManage)
-                            <button type="button" onclick="addDocumentRow('candidateDocuments')" class="text-xs font-semibold" style="color: var(--primary-color);">
+                            <button type="button" onclick="addDocumentRow('candidateDocuments')" class="text-xs font-semibold primary-text">
                                 <i class="fas fa-plus text-[10px]"></i> Add document
                             </button>
                         @endif
@@ -194,7 +193,6 @@
             @endif
         </form>
 
-        <!-- Selection timeline -->
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 rounded-t-xl flex items-start justify-between gap-3">
                 <div>

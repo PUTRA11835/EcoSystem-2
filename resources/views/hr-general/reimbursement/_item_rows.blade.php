@@ -17,6 +17,14 @@
     🔴 NOMINAL MEMAKAI type="number": nilainya dikirim mentah, bukan sebagai
     "Rp 300.000". Yang berformat hanya total di bawah tabel, yang tidak pernah
     dikirim ke server.
+
+    Tabel berukuran tetap (table-fixed): lebarnya selalu pas dengan kartu, tanpa
+    gulir horizontal. Tanggal nota berada di bawah deskripsi supaya kolom
+    deskripsi, cabang, dan nominal mendapat ruang terlebar.
+
+    Mata uang dipilih SEKALI per dokumen (#reimbursementCurrency, di form
+    induk), bukan per baris: total dokumen tidak berarti bila barisnya berbeda
+    mata uang.
 --}}
 @php
     // Sumber baris, berurutan: isian yang gagal validasi -> data yang sudah ada
@@ -50,18 +58,24 @@
         @endif
     </div>
 
-    <div class="border border-gray-200 rounded-lg overflow-x-auto">
-        <table class="w-full text-sm">
+    <div class="border border-gray-200 rounded-lg">
+        <table class="w-full text-sm table-fixed">
+            <colgroup>
+                <col class="w-10">
+                <col>
+                <col class="w-[22%]">
+                <col class="w-[11%]">
+                <col class="w-[16%]">
+                <col class="w-10">
+            </colgroup>
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    <th class="px-3 py-3 w-10">No</th>
-                    <th class="px-3 py-3">Description</th>
-                    <th class="px-3 py-3 w-56">Branch</th>
-                    <th class="px-3 py-3 w-32">Receipt No.</th>
-                    <th class="px-3 py-3 w-64">Receipt Date</th>
-                    <th class="px-3 py-3 w-16">Curr</th>
-                    <th class="px-3 py-3 w-40 text-right">Amount</th>
-                    <th class="px-3 py-3 w-12"></th>
+                    <th class="px-3 py-3">No</th>
+                    <th class="px-3 py-3">Description &amp; Receipt Date</th>
+                    <th class="px-3 py-3">Branch</th>
+                    <th class="px-3 py-3">Receipt No.</th>
+                    <th class="px-3 py-3 text-right">Amount (<span class="js-currency-code">IDR</span>)</th>
+                    <th class="px-3 py-3"></th>
                 </tr>
             </thead>
             <tbody id="itemRows" class="divide-y divide-gray-100">
@@ -74,6 +88,21 @@
                                value="{{ $row['description'] ?? '' }}" placeholder="e.g. Claude AI Subscription"
                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
                         @error("items.{$key}.description")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+
+                        <div class="flex items-center gap-1 mt-2">
+                            <input type="date" name="items[{{ $key }}][receipt_date_from]" required
+                                   title="Receipt date"
+                                   value="{{ $row['receipt_date_from'] ?? '' }}"
+                                   class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
+                            <span class="text-xs text-gray-400 shrink-0">s.d</span>
+                            <input type="date" name="items[{{ $key }}][receipt_date_to]"
+                                   title="Leave empty for a single-day receipt"
+                                   value="{{ $row['receipt_date_to'] ?? '' }}"
+                                   class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">Receipt date — leave the second date empty for a single-day receipt.</p>
+                        @error("items.{$key}.receipt_date_from")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+                        @error("items.{$key}.receipt_date_to")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
                     </td>
 
                     <td class="px-3 py-3">
@@ -98,24 +127,7 @@
                     </td>
 
                     <td class="px-3 py-3">
-                        <div class="flex items-center gap-1">
-                            <input type="date" name="items[{{ $key }}][receipt_date_from]" required
-                                   value="{{ $row['receipt_date_from'] ?? '' }}"
-                                   class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
-                            <span class="text-xs text-gray-400 shrink-0">s.d</span>
-                            <input type="date" name="items[{{ $key }}][receipt_date_to]"
-                                   value="{{ $row['receipt_date_to'] ?? '' }}"
-                                   class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
-                        </div>
-                        <p class="text-xs text-gray-400 mt-1">Leave the second date empty for a single-day receipt.</p>
-                        @error("items.{$key}.receipt_date_from")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-                        @error("items.{$key}.receipt_date_to")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-                    </td>
-
-                    <td class="px-3 py-3 text-xs text-gray-500">IDR</td>
-
-                    <td class="px-3 py-3">
-                        <input type="number" name="items[{{ $key }}][amount]" min="0" step="1" required
+                        <input type="number" name="items[{{ $key }}][amount]" min="0" step="0.01" required
                                value="{{ $row['amount'] ?? '' }}" placeholder="0"
                                class="js-amount w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-red-800">
                         @error("items.{$key}.amount")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
@@ -130,7 +142,7 @@
             </tbody>
             <tfoot class="bg-gray-50 border-t border-gray-200">
                 <tr>
-                    <td colspan="6" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <td colspan="4" class="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         Total Reimbursement
                     </td>
                     <td class="px-3 py-3 text-right font-bold text-gray-900" id="itemsTotal">Rp 0</td>
@@ -156,6 +168,14 @@
         <td class="px-3 py-3">
             <input type="text" name="items[__KEY__][description]" maxlength="200" required placeholder="e.g. Claude AI Subscription"
                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
+            <div class="flex items-center gap-1 mt-2">
+                <input type="date" name="items[__KEY__][receipt_date_from]" required title="Receipt date"
+                       class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
+                <span class="text-xs text-gray-400 shrink-0">s.d</span>
+                <input type="date" name="items[__KEY__][receipt_date_to]" title="Leave empty for a single-day receipt"
+                       class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
+            </div>
+            <p class="text-xs text-gray-400 mt-1">Receipt date — leave the second date empty for a single-day receipt.</p>
         </td>
         <td class="px-3 py-3">
             <select name="items[__KEY__][branch_id]" required
@@ -172,17 +192,7 @@
                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
         </td>
         <td class="px-3 py-3">
-            <div class="flex items-center gap-1">
-                <input type="date" name="items[__KEY__][receipt_date_from]" required
-                       class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
-                <span class="text-xs text-gray-400 shrink-0">s.d</span>
-                <input type="date" name="items[__KEY__][receipt_date_to]"
-                       class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
-            </div>
-        </td>
-        <td class="px-3 py-3 text-xs text-gray-500">IDR</td>
-        <td class="px-3 py-3">
-            <input type="number" name="items[__KEY__][amount]" min="0" step="1" required placeholder="0"
+            <input type="number" name="items[__KEY__][amount]" min="0" step="0.01" required placeholder="0"
                    class="js-amount w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-red-800">
         </td>
         <td class="px-3 py-3 text-center">

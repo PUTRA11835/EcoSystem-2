@@ -282,7 +282,7 @@
                                 </span>
                                 @if($approval->acted_at)
                                     <span class="block text-xs text-gray-400 mt-0.5">
-                                        {{ $approval->acted_at->format('d.m.Y') }}
+                                        {{ $approval->acted_at->format('d M Y') }}
                                     </span>
                                 @endif
                             </div>

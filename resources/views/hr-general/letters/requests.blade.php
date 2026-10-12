@@ -13,6 +13,7 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'letters.requests'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
@@ -98,7 +99,7 @@
                             </td>
                             <td class="px-4 py-3">
                                 @if($letter)
-                                    <a href="{{ route('general.letters.pdf', $letter) }}" target="_blank" class="font-semibold hover:underline" style="color: var(--primary-color);">{{ $letter->letter_number }}</a>
+                                    <a href="{{ route('general.letters.pdf', $letter) }}" target="_blank" class="font-semibold hover:underline primary-text">{{ $letter->letter_number }}</a>
                                     <span class="block text-[10px] text-gray-400">
                                         {{ Letter::STATUSES[$letter->status()] }}
                                         @if($letter->email_status === Letter::EMAIL_SENT) · emailed {{ $letter->sent_at?->format('d M Y H:i') }} @endif

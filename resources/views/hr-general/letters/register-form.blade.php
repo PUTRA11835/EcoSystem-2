@@ -129,7 +129,7 @@
                 <p class="{{ $help }}">
                     PDF or image, up to 20 MB.
                     @if($letter->finalPath())
-                        Current: <a href="{{ route('general.letters.file', $letter) }}" target="_blank" class="font-semibold" style="color: var(--primary-color);">{{ $letter->final_name ?: 'file' }}</a> — choose a file only to replace it.
+                        Current: <a href="{{ route('general.letters.file', $letter) }}" target="_blank" class="font-semibold primary-text">{{ $letter->final_name ?: 'file' }}</a> — choose a file only to replace it.
                     @endif
                 </p>
             </div>

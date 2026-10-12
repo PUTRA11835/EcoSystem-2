@@ -75,7 +75,7 @@
                 <div>
                     <p id="calEventSync" class="text-gray-700"></p>
                     @if($canEdit)
-                        <button type="button" id="calEventSyncButton" class="font-semibold hover:underline" style="color: var(--primary-color);">Send to Outlook now</button>
+                        <button type="button" id="calEventSyncButton" class="font-semibold hover:underline primary-text">Send to Outlook now</button>
                     @endif
                 </div>
             </div>
