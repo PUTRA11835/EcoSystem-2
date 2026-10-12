@@ -10,16 +10,24 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use Illuminate\Support\Collection;
 
-// Satu baris per Term Of Payment (Delivery Support). Nominal yang BELUM dibayar
-// (status != Paid) diberi font merah, konsisten dengan tampilan halaman.
+// Satu baris per Term Of Payment (Delivery Support). Warna nominal konsisten
+// dengan halaman Collection Outlook Support: biru = invoice sudah dikirim
+// (menunggu pembayaran), merah = belum dibayar & belum di-invoice / Delay.
 class CollectionOutlookSupportExport implements FromArray, WithEvents, ShouldAutoSize
 {
     protected Collection $rows;
 
-    /** Baris (1-indexed) yang nominalnya belum dibayar → font merah pada kolom Amount (H). */
-    protected array $unpaidRows = [];
+    /** Baris (1-indexed) → warna font kolom Amount (J). */
+    protected array $unpaidRows   = [];
+    protected array $invoicedRows = [];
 
-    private const LAST_COL = 'M';
+    private const LAST_COL = 'O';
+
+    private const BASIS_LABELS = [
+        'percentage' => '% of Revenue',
+        'line_item'  => '% of Line Item',
+        'fixed'      => 'Fixed amount',
+    ];
 
     public function __construct(Collection $rows)
     {
@@ -30,14 +38,17 @@ class CollectionOutlookSupportExport implements FromArray, WithEvents, ShouldAut
     {
         $out = [[
             'Customer', 'Support Name', 'IO Number', 'Type',
-            'TOP No.', 'Term Name', '% of Revenue', 'Amount',
+            'TOP No.', 'Term Name', 'Line Item', 'Basis', '%', 'Amount',
             'Status', 'Estimated Date', 'Submit Invoice Date', 'Invoice Number', 'Paid Date',
         ]];
 
         $rowNumber = 1;
         foreach ($this->rows as $r) {
             $rowNumber++;
-            if (($r['status'] ?? '') !== 'Paid') {
+            $status = $r['status'] ?? '';
+            if ($status === 'Invoiced' || ($status === 'Open' && !empty($r['submit_invoice_date']))) {
+                $this->invoicedRows[] = $rowNumber;
+            } elseif ($status !== 'Paid') {
                 $this->unpaidRows[] = $rowNumber;
             }
             $out[] = [
@@ -47,9 +58,11 @@ class CollectionOutlookSupportExport implements FromArray, WithEvents, ShouldAut
                 $r['support_type'],
                 $r['term_number'],
                 $r['payment_term'],
+                $r['line_item_name'] ?? '',
+                self::BASIS_LABELS[$r['basis'] ?? 'percentage'] ?? '% of Revenue',
                 $r['payment_percentage'],
                 $r['amount'],
-                $r['status'],
+                $status,
                 $r['estimated_date'],
                 $r['submit_invoice_date'],
                 $r['invoice_number'],
@@ -75,16 +88,22 @@ class CollectionOutlookSupportExport implements FromArray, WithEvents, ShouldAut
 
                 $lastRow = $sheet->getHighestRow();
 
+                // % and Amount as numbers, right-aligned; Amount with thousand separator.
                 if ($lastRow >= 2) {
-                    $sheet->getStyle("G2:G{$lastRow}")->getNumberFormat()->setFormatCode('0.00');
-                    $sheet->getStyle("H2:H{$lastRow}")->getNumberFormat()->setFormatCode('#,##0');
-                    $sheet->getStyle("G2:H{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    $sheet->getStyle("I2:I{$lastRow}")->getNumberFormat()->setFormatCode('0.00');
+                    $sheet->getStyle("J2:J{$lastRow}")->getNumberFormat()->setFormatCode('#,##0');
+                    $sheet->getStyle("I2:J{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
                     $sheet->getStyle("E2:E{$lastRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 }
 
                 foreach ($this->unpaidRows as $row) {
-                    $sheet->getStyle("H{$row}")->applyFromArray([
+                    $sheet->getStyle("J{$row}")->applyFromArray([
                         'font' => ['bold' => true, 'color' => ['argb' => 'FFDC2626']],
+                    ]);
+                }
+                foreach ($this->invoicedRows as $row) {
+                    $sheet->getStyle("J{$row}")->applyFromArray([
+                        'font' => ['bold' => true, 'color' => ['argb' => 'FF1D4ED8']],
                     ]);
                 }
             },

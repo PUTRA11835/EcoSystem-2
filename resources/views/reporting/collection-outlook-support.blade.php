@@ -65,7 +65,8 @@
     </div>
 
     {{-- ── Summary Stats ───────────────────────────────────────────────────── --}}
-    <div id="coStats" class="hidden grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+    {{-- Total Outlook = Paid + Invoiced + Not Invoiced --}}
+    <div id="coStats" class="hidden grid grid-cols-2 lg:grid-cols-5 gap-4 mb-5">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Total Outlook</p>
             <p id="coStatTotal" class="text-2xl font-bold primary-text">—</p>
@@ -77,7 +78,12 @@
             <p id="coStatPaidCount" class="text-xs text-gray-400 mt-0.5">—</p>
         </div>
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Unpaid</p>
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Invoiced</p>
+            <p id="coStatInvoiced" class="text-2xl font-bold text-blue-700">—</p>
+            <p id="coStatInvoicedCount" class="text-xs text-gray-400 mt-0.5">—</p>
+        </div>
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Not Invoiced</p>
             <p id="coStatUnpaid" class="text-2xl font-bold text-amber-600">—</p>
             <p id="coStatUnpaidCount" class="text-xs text-gray-400 mt-0.5">—</p>
         </div>
@@ -123,12 +129,18 @@
         </div>
     </div>
 
+    {{-- TOP tanpa tanggal sama sekali tidak bisa ditempatkan di kolom bulan --}}
+    <div id="coUndated" class="hidden mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-800"></div>
+
     <p class="text-[11px] text-gray-400 mt-3">
         <i class="fas fa-info-circle mr-1"></i>
-        Billing amounts are placed in the month of each term's <span class="font-semibold">Estimated Date</span>.
+        Billing amounts are placed in the month of each term's <span class="font-semibold">Estimated Date</span>
+        (or Paid Date / Submit Invoice Date when it is empty).
         Click an amount to view the full TOP &amp; invoice details. Terms with a
         <span class="inline-flex items-center gap-1 text-green-700 font-semibold"><i class="fas fa-check-circle"></i> Paid</span>
-        status are highlighted in green; <span class="text-red-600 font-semibold">unpaid</span> amounts are shown in red.
+        status are highlighted in green,
+        <span class="inline-flex items-center gap-1 text-blue-700 font-semibold"><i class="fas fa-file-invoice"></i> Invoiced</span>
+        (invoice submitted, awaiting payment) in blue, and amounts <span class="text-red-600 font-semibold">not invoiced yet</span> in red.
     </p>
 </div>
 
@@ -188,9 +200,9 @@
                     <div>
                         <label class="block text-xs text-gray-400 mb-1">Status</label>
                         <select id="coEditStatus" class="co-select w-full" onchange="toggleCoPaidDate()">
-                            <option value="Open">Open</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Delay">Delay</option>
+                            @foreach(\App\Models\DeliverySupportPaymentTerm::STATUSES as $s)
+                                <option value="{{ $s }}">{{ $s }}</option>
+                            @endforeach
                         </select>
                     </div>
                     <div>
@@ -198,7 +210,7 @@
                         <input type="date" id="coEditPaidDate" class="co-select w-full">
                     </div>
                     <div>
-                        <label class="block text-xs text-gray-400 mb-1">Submit Invoice Date</label>
+                        <label class="block text-xs text-gray-400 mb-1">Submit Invoice Date <span id="coSubmitReq" class="hidden text-red-500">*</span></label>
                         <input type="date" id="coEditSubmitDate" class="co-select w-full" onchange="toggleCoInvoiceRequired()">
                     </div>
                     <div>
@@ -283,6 +295,9 @@ body.co-resizing { cursor: col-resize !important; user-select: none !important; 
 .co-open:hover { background: #fee2e2; }
 .co-delay  { color: #dc2626; }
 .co-delay:hover { background: #fee2e2; }
+/* Invoice sudah dikirim, menunggu pembayaran. */
+.co-invoiced { color: #1d4ed8; }
+.co-invoiced:hover { background: #dbeafe; }
 </style>
 @endpush
 
@@ -384,6 +399,7 @@ async function loadOutlook() {
         coMonths = json.months || [];
         populateTypeFilter(json.type_options || []);
         renderOutlook();
+        renderUndated(json.undated || []);
     } catch (e) {
         console.error(e);
         tbody.innerHTML = `<tr><td colspan="99" class="px-4 py-10 text-center text-sm">
@@ -419,13 +435,15 @@ function renderOutlook() {
     }
     empty.classList.add('hidden');
 
-    let totalAll = 0, totalPaid = 0, totalUnpaid = 0, paidCount = 0, unpaidCount = 0;
+    let totalAll = 0, totalPaid = 0, totalInvoiced = 0, totalUnpaid = 0, paidCount = 0, invoicedCount = 0, unpaidCount = 0;
 
     let html = '';
     coRows.forEach(r => {
         totalAll += r.amount;
-        if (r.status === 'Paid') { totalPaid += r.amount; paidCount++; }
-        else { totalUnpaid += r.amount; unpaidCount++; }
+        const bucket = coBucket(r);
+        if (bucket === 'paid')          { totalPaid += r.amount; paidCount++; }
+        else if (bucket === 'invoiced') { totalInvoiced += r.amount; invoicedCount++; }
+        else                            { totalUnpaid += r.amount; unpaidCount++; }
 
         let cells = '';
         coMonths.forEach(m => {
@@ -447,13 +465,45 @@ function renderOutlook() {
 
     tbody.innerHTML = html;
 
-    document.getElementById('coStatTotal').textContent  = formatShortIDR(totalAll);
-    document.getElementById('coStatPaid').textContent   = formatShortIDR(totalPaid);
-    document.getElementById('coStatUnpaid').textContent = formatShortIDR(totalUnpaid);
-    document.getElementById('coStatTerms').textContent  = coRows.length;
-    document.getElementById('coStatPaidCount').textContent   = `${paidCount} ${paidCount === 1 ? 'term' : 'terms'}`;
-    document.getElementById('coStatUnpaidCount').textContent = `${unpaidCount} ${unpaidCount === 1 ? 'term' : 'terms'}`;
+    document.getElementById('coStatTotal').textContent    = formatShortIDR(totalAll);
+    document.getElementById('coStatPaid').textContent     = formatShortIDR(totalPaid);
+    document.getElementById('coStatInvoiced').textContent = formatShortIDR(totalInvoiced);
+    document.getElementById('coStatUnpaid').textContent   = formatShortIDR(totalUnpaid);
+    document.getElementById('coStatTerms').textContent    = coRows.length;
+    const terms = n => `${n} ${n === 1 ? 'term' : 'terms'}`;
+    document.getElementById('coStatPaidCount').textContent     = terms(paidCount);
+    document.getElementById('coStatInvoicedCount').textContent = `${terms(invoicedCount)} · awaiting payment`;
+    document.getElementById('coStatUnpaidCount').textContent   = terms(unpaidCount);
     stats.classList.remove('hidden');
+}
+
+// Kelompok penagihan:
+//   paid     → status Paid
+//   invoiced → status Invoiced, atau Open yang Submit Invoice Date-nya sudah terisi
+//   unpaid   → sisanya (Open belum di-invoice, Delay)
+function coBucket(r) {
+    if (r.status === 'Paid') return 'paid';
+    if (r.status === 'Invoiced' || (r.status === 'Open' && r.submit_invoice_date)) return 'invoiced';
+    return 'unpaid';
+}
+
+// TOP yang tidak punya Estimated / Paid / Submit Invoice Date tidak bisa
+// ditempatkan di kolom bulan mana pun — tampilkan supaya bisa dilengkapi.
+function renderUndated(list) {
+    const box = document.getElementById('coUndated');
+    if (!box) return;
+    if (!list.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+
+    const items = list.slice(0, 10).map(u =>
+        `<li><a href="/delivery/support/${u.support_id}#financial" class="font-semibold underline hover:text-amber-900">${escHtml(u.support_name)}</a>
+         — TOP #${u.term_number} ${escHtml(u.payment_term || '')} (${escHtml(formatFullIDR(u.amount))})</li>`
+    ).join('');
+    const more = list.length > 10 ? `<li>… and ${list.length - 10} more</li>` : '';
+
+    box.innerHTML = `<p class="font-semibold mb-1"><i class="fas fa-exclamation-triangle mr-1"></i>
+            ${list.length} payment term(s) are not shown because they have no Estimated Date yet.</p>
+        <ul class="list-disc pl-5 space-y-0.5">${items}${more}</ul>`;
+    box.classList.remove('hidden');
 }
 
 function monthHeadLabel(m) {
@@ -467,8 +517,13 @@ function amountCell(r) {
             <i class="fas fa-check-circle text-[11px]"></i>${escHtml(val)}
         </button>`;
     }
+    if (coBucket(r) === 'invoiced') {
+        return `<button type="button" onclick="openCoDetail(${r.term_id})" class="co-amount-btn co-invoiced" title="Invoiced, awaiting payment — click for details">
+            <i class="fas fa-file-invoice text-[11px]"></i>${escHtml(val)}
+        </button>`;
+    }
     const cls = r.status === 'Delay' ? 'co-delay' : 'co-open';
-    const title = r.status === 'Delay' ? 'Delayed — click for details' : 'Unpaid — click for details';
+    const title = r.status === 'Delay' ? 'Delayed — click for details' : 'Not invoiced yet — click for details';
     return `<button type="button" onclick="openCoDetail(${r.term_id})" class="co-amount-btn ${cls}" title="${title}">${escHtml(val)}</button>`;
 }
 
@@ -483,7 +538,12 @@ function openCoDetail(termId) {
     document.getElementById('coModalSub').textContent   = `TOP #${r.term_number} · ${r.payment_term || '-'}`;
 
     document.getElementById('coDetAmount').textContent = formatFullIDR(r.amount);
-    document.getElementById('coDetPct').textContent    = `${fmtPct(r.payment_percentage)}% of revenue`;
+    // Basis: % revenue / % nilai line item / nominal tetap (mode Contract Line Item).
+    const isFixed  = r.basis === 'fixed';
+    const liSuffix = r.line_item_name ? ` · Line item: ${r.line_item_name}` : '';
+    const basisTxt = isFixed ? 'Fixed amount'
+        : (r.basis === 'line_item' ? `${fmtPct(r.payment_percentage)}% of line item value` : `${fmtPct(r.payment_percentage)}% of revenue`);
+    document.getElementById('coDetPct').textContent    = basisTxt + liSuffix;
 
     const st = document.getElementById('coDetStatus');
     st.textContent = r.status;
@@ -494,7 +554,7 @@ function openCoDetail(termId) {
     document.getElementById('coDetIo').textContent       = r.io_number || '—';
     document.getElementById('coDetTermNo').textContent   = r.term_number;
     document.getElementById('coDetTermName').textContent = r.payment_term || '—';
-    document.getElementById('coDetPctRow').textContent   = `${fmtPct(r.payment_percentage)}%`;
+    document.getElementById('coDetPctRow').textContent   = basisTxt;
     document.getElementById('coDetRevenue').textContent  = formatFullIDR(r.support_revenue);
     document.getElementById('coDetReq').textContent      = r.requirements || '—';
 
@@ -542,10 +602,16 @@ function cancelCoEdit() {
     document.getElementById('coSaveBtn').classList.add('hidden');
 }
 
+// Paid Date wajib saat status Paid — cerminan aturan TOP Plan di Financial Information.
+// Invoiced → Submit Invoice Date wajib.
 function toggleCoPaidDate() {
-    const isPaid = document.getElementById('coEditStatus').value === 'Paid';
+    const status = document.getElementById('coEditStatus').value;
+    const isPaid = status === 'Paid';
     document.getElementById('coPaidReq').classList.toggle('hidden', !isPaid);
     document.getElementById('coEditPaidDate').required = isPaid;
+    const isInvoiced = status === 'Invoiced';
+    document.getElementById('coSubmitReq').classList.toggle('hidden', !isInvoiced);
+    document.getElementById('coEditSubmitDate').required = isInvoiced;
 }
 
 function toggleCoInvoiceRequired() {
@@ -575,6 +641,10 @@ async function saveCoStatus() {
 
     if (status === 'Paid' && !paidDate) {
         showCoError('Paid Date is required when Status is Paid.');
+        return;
+    }
+    if (status === 'Invoiced' && !submitDate) {
+        showCoError('Submit Invoice Date is required when Status is Invoiced.');
         return;
     }
     if (submitDate && !invNo) {
@@ -628,8 +698,9 @@ document.addEventListener('keydown', function (e) {
 });
 
 function statusClasses(status) {
-    if (status === 'Paid')  return 'bg-green-100 text-green-700';
-    if (status === 'Delay') return 'bg-amber-100 text-amber-700';
+    if (status === 'Paid')     return 'bg-green-100 text-green-700';
+    if (status === 'Invoiced') return 'bg-blue-100 text-blue-700';
+    if (status === 'Delay')    return 'bg-amber-100 text-amber-700';
     return 'bg-gray-100 text-gray-600';
 }
 

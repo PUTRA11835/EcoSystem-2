@@ -271,8 +271,10 @@ class Ticket extends Model
             return null;
         }
 
-        return str_pad((string) $this->customer_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($this->customer->basicData->name_1);
+        return \App\Services\OneDriveService::sanitizeSegment(
+            str_pad((string) $this->customer_id, 3, '0', STR_PAD_LEFT)
+                . ' ' . strtoupper($this->customer->basicData->name_1)
+        );
     }
 
     // Relasi ke Employee (Ticket Lead)
