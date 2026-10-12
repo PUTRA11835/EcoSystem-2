@@ -48,7 +48,7 @@
 </div>
 
 <!-- ── Modal: Create / Edit Holiday ────────────────────────────────────────── -->
-<div id="holidayModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="holidayModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
         <div class="flex justify-between items-center p-6 border-b border-gray-100">
             <h3 id="holidayModalTitle" class="text-lg font-bold text-gray-900">Add Holiday</h3>

@@ -62,7 +62,12 @@ class GetSlaSummaryTool implements AiTool
 
     private function singleTicket(Employee $employee, int $ticketId): array
     {
-        $ticket = Ticket::find($ticketId, ['ticket_id', 'ticket_number', 'ticket_priority', 'status']);
+        // whereNull('is_hidden') SEKALIAN di query find, bukan dicek belakangan
+        // — ticket hidden harus tampak "tidak ada" persis seperti ticket_id
+        // yang salah, bukan tampak ada lalu ditolak (itu masih membocorkan
+        // keberadaannya).
+        $ticket = Ticket::whereNull('is_hidden')
+            ->find($ticketId, ['ticket_id', 'ticket_number', 'ticket_priority', 'status']);
         if (!$ticket) {
             return ['error' => "No ticket found with id {$ticketId}."];
         }
@@ -80,7 +85,7 @@ class GetSlaSummaryTool implements AiTool
         $limit = max(1, min($limit, 30));
 
         $slas = TicketSla::with(['policy', 'ticket'])
-            ->whereHas('ticket', fn ($q) => $q->whereNotIn('status', ['closed', 'cancelled']))
+            ->whereHas('ticket', fn ($q) => $q->whereNotIn('status', ['closed', 'cancelled'])->whereNull('is_hidden'))
             ->whereNotIn('resolution_status', ['met', 'breached'])
             ->orderBy('resolution_due_at')
             ->limit(200) // bound the raw scan; final limit applied after live computation

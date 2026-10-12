@@ -1,3 +1,12 @@
+<style>
+    /* Chevron kustom untuk dropdown alamat cascading (Country → … → Village). */
+    .addr-select {
+        -webkit-appearance: none; -moz-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 0.625rem center; background-size: 1rem;
+        padding-right: 2rem;
+    }
+</style>
 <div class="space-y-6">
     <!-- FORM HEADER -->
     <div class="flex justify-between items-center pb-2 border-b border-gray-200">
@@ -37,48 +46,58 @@
                 </div>
             </div>
 
-            <!-- Country -->
+            <!-- Country (dropdown — data-driven dari dropdown_configs, fallback Indonesia) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Country</label>
-                <div class="relative">
-                    <input type="text" id="country" value="Indonesia" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="country" onchange="addrOnCountryChange()" class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                    @foreach(($countryOptions ?? ['Indonesia']) as $c)
+                        <option value="{{ $c }}" {{ $c === 'Indonesia' ? 'selected' : '' }}>{{ $c }}</option>
+                    @endforeach
+                </select>
             </div>
 
-            <!-- Region -->
+            <!-- Region / Provinsi (cascading dari Country bila Indonesia; input manual bila negara lain) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Region</label>
-                <div class="relative">
-                    <input type="text" id="region" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
+                <div id="regionWilayahWrap">
+                    <select id="region" onchange="addrOnRegionChange()" data-searchable="true" data-search-placeholder="Search region..." class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                        <option value="">-- Select Region --</option>
+                    </select>
                 </div>
+                <input type="text" id="regionManual" placeholder="Region / Province" class="hidden w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- City -->
+            <!-- City / Kabupaten-Kota (cascading dari Region bila Indonesia; input manual bila negara lain) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">City</label>
-                <input type="text" id="city" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div id="cityWilayahWrap">
+                    <select id="city" onchange="addrOnCityChange()" data-searchable="true" data-search-placeholder="Search city..." class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                        <option value="">-- Select City --</option>
+                    </select>
+                </div>
+                <input type="text" id="cityManual" placeholder="City" class="hidden w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- District -->
+            <!-- District / Kecamatan (cascading dari City bila Indonesia; input manual bila negara lain) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">District</label>
-                <input type="text" id="district" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div id="districtWilayahWrap">
+                    <select id="district" onchange="addrOnDistrictChange()" data-searchable="true" data-search-placeholder="Search district..." class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                        <option value="">-- Select District --</option>
+                    </select>
+                </div>
+                <input type="text" id="districtManual" placeholder="District" class="hidden w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
-            <!-- Rural/Urban Village -->
+            <!-- Rural/Urban Village / Kelurahan-Desa (cascading dari District bila Indonesia; input manual bila negara lain) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Rural / Urban Village</label>
-                <input type="text" id="village" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <div id="villageWilayahWrap">
+                    <select id="village" data-searchable="true" data-search-placeholder="Search village..." class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
+                        <option value="">-- Select Village --</option>
+                    </select>
+                </div>
+                <input type="text" id="villageManual" placeholder="Rural / Urban Village" class="hidden w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Street (Row 2) -->
@@ -326,7 +345,7 @@
 
 
 <!-- Delete Confirmation Modal -->
-<div id="confirmDeleteAddressModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteAddressModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -349,6 +368,173 @@
     let addressesData = [];
     let selectedAddressId = null;
     let deleteAddressId = null;
+
+    /* ─────────────────────────────────────────────────────────────────────
+       CASCADING DROPDOWN WILAYAH
+       Country → Region → City → District → Rural/Urban Village.
+       Port 1:1 dari master/employee/sections/address.blade.php — sumber:
+       /api/regions/children (tabel `wilayah`, Kepmendagri 2025). Nilai yang
+       DISIMPAN tetap NAMA (kolom region/city/district/rural_urban_village).
+       Kode wilayah dibawa di data-code tiap <option> untuk menautkan ke
+       level di bawahnya. Ubah salah satu level → semua level di bawahnya
+       dikosongkan (harus pilih ulang).
+       ───────────────────────────────────────────────────────────────────── */
+    const addrRegionSel   = () => document.getElementById('region');
+    const addrCitySel     = () => document.getElementById('city');
+    const addrDistrictSel = () => document.getElementById('district');
+    const addrVillageSel  = () => document.getElementById('village');
+
+    let addrRegionsReady = null; // promise: daftar provinsi selesai dimuat
+
+    // Kode wilayah dari <option> yang sedang terpilih pada sebuah <select>.
+    function addrSelectedCode(sel) {
+        const o = sel && sel.options[sel.selectedIndex];
+        return o ? (o.dataset.code || '') : '';
+    }
+
+    // Ambil anak wilayah dari server. parent '' → daftar provinsi.
+    async function addrFetchWilayah(parentCode) {
+        try {
+            const res = await fetch(`/api/regions/children?parent=${encodeURIComponent(parentCode)}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin'
+            });
+            const data = await res.json();
+            return data.success ? data.data : [];
+        } catch (e) {
+            console.error('Error loading wilayah:', e);
+            return [];
+        }
+    }
+
+    // Isi <select> dengan daftar wilayah. selectedName = nama yang ingin
+    // dipilih ulang (saat edit). Bila nama tersimpan tidak ada di daftar resmi
+    // (data lama free-text), tetap ditambahkan sebagai opsi agar tidak hilang.
+    function addrFillWilayah(sel, items, placeholder, selectedName = '') {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        let matched = false;
+        items.forEach(it => {
+            const opt = document.createElement('option');
+            opt.value = it.name;
+            opt.dataset.code = it.code;
+            opt.textContent = it.name;
+            if (selectedName && selectedName === it.name) { opt.selected = true; matched = true; }
+            sel.appendChild(opt);
+        });
+        if (selectedName && !matched) {
+            const opt = document.createElement('option');
+            opt.value = selectedName;
+            opt.textContent = selectedName;
+            opt.selected = true;
+            sel.appendChild(opt);
+        }
+    }
+
+    // Kosongkan <select> (sisakan placeholder saja).
+    function addrResetWilayah(sel, placeholder) {
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+    }
+
+    // Muat daftar provinsi ke dropdown Region (opsional pilih salah satu).
+    function addrLoadRegions(selectedName = '') {
+        addrRegionsReady = addrFetchWilayah('').then(items => {
+            addrFillWilayah(addrRegionSel(), items, '-- Select Region --', selectedName);
+        });
+        return addrRegionsReady;
+    }
+
+    // Handler onchange tiap level: kosongkan level di bawah, lalu muat anaknya.
+    async function addrOnRegionChange() {
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrRegionSel());
+        if (code) addrFillWilayah(addrCitySel(), await addrFetchWilayah(code), '-- Select City --');
+    }
+    async function addrOnCityChange() {
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrCitySel());
+        if (code) addrFillWilayah(addrDistrictSel(), await addrFetchWilayah(code), '-- Select District --');
+    }
+    async function addrOnDistrictChange() {
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        const code = addrSelectedCode(addrDistrictSel());
+        if (code) addrFillWilayah(addrVillageSel(), await addrFetchWilayah(code), '-- Select Village --');
+    }
+
+    // Rekonstruksi seluruh rantai dropdown dari nilai tersimpan (saat load/edit).
+    async function addrHydrateLocation(regionName, cityName, districtName, villageName) {
+        await addrLoadRegions(regionName || '');
+        const rCode = addrSelectedCode(addrRegionSel());
+        addrFillWilayah(addrCitySel(), rCode ? await addrFetchWilayah(rCode) : [], '-- Select City --', cityName || '');
+        const cCode = addrSelectedCode(addrCitySel());
+        addrFillWilayah(addrDistrictSel(), cCode ? await addrFetchWilayah(cCode) : [], '-- Select District --', districtName || '');
+        const dCode = addrSelectedCode(addrDistrictSel());
+        addrFillWilayah(addrVillageSel(), dCode ? await addrFetchWilayah(dCode) : [], '-- Select Village --', villageName || '');
+    }
+
+    /* ─────────────────────────────────────────────────────────────────────
+       COUNTRY-DEPENDENT MODE: Indonesia pakai dropdown wilayah cascading di
+       atas; negara lain (mis. Singapura) pakai input manual karena tabel
+       `wilayah` memang data resmi Indonesia-only. Kolom yang disimpan tetap
+       region/city/district/rural_urban_village (string bebas — backend
+       sudah menerima teks apa pun), jadi tidak ada perubahan payload/API.
+       ───────────────────────────────────────────────────────────────────── */
+    const ADDR_WILAYAH_COUNTRY = 'Indonesia';
+    const ADDR_LOC_FIELDS = ['region', 'city', 'district', 'village']; // 'village' = id field; payload key-nya rural_urban_village
+
+    function addrIsManualCountry(v) {
+        return (v || 'Indonesia') !== ADDR_WILAYAH_COUNTRY;
+    }
+
+    // Tampilkan dropdown wilayah (Indonesia) atau input manual (negara lain).
+    function addrApplyCountryMode(countryValue) {
+        const manual = addrIsManualCountry(countryValue);
+        ADDR_LOC_FIELDS.forEach(key => {
+            document.getElementById(key + 'WilayahWrap').classList.toggle('hidden', manual);
+            document.getElementById(key + 'Manual').classList.toggle('hidden', !manual);
+        });
+    }
+
+    // Baca value field lokasi dari mode yang sedang aktif (select ATAU manual input).
+    function addrGetField(key) {
+        const manualEl = document.getElementById(key + 'Manual');
+        if (!manualEl.classList.contains('hidden')) return manualEl.value.trim();
+        return document.getElementById(key).value;
+    }
+
+    // Set value Country secara programatic (load/reset), lalu dispatch 'change'
+    // supaya label tombol select-enhance ikut ter-refresh — widget kustom itu
+    // hanya dengar event 'change'/mutasi DOM, TIDAK dengar assignment `.value =`
+    // langsung. Guard flag mencegah addrOnCountryChange() (listener kita sendiri,
+    // bukan punya select-enhance) ikut jalan dan salah reset field lokasi yang
+    // baru saja kita isi dari data tersimpan.
+    let addrSuppressCountryChange = false;
+    function addrSetCountry(value) {
+        const sel = document.getElementById('country');
+        sel.value = value || 'Indonesia';
+        addrSuppressCountryChange = true;
+        sel.dispatchEvent(new Event('change'));
+        addrSuppressCountryChange = false;
+    }
+
+    function addrOnCountryChange() {
+        if (addrSuppressCountryChange) return;
+        const val = document.getElementById('country').value;
+        addrApplyCountryMode(val);
+        if (!addrIsManualCountry(val)) {
+            // Balik ke Indonesia: reset wilayah, user pilih ulang (tidak ada carry-over dari manual text).
+            addrRegionSel().value = '';
+            addrRegionSel().dispatchEvent(new Event('change'));
+            addrResetWilayah(addrCitySel(), '-- Select City --');
+            addrResetWilayah(addrDistrictSel(), '-- Select District --');
+            addrResetWilayah(addrVillageSel(), '-- Select Village --');
+        } else {
+            // Pindah ke manual: kosongkan text field (hindari data wilayah Indonesia nyasar ke negara lain).
+            ADDR_LOC_FIELDS.forEach(key => { document.getElementById(key + 'Manual').value = ''; });
+        }
+    }
 
     /**
      * Load all addresses for this customer
@@ -483,11 +669,18 @@
                 const address = data.data;
                 document.getElementById('editAddressId').value = address.address_id;
                 document.getElementById('addressType').value = address.address_type || '';
-                document.getElementById('country').value = address.country || '';
-                document.getElementById('region').value = address.region || '';
-                document.getElementById('city').value = address.city || '';
-                document.getElementById('district').value = address.district || '';
-                document.getElementById('village').value = address.rural_urban_village || '';
+                addrSetCountry(address.country || 'Indonesia');
+                addrApplyCountryMode(address.country);
+                if (addrIsManualCountry(address.country)) {
+                    // Negara non-Indonesia: isi langsung text manual, tidak perlu hit /api/regions/children.
+                    document.getElementById('regionManual').value = address.region || '';
+                    document.getElementById('cityManual').value = address.city || '';
+                    document.getElementById('districtManual').value = address.district || '';
+                    document.getElementById('villageManual').value = address.rural_urban_village || '';
+                } else {
+                    // Rekonstruksi dropdown cascading Region → City → District → Village.
+                    await addrHydrateLocation(address.region, address.city, address.district, address.rural_urban_village);
+                }
                 document.getElementById('street').value = address.street || '';
                 document.getElementById('houseNumber').value = address.house_number || '';
                 document.getElementById('buildingName').value = address.building_name || '';
@@ -527,10 +720,10 @@
             house_number: document.getElementById('houseNumber').value,
             building_name: document.getElementById('buildingName').value,
             full_address: document.getElementById('fullAddress').value,
-            rural_urban_village: document.getElementById('village').value,
-            district: document.getElementById('district').value,
-            city: document.getElementById('city').value,
-            region: document.getElementById('region').value,
+            rural_urban_village: addrGetField('village'),
+            district: addrGetField('district'),
+            city: addrGetField('city'),
+            region: addrGetField('region'),
             postal_code: document.getElementById('postalCode').value,
             language: document.getElementById('language').value,
             cell_phone_country: document.getElementById('cellPhoneCountry').value,
@@ -582,13 +775,23 @@
      */
     function clearAddressForm() {
         document.getElementById('editAddressId').value = '';
-        ['addressType','region','city','district','village','street','houseNumber','buildingName','fullAddress','postalCode',
+        ['addressType','street','houseNumber','buildingName','fullAddress','postalCode',
          'language','cellPhone','telephone','telephoneExt','fax','faxExt','email','website',
          'preferredCommunication','addrValidFrom','addrValidTo'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
-        document.getElementById('country').value = 'Indonesia';
+        addrSetCountry('Indonesia');
+        addrApplyCountryMode('Indonesia');
+        ADDR_LOC_FIELDS.forEach(key => { document.getElementById(key + 'Manual').value = ''; });
+        // Reset cascading: kosongkan Region + dispatch change agar select-enhance
+        // menyegarkan label; level di bawahnya dikosongkan manual (innerHTML →
+        // observer enhancer ikut menyegarkan labelnya sendiri).
+        addrRegionSel().value = '';
+        addrRegionSel().dispatchEvent(new Event('change'));
+        addrResetWilayah(addrCitySel(), '-- Select City --');
+        addrResetWilayah(addrDistrictSel(), '-- Select District --');
+        addrResetWilayah(addrVillageSel(), '-- Select Village --');
         document.getElementById('cellPhoneCountry').value = '+62';
         document.getElementById('telephoneCountry').value = '+62';
         document.getElementById('faxCountry').value = '+62';

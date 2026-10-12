@@ -40,7 +40,7 @@
 </div>
 
 <!-- ── Modal: Create / Edit Role ──────────────────────────────────────────── -->
-<div id="roleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="roleModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md">
         <div class="flex justify-between items-center p-6 border-b border-gray-100">
             <h3 id="roleModalTitle" class="text-lg font-bold text-gray-900">Add Role</h3>
@@ -71,7 +71,7 @@
 </div>
 
 <!-- ── Modal: Members ─────────────────────────────────────────────────────── -->
-<div id="membersModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="membersModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
         <div class="flex justify-between items-center p-6 border-b border-gray-100">
             <h3 id="membersModalTitle" class="text-lg font-bold text-gray-900">Members</h3>
@@ -110,7 +110,7 @@
 </div>
 
 <!-- ── Modal: Menu Access ─────────────────────────────────────────────────── -->
-<div id="menuAccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="menuAccessModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div class="flex justify-between items-center p-6 border-b border-gray-100 flex-shrink-0">
             <h3 id="menuAccessTitle" class="text-lg font-bold text-gray-900">Menu Access</h3>

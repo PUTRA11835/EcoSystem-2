@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\AuthUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,16 +23,25 @@ class SettingsController extends Controller
         'notifications_enabled' => true,
         'email_notifications'   => true,
         'push_notifications'    => false,
+        // 'default' = ikut setting global admin (App\Support\GlobalSeasonalTheme);
+        // user tetap bisa menimpa sendiri dengan 'none' (matikan) atau tema eksplisit.
+        'seasonal_theme'        => 'default',
+        // Daftar href menu sidebar yang di-pin user ke Command Center (Dashboard).
+        // Diidentifikasi lewat href (bukan slug menu) karena sidebar dirender dari
+        // ~100 blok <a> hardcoded per item, bukan dari satu sumber data menu yang
+        // bisa ditandai slug-nya — baca/tulis murni dari DOM yang sudah dirender.
+        'pinned_menus'          => [],
     ];
 
     /** Nilai yang diperbolehkan untuk field bertipe pilihan (whitelist). */
     const ALLOWED_VALUES = [
-        'theme'         => ['light', 'dark', 'auto'],
-        'sidebar_style' => ['gradient', 'solid'],
-        'font_size'     => ['small', 'medium', 'large'],
-        'language'      => ['en', 'id'],
-        'timezone'      => ['Asia/Jakarta', 'Asia/Singapore', 'UTC'],
-        'date_format'   => ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
+        'theme'          => ['light', 'dark', 'auto'],
+        'sidebar_style'  => ['gradient', 'solid'],
+        'font_size'      => ['small', 'medium', 'large'],
+        'language'       => ['en', 'id'],
+        'timezone'       => ['Asia/Jakarta', 'Asia/Singapore', 'UTC'],
+        'date_format'    => ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
+        'seasonal_theme' => ['default', 'none', 'natal'],
     ];
 
     const PROFILE_SECTIONS = [
@@ -68,9 +78,17 @@ class SettingsController extends Controller
                 'user_name' => $user['name'] ?? $user['company_name'] ?? 'Unknown',
             ]);
 
+            $authUser = ($user['type'] ?? null) === 'employee'
+                ? \App\Models\AuthUser::where('employee_id', $user['id'])->first()
+                : null;
+            $twoFactorEnabled = $authUser
+                ? \App\Services\TwoFactorAuthService::isEnabled($authUser)
+                : false;
+
             return view('settings.index', [
-                'user'        => $user,
-                'preferences' => $userPreferences,
+                'user'              => $user,
+                'preferences'       => $userPreferences,
+                'twoFactorEnabled'  => $twoFactorEnabled,
             ]);
 
         } catch (\Exception $e) {
@@ -110,6 +128,25 @@ class SettingsController extends Controller
                 'preferences' => $preferences,
             ]);
 
+            $changedKeys = array_keys(array_diff_assoc(
+                array_map(fn ($v) => is_scalar($v) ? (string) $v : json_encode($v), $preferences),
+                array_map(fn ($v) => is_scalar($v) ? (string) $v : json_encode($v), $current)
+            ));
+
+            if ($changedKeys) {
+                $authUser = $this->resolveAuthUser();
+                AuditLog::recordAction(
+                    module: 'Settings',
+                    auditableType: 'AuthUser',
+                    auditableId: $authUser->id ?? 0,
+                    event: 'updated',
+                    recordLabel: $user['name'] ?? $user['company_name'] ?? "User #{$user['id']}",
+                    description: 'updated preferences (' . implode(', ', $changedKeys) . ')',
+                    old: array_intersect_key($current, array_flip($changedKeys)),
+                    new: array_intersect_key($preferences, array_flip($changedKeys)),
+                );
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Settings saved successfully!',
@@ -141,12 +178,25 @@ class SettingsController extends Controller
             }
 
             // Reset ke default & simpan (DB + session)
+            $previous = $this->loadPreferences();
             $defaultPreferences = self::DEFAULT_PREFERENCES;
             $this->persistPreferences($defaultPreferences);
 
             Log::info('User preferences reset to default', [
                 'user_id' => $user['id'],
             ]);
+
+            $authUser = $this->resolveAuthUser();
+            AuditLog::recordAction(
+                module: 'Settings',
+                auditableType: 'AuthUser',
+                auditableId: $authUser->id ?? 0,
+                event: 'updated',
+                recordLabel: $user['name'] ?? $user['company_name'] ?? "User #{$user['id']}",
+                description: 'reset preferences to default',
+                old: $previous,
+                new: $defaultPreferences,
+            );
 
             return response()->json([
                 'success' => true,
@@ -223,6 +273,16 @@ class SettingsController extends Controller
                 if (is_string($value) && preg_match('/^#[0-9a-fA-F]{6}$/', $value)) {
                     $clean[$key] = strtolower($value);
                 }
+            } elseif (is_array($default)) {
+                // Mis. pinned_menus — tanpa cabang ini nilainya KE-BUANG oleh
+                // fallback scalar di bawah (is_scalar(array) === false), diam-diam
+                // kembali ke default setiap kali field array dikirim.
+                $clean[$key] = is_array($value)
+                    ? array_values(array_unique(array_filter(array_map(
+                        fn ($v) => is_scalar($v) ? (string) $v : null,
+                        $value
+                    ))))
+                    : $default;
             } else {
                 $clean[$key] = is_scalar($value) ? (string) $value : $default;
             }

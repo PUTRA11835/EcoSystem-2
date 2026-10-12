@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Document extends Model
 {
-    use HasFactory;
+    use HasFactory, Concerns\TouchesProjectActivity;
 
     protected $fillable = [
         'project_id',

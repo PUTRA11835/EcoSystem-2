@@ -76,7 +76,7 @@
 </div>
 
 {{-- New customer group modal --}}
-<div id="newGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="newGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-1">New Customer Group</h3>
@@ -94,7 +94,7 @@
 </div>
 
 {{-- Add member modal --}}
-<div id="addMemberModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="addMemberModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
         <div class="p-6">
             <h3 id="addMemberTitle" class="text-lg font-bold text-gray-900 mb-1">Add Member</h3>
@@ -111,7 +111,7 @@
 </div>
 
 {{-- Remove member modal --}}
-<div id="removeMemberModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="removeMemberModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -130,7 +130,7 @@
 </div>
 
 {{-- Edit customer group modal --}}
-<div id="editGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="editGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-1">Edit Customer Group</h3>
@@ -149,7 +149,7 @@
 </div>
 
 {{-- Delete customer group modal --}}
-<div id="deleteGroupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] items-center justify-center p-4">
+<div id="deleteGroupModal" class="hidden fixed inset-0 bg-black/50 z-[60] items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">

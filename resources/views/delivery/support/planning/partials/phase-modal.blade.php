@@ -1,7 +1,7 @@
 {{-- ============================================================================ --}}
 {{-- PHASE CONFIGURATION MODAL - FULL RESPONSIVE --}}
 {{-- ============================================================================ --}}
-<div id="phaseConfigModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+<div id="phaseConfigModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl md:max-w-4xl flex flex-col max-h-[90vh]">
             <!-- Header -->
             <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
@@ -141,7 +141,7 @@
 {{-- ============================================================================ --}}
 {{-- CONFIRMATION DELETE MODAL --}}
 {{-- ============================================================================ --}}
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4" aria-labelledby="confirm-title" role="dialog" aria-modal="true">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4" aria-labelledby="confirm-title" role="dialog" aria-modal="true">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg">
             <!-- Header -->
             <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">

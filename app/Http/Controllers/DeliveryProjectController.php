@@ -116,7 +116,7 @@ class DeliveryProjectController extends Controller
             $activityDone = $activities->filter(fn ($a) => (float) ($a->progress_percentage ?? 0) >= 100)->count();
 
             $terms       = $paymentTerms[$project->id] ?? collect();
-            $termAmount  = fn ($t) => round($revenue * ((float) $t->payment_percentage) / 100, 2);
+            $termAmount  = fn ($t) => $t->effectiveAmount($revenue);
             $topAmount   = $terms->sum($termAmount);
             $topPaid     = $terms->where('status', 'Paid')->sum($termAmount);
 
@@ -187,7 +187,7 @@ class DeliveryProjectController extends Controller
 
                 'is_closed'           => $project->is_closed ? 'Yes' : 'No',
                 'closed_at'           => $project->closed_at ? $project->closed_at->format('Y-m-d') : '-',
-                'updated_at'          => $project->updated_at ? $project->updated_at->format('Y-m-d H:i') : '-',
+                'updated_at'          => $project->last_update_date ? $project->last_update_date->format('Y-m-d H:i') : '-',
                 'description'         => $text($project->description),
             ];
         });
@@ -472,7 +472,7 @@ class DeliveryProjectController extends Controller
             }
         }
 
-        $project->go_live_estimated = $goLiveDate ?: null;
+        $project->go_live_estimated = DeliveryProject::normalizeGoLiveDate($goLiveDate);
 
         if (!$project->location_valid_from && $firstStartDate) {
             $project->location_valid_from = $firstStartDate->toDateString();
@@ -480,10 +480,14 @@ class DeliveryProjectController extends Controller
         if (!$project->location_valid_to && $lastEndDate) {
             $project->location_valid_to = $lastEndDate->toDateString();
         }
-        
+
+        // Sinkronisasi otomatis saat halaman dibuka — bukan aktivitas user, jadi
+        // tidak boleh menggeser "Last Update Date" (last_activity_at).
         try {
-            $project->save();
-            $project->updateStatusAutomatically();
+            DeliveryProject::withoutActivityTracking(function () use ($project) {
+                $project->save();
+                $project->updateStatusAutomatically();
+            });
         } catch (\Exception $e) {
             Log::error('DeliveryProjectController@show: failed to auto-update project', [
                 'project_id' => $project->id,
@@ -905,15 +909,17 @@ class DeliveryProjectController extends Controller
      * Hitung ulang amount setiap payment term dari revenue project terkini,
      * mengikuti rumus amount = revenue × payment_percentage / 100 yang juga dipakai
      * saat term dibuat/diedit (lihat DeliveryProjectPaymentTermController::computeAmount).
+     * Termin nominal tetap (mode Line Item) tidak diturunkan dari revenue → dilewati.
      */
     private function syncPaymentTermAmounts(DeliveryProject $project): void
     {
         $revenue = (float) ($project->revenue ?? 0);
 
         DeliveryProjectPaymentTerm::where('delivery_projects_id', $project->id)
+            ->where('basis', 'percentage')
             ->get()
             ->each(function (DeliveryProjectPaymentTerm $term) use ($revenue) {
-                $amount = round($revenue * ((float) $term->payment_percentage) / 100, 2);
+                $amount = $term->effectiveAmount($revenue);
                 if (abs((float) $term->amount - $amount) > 0.001) {
                     $term->update(['amount' => $amount]);
                 }
@@ -1222,6 +1228,9 @@ class DeliveryProjectController extends Controller
             // Kolom FK project-role (project_manager_id dkk) menunjuk ke master
             // employee, jadi TIDAK bisa diisi orang vendor — sengaja dilewati.
 
+            // Pivot ditulis via query builder (tanpa event) → catat manual.
+            $project->touchActivity();
+
             if ($request->expectsJson()) {
                 return response()->json(['success' => true, 'message' => 'Team member added successfully']);
             }
@@ -1260,6 +1269,8 @@ class DeliveryProjectController extends Controller
             'vendor_id'     => null,
             'vendor_name'   => null,
         ]);
+
+        $project->touchActivity();
 
         // Sync project-role FK column if applicable
         if (isset(self::PROJECT_ROLE_COLUMNS[$request->role])) {
@@ -1338,6 +1349,7 @@ class DeliveryProjectController extends Controller
         }
 
         DB::table('delivery_project_employee')->where('id', $row->id)->delete();
+        $project->touchActivity();
 
         if ($row->employee_id !== null && isset(self::PROJECT_ROLE_COLUMNS[$row->role])) {
             $col = self::PROJECT_ROLE_COLUMNS[$row->role];
@@ -1387,6 +1399,8 @@ class DeliveryProjectController extends Controller
             }
             if ($dirty) $project->save();
         }
+
+        $project->touchActivity();
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => 'Team member removed successfully']);
@@ -1451,6 +1465,8 @@ class DeliveryProjectController extends Controller
                 'notes'      => $request->notes,
                 'updated_at' => now(),
             ]);
+
+        $project->touchActivity();
 
         // Sinkronkan FK column project-role. Kolom ini menunjuk master employee,
         // jadi hanya relevan untuk baris employee (baris vendor dilewati).

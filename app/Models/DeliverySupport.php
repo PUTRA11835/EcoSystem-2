@@ -36,6 +36,8 @@ class DeliverySupport extends Model
         'plan_cost',
         'gross_profit',
         'gross_profit_percentage',
+        // Mode Term Of Payment: percentage | line_item
+        'top_mode',
         'created_by_id',
         'approval_date',
         'approval_name',
@@ -159,6 +161,16 @@ class DeliverySupport extends Model
     }
 
     /**
+     * Contract Line Items — acuan termin TOP mode "line_item" (mirror DeliveryProject::contractLineItems).
+     */
+    public function contractLineItems()
+    {
+        return $this->hasMany(DeliverySupportContractLineItem::class, 'delivery_support_id')
+            ->orderBy('order_sequence')
+            ->orderBy('id');
+    }
+
+    /**
      * Plan Cost tree (top-level rows only) — mirror of DeliveryProject::costs.
      */
     public function costs()
@@ -230,8 +242,10 @@ class DeliverySupport extends Model
             return null;
         }
 
-        return str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($this->client->basicData->name_1);
+        return \App\Services\OneDriveService::sanitizeSegment(
+            str_pad((string) $this->client_id, 3, '0', STR_PAD_LEFT)
+                . ' ' . strtoupper($this->client->basicData->name_1)
+        );
     }
 
     /**

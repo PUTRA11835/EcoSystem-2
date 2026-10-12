@@ -25,7 +25,7 @@ class LoginLogController extends Controller
      * Data JSON: aktivitas login/logout TERAKHIR per employee (satu baris per employee).
      * GET /api/admin/login-logs?page=1&per_page=25&search=&status=
      *
-     * Berbeda dari Activity Log yang menampilkan tiap event — di sini kita agregasi
+     * Berbeda dari Activity Log yang menampilkan tiap event - di sini kita agregasi
      * ke event terbaru per user_id sehingga cukup satu baris untuk masing-masing
      * employee, plus kolom relatif "terakhir login".
      */
@@ -38,6 +38,8 @@ class LoginLogController extends Controller
         $perPage = max(1, min((int) $request->input('per_page', 25), 500));
         $search  = trim($request->input('search', ''));
         $status  = $request->input('status', ''); // '', 'login', 'logout'
+        $sortBy  = $request->input('sort_by', 'time');
+        $sortDir = $request->input('sort_dir', 'desc') === 'asc' ? 'asc' : 'desc';
 
         // Event login/logout terbaru per employee. Abaikan percobaan gagal (failed)
         // supaya status baris mencerminkan kondisi login/logout yang sebenarnya.
@@ -57,8 +59,7 @@ class LoginLogController extends Controller
         $query = DB::table('login_activity as la')
             ->joinSub($latest, 'latest', 'la.activity_id', '=', 'latest.max_id')
             ->leftJoinSub($lastLogin, 'll', 'la.user_id', '=', 'll.user_id')
-            ->select('la.*', 'll.last_login_at')
-            ->orderByDesc('la.created_at');
+            ->select('la.*', 'll.last_login_at');
 
         if ($search !== '') {
             $query->where('la.user_name', 'like', "%{$search}%");
@@ -69,6 +70,15 @@ class LoginLogController extends Controller
         } elseif ($status === 'logout') {
             $query->where('la.status', 'logout');
         }
+
+        // Allowlisted sort columns only - never pass the request value straight into orderBy().
+        $sortColumns = [
+            'user_name'   => 'la.user_name',
+            'status'      => 'la.status',
+            'time'        => 'la.created_at',
+            'last_login'  => 'll.last_login_at',
+        ];
+        $query->orderBy($sortColumns[$sortBy] ?? 'la.created_at', $sortDir);
 
         $records = $query->paginate($perPage);
 
@@ -83,6 +93,10 @@ class LoginLogController extends Controller
                 ? \Carbon\Carbon::parse($eventAt)->setTimezone('Asia/Jakarta')->format('d M Y H:i') . ' WIB'
                 : '-';
 
+            $location = collect([$row->location_city ?? null, $row->location_country ?? null])
+                ->filter(fn ($v) => $v && $v !== 'Local')
+                ->implode(', ');
+
             return [
                 'user_id'      => $row->user_id,
                 'user_name'    => $row->user_name ?? '-',
@@ -92,6 +106,8 @@ class LoginLogController extends Controller
                 'device_model' => $row->device_model ?? null,
                 'browser'      => $row->browser ?? '-',
                 'os'           => $row->os ?? '-',
+                'ip_address'   => $row->ip_address ?? '-',
+                'location'     => $location ?: (($row->location_city ?? null) === 'Local' ? 'Local network' : 'Unknown location'),
                 'time'         => $eventLabel,
                 'last_login'   => $this->relativeLastLogin($row->last_login_at),
             ];

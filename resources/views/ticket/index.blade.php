@@ -177,6 +177,10 @@
                 Showing <span class="font-semibold text-gray-600" id="currentRangeStart">1</span>&ndash;<span class="font-semibold text-gray-600" id="currentRangeEnd">20</span>
                 <span class="text-gray-300 mx-1">of</span>
                 <span class="font-semibold text-gray-700" id="totalItems">0</span> tickets
+                <button onclick="resetFilters()" title="Reset all filters and sorting"
+                    class="inline-flex items-center gap-1 ml-3 px-2.5 py-1 bg-white border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all">
+                    <i class="fas fa-rotate-left text-[10px]"></i>Reset Filter
+                </button>
             </p>
             <div class="flex items-center gap-1">
                 <button onclick="previousPage()" id="btnPrevPage" disabled
@@ -598,7 +602,7 @@
 
 <!-- Create Ticket Modal -->
 @if($can('ui.ticket.btn-create'))
-<div id="createTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+<div id="createTicketModal" class="hidden fixed inset-0 bg-black/50 z-50 overflow-y-auto">
     <div class="min-h-full flex items-center justify-center p-4">
         <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
             <div class="flex items-center justify-between px-6 py-5 border-b border-gray-200">
@@ -3008,13 +3012,15 @@
 </div>
 @endif
 
-{{-- Load custom-dd component (sama dengan Employee/Customer Management).
+{{-- Load custom-dd component (sama dengan Employee/Customer Management) —
+     minified build (~63% smaller after gzip); regenerate via `npm run
+     minify:js` whenever public/js/custom-dropdown.js changes.
      filemtime cache buster supaya production auto-invalidate setiap deploy. --}}
 @php
-$customDdPath = public_path('js/custom-dropdown.js');
+$customDdPath = public_path('js/custom-dropdown.min.js');
 $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 @endphp
-<script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
+<script src="/js/custom-dropdown.min.js?v={{ $customDdVer }}"></script>
 
 {{-- Ticket row context menu --}}
 <div id="ticketContextMenu"
@@ -3107,7 +3113,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 {{-- ══════════════════════════════════════════════════════════════════════════
      TICKET ACTIVITY LOG MODAL
 ══════════════════════════════════════════════════════════════════════════ --}}
-<div id="activityLogModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+<div id="activityLogModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
 
         {{-- Header --}}
@@ -3150,7 +3156,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 </div>
 
 {{-- Activity Log Form Modal --}}
-<div id="alFormModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9995] flex items-center justify-center p-4">
+<div id="alFormModal" class="hidden fixed inset-0 bg-black/50 z-[9995] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <h3 id="alFormTitle" class="text-sm font-bold text-gray-900">Add Activity</h3>
@@ -3440,7 +3446,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 {{-- ══════════════════════════════════════════════════════════════════════════
      LOG SHIFTING MODAL (single ticket — same data as Reporting > Log Shifting)
 ══════════════════════════════════════════════════════════════════════════ --}}
-<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[9990] flex items-center justify-center p-4">
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[9990] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>

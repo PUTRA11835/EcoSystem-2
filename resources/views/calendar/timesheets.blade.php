@@ -711,7 +711,7 @@
 
 @if($isApprovalMode || $isHoSMode)
 <!-- Rejection Reason Modal -->
-<div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="rejectModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -738,7 +738,7 @@
 </div>
 
 <!-- Approval Confirmation Modal (single) -->
-<div id="approveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="approveModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -766,7 +766,7 @@
 </div>
 
 <!-- Bulk Approve Modal -->
-<div id="bulkApproveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="bulkApproveModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -792,7 +792,7 @@
 </div>
 
 <!-- Bulk Reject Modal -->
-<div id="bulkRejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="bulkRejectModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -912,6 +912,8 @@
                         </label>
                         <input type="date" id="timesheetDate" required
                             class="w-full px-3 py-2.5 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-red-700 focus:border-transparent bg-gray-50 hover:bg-white transition-colors">
+                        {{-- Project: the date is locked to today (toggled by handleTimesheetTypeChange) --}}
+                        <p id="timesheetDateHint" class="hidden mt-1 text-xs text-gray-400">Project timesheets are always logged on today's date. For work on an earlier day, mention it in Activity Detail.</p>
                     </div>
 
                     {{-- Period Selector (populated by JS — shown only when late exception exists) --}}
@@ -919,16 +921,11 @@
 
                     {{-- Start + End Time + Duration --}}
                     {{-- Custom time picker (NOT the native <input type="time">): a text field
-                         the user can type an HH:MM value into, plus an app-styled dropdown
-                         of preset times. Wired by initTsTimePickers() in calendar-timesheets.js;
-                         order is enforced by tsUpdateStartTime / tsUpdateEndTime → _tsValidateTimeOrder. --}}
-                    @php
-                        $tsTimeOptions = [];
-                        for ($h = 0; $h < 24; $h++) {
-                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':00';
-                            $tsTimeOptions[] = str_pad($h, 2, '0', STR_PAD_LEFT) . ':30';
-                        }
-                    @endphp
+                         the user can type an HH:MM value into, plus an app-styled per-minute
+                         dropdown (hour column + minute column) rendered by _tsRenderTimePanel()
+                         in calendar-timesheets.js. For Project timesheets, times already used by
+                         the user's other project timesheets that day are disabled.
+                         Order/overlap is enforced by tsUpdateStartTime / tsUpdateEndTime → _tsValidateTimeOrder. --}}
                     <div id="timesheetTimeBlock">
                         <label class="block text-xs font-semibold text-gray-600 mb-1.5">
                             Time <span class="text-red-500">*</span>
@@ -938,7 +935,7 @@
                                 @if ($side === 'End')
                                     <i class="fas fa-arrow-right text-xs text-gray-300 flex-shrink-0"></i>
                                 @endif
-                                <div class="relative flex-1 min-w-0" data-ts-timepicker>
+                                <div class="relative flex-1 min-w-0" data-ts-timepicker="{{ strtolower($side) }}">
                                     <input type="text" id="timesheet{{ $side }}Time" value="{{ $default }}" required
                                         inputmode="numeric" autocomplete="off" spellcheck="false" maxlength="5" placeholder="{{ $default }}"
                                         oninput="tsUpdate{{ $side }}Time()"
@@ -949,12 +946,7 @@
                                         class="ts-tp-toggle absolute inset-y-0 right-0 flex items-center px-2 text-gray-400 hover:text-gray-600">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                                     </button>
-                                    <div class="ts-tp-panel hidden absolute left-0 right-0 mt-1 z-[9999] bg-white border border-gray-200 rounded-md shadow-lg overflow-y-auto py-1" style="max-height:13rem;">
-                                        @foreach ($tsTimeOptions as $opt)
-                                            <button type="button" data-value="{{ $opt }}"
-                                                class="ts-tp-item w-full text-left px-3 py-1.5 text-sm font-mono text-gray-700 hover:bg-gray-50">{{ $opt }}</button>
-                                        @endforeach
-                                    </div>
+                                    <div class="ts-tp-panel hidden absolute left-0 right-0 mt-1 z-[9999] bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden" style="min-width:9rem;"></div>
                                 </div>
                             @endforeach
                         </div>
@@ -963,17 +955,8 @@
                             Duration: <span id="timesheetDuration" class="font-semibold text-gray-600">—</span>
                         </p>
                         <p id="timesheetTimeError" class="hidden mt-1 text-xs text-red-500">End time must be later than start time.</p>
-                    </div>
-
-                    {{-- Billable (project only) --}}
-                    <div id="billableSection" class="hidden">
-                        <label class="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-md cursor-pointer hover:bg-green-100 transition-colors">
-                            <input type="checkbox" id="timesheetBillable" checked
-                                class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                            <span class="text-sm font-semibold text-green-800">
-                                <span class="font-bold mr-1">Rp</span> Billable hours
-                            </span>
-                        </label>
+                        {{-- Project: time ranges already used today (filled by loadProjectFormContext) --}}
+                        <div id="timesheetBookedTimes" class="hidden mt-2 text-xs text-gray-500"></div>
                     </div>
                 </div>
 
@@ -984,7 +967,7 @@
                     {{-- Dynamic Fields Container (injected by JS based on type) --}}
                     <div id="dynamicFields" class="space-y-4"></div>
 
-                    {{-- Activity Description --}}
+                    {{-- Activity Description (label is "Activity Detail" for project, set by JS) --}}
                     <div>
                         <label for="timesheetDescription" class="block text-xs font-semibold text-gray-600 mb-1.5">
                             Description <span class="text-red-500">*</span>
@@ -1019,7 +1002,7 @@
 </div>
 
 <!-- Modal Konfirmasi Bulk Delete -->
-<div id="confirmBulkDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmBulkDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1046,7 +1029,7 @@
 </div>
 
 <!-- Modal Konfirmasi Bulk Submit -->
-<div id="confirmBulkSubmitModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmBulkSubmitModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1073,7 +1056,7 @@
 </div>
 
 <!-- Modal Konfirmasi Delete (Single) -->
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1100,7 +1083,7 @@
 </div>
 
 <!-- Modal Konfirmasi Submit (Single) -->
-<div id="confirmSubmitModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmSubmitModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-3">
@@ -1160,7 +1143,7 @@
 
 {{-- ── Late Access Request Modal (Employee) ──────────────────────────────── --}}
 @if(!isset($isHead) || !$isHead)
-<div id="lateAccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="lateAccessModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 class="text-base font-bold text-gray-900"><i class="fas fa-user-clock text-yellow-500 mr-1.5"></i>Request Late Access</h3>

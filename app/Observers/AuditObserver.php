@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Shared observer for every model using the App\Traits\Auditable trait.
- * Writes one row to audit_logs per create/update/delete — fire-and-forget,
+ * Writes one row to audit_logs per create/update/delete - fire-and-forget,
  * same pattern as AuthController::recordActivity(): a logging failure must
  * never break the actual business operation.
  */
@@ -18,22 +18,38 @@ class AuditObserver
 
     private const IGNORED_ATTRIBUTES = ['updated_at', 'created_at'];
 
+    /** Domain acronyms that must stay all-caps after title-casing (ucwords turns them into "Sla", "Id", etc). */
+    private const ACRONYMS = [
+        'Id'     => 'ID',
+        'Sla'    => 'SLA',
+        'Pic'    => 'PIC',
+        'Url'    => 'URL',
+        'Ip'     => 'IP',
+        'Api'    => 'API',
+        'Cc'     => 'CC',
+        'Wricef' => 'WRICEF',
+        'Sap'    => 'SAP',
+        'Os'     => 'OS',
+        'Ua'     => 'UA',
+        'Qa'     => 'QA',
+    ];
+
     /** Beyond this many changed fields, the inline summary switches from "Field: old → new" to a bare field-name list. */
     private const MAX_INLINE_CHANGE_FIELDS = 3;
 
     public function created(Model $model): void
     {
-        $attributes = $this->stripIgnored($model->getAttributes());
+        $attributes = $this->stripIgnored($model->getAttributes(), $model);
 
         $this->log($model, 'created', null, $this->redact($attributes, $model->auditExcludedAttributes()));
     }
 
     public function updated(Model $model): void
     {
-        $changes = $this->stripIgnored($model->getChanges());
+        $changes = $this->stripIgnored($model->getChanges(), $model);
 
         if (empty($changes)) {
-            return; // no meaningful change (e.g. a bare touch())
+            return; // no meaningful change (e.g. a bare touch(), or only ignored bookkeeping columns moved)
         }
 
         $excluded = $model->auditExcludedAttributes();
@@ -44,7 +60,7 @@ class AuditObserver
 
     public function deleted(Model $model): void
     {
-        $attributes = $this->stripIgnored($model->getAttributes());
+        $attributes = $this->stripIgnored($model->getAttributes(), $model);
 
         $this->log($model, 'deleted', $this->redact($attributes, $model->auditExcludedAttributes()), null);
     }
@@ -84,24 +100,24 @@ class AuditObserver
 
     /**
      * Human-readable one-liner, e.g. "marked Customer Mandays as Approved
-     * (Chat Notes: empty → Called customer) — Ticket #1234" or "added
+     * (Chat Notes: empty → Called customer) - Ticket #1234" or "added
      * Employee: Budi Santoso". Shown next to the Actor column so the row
      * reads as a sentence (Actor + description).
      */
     private function buildDescription(Model $model, string $event, ?array $old, ?array $new): string
     {
         // Deliberately the specific record type (e.g. "Delivery Project Risk"),
-        // not the coarse module/domain grouping — using the domain label here
+        // not the coarse module/domain grouping - using the domain label here
         // would misleadingly read as if the whole Delivery Project changed.
         $subject = $this->humanizeClassName($model);
         $suffix  = $this->subjectSuffix($model);
 
         if ($event === 'created') {
-            return "added {$subject}{$suffix}";
+            return ucfirst("added {$subject}{$suffix}");
         }
 
         if ($event === 'deleted') {
-            return "deleted {$subject}{$suffix}";
+            return ucfirst("deleted {$subject}{$suffix}");
         }
 
         $old ??= [];
@@ -116,19 +132,19 @@ class AuditObserver
             );
             $restText = $rest !== '' ? " ({$rest})" : '';
 
-            return "marked {$subject}{$qualifier} as " . $this->humanizeStatus($new[$statusKey]) . $restText . $suffix;
+            return ucfirst("marked {$subject}{$qualifier} as " . $this->humanizeStatus($new[$statusKey]) . $restText . $suffix);
         }
 
         $summary = $this->summarizeChanges($old, $new);
         $summaryText = $summary !== '' ? " ({$summary})" : '';
 
-        return "updated {$subject}{$summaryText}{$suffix}";
+        return ucfirst("updated {$subject}{$summaryText}{$suffix}");
     }
 
     /**
      * Short human summary of what changed, e.g. "Priority: Low → High" for
      * one or two fields, or a bare field-name list once there are more than
-     * MAX_INLINE_CHANGE_FIELDS — the full before/after values for every
+     * MAX_INLINE_CHANGE_FIELDS - the full before/after values for every
      * field are still available via the Changes modal (old_values/
      * new_values), this is just enough to read the row at a glance without
      * opening it.
@@ -179,7 +195,7 @@ class AuditObserver
     }
 
     /**
-     * Finds a status-like field among the changed attributes — the literal
+     * Finds a status-like field among the changed attributes - the literal
      * "status" column if present (most models), else the first "*_status"
      * field (e.g. Ticket.mandays_proposal_status, TicketSla.response_status).
      */
@@ -198,32 +214,42 @@ class AuditObserver
         return null;
     }
 
-    /** "response_status" -> "Response". */
+    /** "response_status" -> "Response", "sla_paused_at" -> "SLA Paused At". */
     private function humanizeFieldName(string $key): string
     {
-        return ucwords(str_replace('_', ' ', preg_replace('/_status$/', '', $key)));
+        return $this->fixAcronyms(ucwords(str_replace('_', ' ', preg_replace('/_status$/', '', $key))));
     }
 
-    /** "DeliveryProjectRisk" -> "Delivery Project Risk". */
+    /** "DeliveryProjectRisk" -> "Delivery Project Risk", "TicketSla" -> "Ticket SLA". */
     private function humanizeClassName(Model $model): string
     {
-        return trim(preg_replace('/(?<!^)[A-Z]/', ' $0', class_basename($model)));
+        return $this->fixAcronyms(trim(preg_replace('/(?<!^)[A-Z]/', ' $0', class_basename($model))));
     }
 
-    /** " — Ticket #26080012" when the record references a ticket, else ": {label}". */
+    /** Restores conventional all-caps spelling for domain acronyms that title-casing lowercased (e.g. "Sla" -> "SLA"). */
+    private function fixAcronyms(string $text): string
+    {
+        return preg_replace_callback(
+            '/\b(' . implode('|', array_keys(self::ACRONYMS)) . ')\b/',
+            fn ($m) => self::ACRONYMS[$m[1]],
+            $text
+        );
+    }
+
+    /** " - Ticket #26080012" when the record references a ticket, else ": {label}". */
     private function subjectSuffix(Model $model): string
     {
         $ticketId = $model->getAttribute('ticket_id');
 
         if ($ticketId) {
-            return ' — Ticket #' . $this->resolveTicketNumber($model, $ticketId);
+            return ' - Ticket #' . $this->resolveTicketNumber($model, $ticketId);
         }
 
         return ': ' . $model->auditRecordLabel();
     }
 
     /**
-     * ticket_id is the internal auto-increment PK — it's never shown
+     * ticket_id is the internal auto-increment PK - it's never shown
      * anywhere in the product. Every screen (ticket list, ticket detail,
      * notifications) identifies a ticket by its human-facing ticket_number
      * (e.g. "26080012", see TicketNumberService), so the audit trail has to
@@ -265,9 +291,9 @@ class AuditObserver
         ];
     }
 
-    private function stripIgnored(array $attributes): array
+    private function stripIgnored(array $attributes, Model $model): array
     {
-        foreach (self::IGNORED_ATTRIBUTES as $key) {
+        foreach ([...self::IGNORED_ATTRIBUTES, ...$model->auditIgnoredAttributes()] as $key) {
             unset($attributes[$key]);
         }
 

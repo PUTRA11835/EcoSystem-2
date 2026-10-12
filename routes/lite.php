@@ -31,6 +31,10 @@ Route::middleware(['web'])->prefix('lite')->group(function () {
         ->middleware('throttle:5,1')
         ->name('lite.auth.login');
 
+    Route::post('/auth/2fa/verify', [LiteAuthController::class, 'verifyTwoFactor'])
+        ->middleware('throttle:5,1')
+        ->name('lite.auth.2fa.verify');
+
     // ── Protected routes (session atau Bearer token) ──────────────────────
     Route::middleware(['lite.auth'])->group(function () {
 

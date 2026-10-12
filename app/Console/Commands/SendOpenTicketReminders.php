@@ -49,8 +49,9 @@ class SendOpenTicketReminders extends Command
         $batchLimit       = (int) ($this->option('limit') ?? $config['batch_limit'] ?? 50);
         $stopWhenAssigned = (bool) ($config['stop_when_assigned'] ?? false);
         $since            = $this->parseSince($config['since'] ?? null);
+        $types            = $this->parseTypes($config['types'] ?? null);
 
-        $tickets = $this->dueTickets($intervalMinutes, $maxCount, max(1, $batchLimit), $since);
+        $tickets = $this->dueTickets($intervalMinutes, $maxCount, max(1, $batchLimit), $since, $types);
 
         if ($tickets->isEmpty()) {
             $this->line('Tidak ada tiket open yang jatuh tempo reminder.');
@@ -137,7 +138,7 @@ class SendOpenTicketReminders extends Command
      * dikirimi — supaya batas batch memotong antrean secara adil, bukan selalu
      * mengunci tiket yang sama.
      */
-    private function dueTickets(int $intervalMinutes, int $maxCount, int $batchLimit, ?Carbon $since)
+    private function dueTickets(int $intervalMinutes, int $maxCount, int $batchLimit, ?Carbon $since, array $types)
     {
         $cutoff = now()->subMinutes($intervalMinutes);
 
@@ -150,6 +151,10 @@ class SendOpenTicketReminders extends Command
                 $q->whereNull('ticket.is_hidden')->orWhere('ticket.is_hidden', false);
             })
             ->when($since, fn ($q) => $q->where('ticket.created_at', '>=', $since))
+            // Disaring DI QUERY, bukan setelah hasilnya diambil: kalau dibuang
+            // belakangan, batch_limit bisa habis dipakai tiket bertipe terlarang
+            // dan tiket yang sungguh perlu diingatkan tidak pernah kebagian.
+            ->when($types !== [], fn ($q) => $q->whereIn('ticket.ticket_type', $types))
             ->when($maxCount > 0, function ($q) use ($maxCount) {
                 $q->where(function ($w) use ($maxCount) {
                     $w->whereNull('r.sent_count')->orWhere('r.sent_count', '<', $maxCount);
@@ -173,6 +178,20 @@ class SendOpenTicketReminders extends Command
         $state->first_sent_at = $state->first_sent_at ?? now();
         $state->last_sent_at  = now();
         $state->save();
+    }
+
+    /**
+     * POWER_AUTOMATE_REMINDER_TYPES membatasi reminder ke tipe tiket tertentu.
+     * Kosong berarti tanpa batasan - default ini dipilih supaya menarik kode
+     * baru tanpa mengubah .env tidak diam-diam mengubah siapa yang diingatkan.
+     */
+    private function parseTypes($value): array
+    {
+        return collect(explode(',', (string) $value))
+            ->map(fn ($t) => trim($t))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     /**

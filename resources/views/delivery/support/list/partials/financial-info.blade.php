@@ -120,6 +120,60 @@
 
         {{-- ── Term Of Payment (TOP) Plan ─────────────────────────── --}}
         <div class="mt-8 pt-6 border-t border-gray-200" data-support-id="{{ $support->id }}">
+            {{-- Type TOP: % dari revenue Sales Data, atau amount dari Contract Line Item --}}
+            <div class="flex items-center flex-wrap gap-x-4 gap-y-2 mb-5">
+                <span class="text-sm font-semibold text-gray-900">TOP Type</span>
+                <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="group" id="supPtModeToggle">
+                    <button type="button" data-mode="percentage" data-perm-action="edit"
+                            onclick="SupportPaymentTermPlan.switchMode('percentage')"
+                            class="pt-mode-btn px-4 py-2 text-sm font-medium transition">% of Revenue</button>
+                    <button type="button" data-mode="line_item" data-perm-action="edit"
+                            onclick="SupportPaymentTermPlan.switchMode('line_item')"
+                            class="pt-mode-btn px-4 py-2 text-sm font-medium border-l border-gray-300 transition">Contract Line Item</button>
+                </div>
+                <p id="supPtModeHint" class="text-xs text-gray-500 basis-full sm:basis-auto"></p>
+            </div>
+
+            {{-- Peringatan non-blocking (mis. total TOP melebihi revenue Sales Data) --}}
+            <div id="supPtWarnings" class="hidden mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800"></div>
+
+            {{-- Contract Line Items — hanya di mode Line Item --}}
+            <div id="supPtLineItemSection" class="hidden mb-8">
+                <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
+                    <div>
+                        <h4 class="text-lg font-medium text-gray-900">Contract Line Items</h4>
+                        <p class="text-xs text-gray-500 mt-0.5">Add the contract line items first — every payment term takes its amount from one of them.</p>
+                    </div>
+                    @if($can('delivery-support.financial.manage'))
+                    <button type="button" onclick="SupportPaymentTermPlan.openAddLineItem()"
+                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add Line Item
+                    </button>
+                    @endif
+                </div>
+                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                    <table class="min-w-full text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-gray-700 text-white">
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Line Item</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap">Type</th>
+                                <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[180px]">Schedule</th>
+                                <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Nominal</th>
+                                <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Total</th>
+                                <th class="px-3 py-3 text-right font-semibold whitespace-nowrap">Billed in TOP</th>
+                                <th class="px-3 py-3 text-center font-semibold whitespace-nowrap min-w-[220px]">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="supPtLineItemBody" class="divide-y divide-gray-100 bg-white"></tbody>
+                        {{-- Total nilai kontrak vs revenue Sales Data --}}
+                        <tfoot id="supPtLineItemFoot" class="bg-gray-50 border-t-2 border-gray-200"></tfoot>
+                    </table>
+                </div>
+            </div>
+
             <div class="flex justify-between items-center flex-wrap gap-3 mb-4">
                 <div>
                     <h4 class="text-lg font-medium text-gray-900">Term Of Payment Plan</h4>
@@ -137,24 +191,11 @@
 
             <div class="overflow-x-auto rounded-lg border border-gray-200">
                 <table class="min-w-full text-sm border-collapse" id="supPaymentTermTable">
-                    <thead>
-                        <tr class="bg-gray-700 text-white">
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[50px]">No</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[160px]">Payment Term</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[110px]">Payment %</th>
-                            <th class="px-3 py-3 text-right font-semibold whitespace-nowrap min-w-[150px]">Amount</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[220px]">Payment Requirements / Evidence</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Estimated Date</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[150px]">Submit Invoice Date</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Invoice No</th>
-                            <th class="px-3 py-3 text-left font-semibold whitespace-nowrap min-w-[130px]">Paid Date</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[100px]">Status</th>
-                            <th class="px-3 py-3 text-center font-semibold whitespace-nowrap w-[80px]">Action</th>
-                        </tr>
-                    </thead>
+                    {{-- Kolom dirender JS: mode Line Item menambah kolom "Period" --}}
+                    <thead id="supPaymentTermHead"></thead>
                     <tbody id="supPaymentTermBody" class="divide-y divide-gray-100 bg-white">
                         <tr>
-                            <td colspan="11" class="text-center py-8">
+                            <td colspan="12" class="text-center py-8">
                                 <svg class="animate-spin h-5 w-5 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -163,14 +204,7 @@
                             </td>
                         </tr>
                     </tbody>
-                    <tfoot class="bg-gray-50 border-t-2 border-gray-200">
-                        <tr id="supPaymentTermFooter" class="font-semibold text-gray-700">
-                            <td class="px-3 py-3 text-center" colspan="2">Total</td>
-                            <td class="px-3 py-3 text-center" id="supPtTotalPct">0%</td>
-                            <td class="px-3 py-3 text-right" id="supPtTotalAmount">Rp 0</td>
-                            <td class="px-3 py-3" colspan="7"></td>
-                        </tr>
-                    </tfoot>
+                    <tfoot id="supPaymentTermFoot" class="bg-gray-50 border-t-2 border-gray-200"></tfoot>
                 </table>
             </div>
         </div>

@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\RoleId;
+use App\Http\Controllers\Concerns\RequiresStepUpAuth;
+use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeRole;
 use App\Models\Menu;
@@ -10,6 +13,8 @@ use Illuminate\Support\Facades\Cache;
 
 class RoleController extends Controller
 {
+    use RequiresStepUpAuth;
+
     // ── Page ────────────────────────────────────────────────────────────────────
 
     public function page()
@@ -83,7 +88,7 @@ class RoleController extends Controller
     public function updatePermission(Request $request, $id, $menuId)
     {
         $role = EmployeeRole::findOrFail($id);
-        Menu::findOrFail($menuId);
+        $menu = Menu::findOrFail($menuId);
 
         $data = $request->validate([
             'can_view'   => 'boolean',
@@ -92,11 +97,32 @@ class RoleController extends Controller
             'can_delete' => 'boolean',
         ]);
 
+        // Pivot writes (syncWithoutDetaching/detach) never fire Eloquent model
+        // events, so the Auditable trait on EmployeeRole never sees this -
+        // logged explicitly, same reasoning as EmployeeController::changeRole().
+        $before = $role->menus()->where('menu_id', $menuId)->first();
+
         $role->menus()->syncWithoutDetaching([
             $menuId => $data,
         ]);
 
         $this->flushPermCacheForRole($role);
+
+        AuditLog::recordAction(
+            module: 'Role Management',
+            auditableType: EmployeeRole::class,
+            auditableId: $role->id,
+            event: 'updated',
+            recordLabel: $role->name,
+            description: "changed \"{$menu->name}\" permission for role \"{$role->name}\"",
+            old: $before ? [
+                'can_view'   => (bool) $before->pivot->can_view,
+                'can_create' => (bool) $before->pivot->can_create,
+                'can_edit'   => (bool) $before->pivot->can_edit,
+                'can_delete' => (bool) $before->pivot->can_delete,
+            ] : null,
+            new: $data,
+        );
 
         return response()->json(['success' => true, 'message' => 'Permission updated successfully.']);
     }
@@ -104,9 +130,21 @@ class RoleController extends Controller
     public function removePermission($id, $menuId)
     {
         $role = EmployeeRole::findOrFail($id);
+        $menu = Menu::find($menuId);
         $role->menus()->detach($menuId);
 
         $this->flushPermCacheForRole($role);
+
+        AuditLog::recordAction(
+            module: 'Role Management',
+            auditableType: EmployeeRole::class,
+            auditableId: $role->id,
+            event: 'updated',
+            recordLabel: $role->name,
+            description: 'revoked role "' . $role->name . '" access to "' . ($menu->name ?? "menu #{$menuId}") . '"',
+            old: null,
+            new: null,
+        );
 
         return response()->json(['success' => true, 'message' => 'Role access to the menu revoked successfully.']);
     }
@@ -145,9 +183,42 @@ class RoleController extends Controller
             'role_ids.*' => 'integer|exists:employee_role,id',
         ]);
 
+        $before    = $employee->roles()->pluck('name')->values()->all();
+        $beforeIds = $employee->roles()->pluck('id')->all();
+
+        // Same step-up gate as EmployeeController::changeRole() - this method
+        // is another way to grant EC Administrator (syncWithoutDetaching only
+        // adds, never removes, so any 1 in role_ids not already held is a
+        // grant). Not currently wired to any UI, but it's a live API route
+        // that reaches the identical risk, so it needs the identical gate.
+        $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, array_map('intval', $request->role_ids), true)
+            && !in_array(RoleId::EC_ADMINISTRATOR->value, $beforeIds, true);
+
+        if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+            return $stepUpFailure;
+        }
+
         $employee->roles()->syncWithoutDetaching($request->role_ids);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+
+        $after = $employee->roles()->pluck('name')->values()->all();
+        $label = $employee->name ?? ('Employee #' . $employee->employee_id);
+
+        // Same underlying action as EmployeeController::changeRole() (which
+        // already logs under module "Employee Role") - kept on the same
+        // module string so both entry points show up together in the Audit
+        // Log filter instead of splitting one action across two module names.
+        AuditLog::recordAction(
+            module: 'Employee Role',
+            auditableType: Employee::class,
+            auditableId: $employee->employee_id,
+            event: 'updated',
+            recordLabel: $label,
+            description: "added role(s) for {$label}",
+            old: ['role_names' => $before],
+            new: ['role_names' => $after],
+        );
 
         return response()->json(['success' => true, 'message' => 'Role added successfully.']);
     }
@@ -161,9 +232,37 @@ class RoleController extends Controller
             'role_ids.*' => 'integer|exists:employee_role,id',
         ]);
 
+        $before    = $employee->roles()->pluck('name')->values()->all();
+        $beforeIds = $employee->roles()->pluck('id')->all();
+
+        // Same step-up gate as EmployeeController::changeRole()/assignRoles()
+        // above - sync() replaces the whole role set, so this can grant EC
+        // Administrator just as easily as it can revoke it. Only the grant
+        // direction is dangerous enough to need a fresh code.
+        $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, array_map('intval', $request->role_ids), true)
+            && !in_array(RoleId::EC_ADMINISTRATOR->value, $beforeIds, true);
+
+        if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+            return $stepUpFailure;
+        }
+
         $employee->roles()->sync($request->role_ids);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+
+        $after = $employee->roles()->pluck('name')->values()->all();
+        $label = $employee->name ?? ('Employee #' . $employee->employee_id);
+
+        AuditLog::recordAction(
+            module: 'Employee Role',
+            auditableType: Employee::class,
+            auditableId: $employee->employee_id,
+            event: 'updated',
+            recordLabel: $label,
+            description: "changed roles for {$label}",
+            old: ['role_names' => $before],
+            new: ['role_names' => $after],
+        );
 
         return response()->json(['success' => true, 'message' => 'Employee roles updated successfully.']);
     }
@@ -171,9 +270,23 @@ class RoleController extends Controller
     public function revokeRole($employeeId, $roleId)
     {
         $employee = Employee::findOrFail($employeeId);
+        $roleName = EmployeeRole::find($roleId)->name ?? "Role #{$roleId}";
         $employee->roles()->detach($roleId);
 
         Cache::forget("perm_slugs_{$employee->employee_id}");
+
+        $label = $employee->name ?? ('Employee #' . $employee->employee_id);
+
+        AuditLog::recordAction(
+            module: 'Employee Role',
+            auditableType: Employee::class,
+            auditableId: $employee->employee_id,
+            event: 'updated',
+            recordLabel: $label,
+            description: "revoked role \"{$roleName}\" from {$label}",
+            old: null,
+            new: null,
+        );
 
         return response()->json(['success' => true, 'message' => 'Role revoked from the employee successfully.']);
     }

@@ -145,6 +145,49 @@ class TicketController extends Controller
      * live here now that /api/tickets is paginated — filtering after paginate() would only
      * search within whatever page happened to be loaded instead of the whole table.
      */
+    /**
+     * Versi ringan untuk sidebar halaman detail ticket: scope role sudah diterapkan
+     * di $query oleh caller, di sini hanya ambil kolom minimum (tanpa stats, progress,
+     * SLA, delivery support, dst) + batas 300 baris. Pencarian lewat ?q= (server-side).
+     */
+    private function sidebarTicketList($query, Request $request)
+    {
+        $query->setEagerLoads([])
+            ->with('customer.basicData')
+            ->select([
+                'ticket.ticket_id', 'ticket.ticket_number', 'ticket.description',
+                'ticket.ticket_priority', 'ticket.status', 'ticket.customer_id',
+                'ticket.last_message_at', 'ticket.created_at',
+            ]);
+
+        $term = trim((string) $request->input('q', ''));
+        if ($term !== '') {
+            $like = '%' . addcslashes($term, '%_\\') . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('ticket.ticket_number', 'like', $like)
+                    ->orWhere('ticket.description', 'like', $like)
+                    ->orWhereHas('customer', function ($c) use ($like) {
+                        $c->where('email', 'like', $like)
+                            ->orWhereHas('basicData', fn ($b) => $b->where('name_1', 'like', $like));
+                    });
+            });
+        }
+
+        $tickets = $query->orderByDesc('ticket.last_message_at')->limit(300)->get()
+            ->map(fn ($t) => [
+                'ticket_id'       => $t->ticket_id,
+                'ticket_number'   => $t->ticket_number,
+                'description'     => $t->description,
+                'ticket_priority' => $t->ticket_priority,
+                'status'          => $t->status,
+                'last_message_at' => $t->last_message_at,
+                'created_at'      => $t->created_at,
+                'customer'        => ['customer_name' => $t->customer?->basicData?->name_1 ?? $t->customer?->email],
+            ]);
+
+        return response()->json(['success' => true, 'data' => $tickets]);
+    }
+
     private function applyTicketListFilters($query, Request $request)
     {
         // Columns are qualified with "ticket." throughout — applyTicketListSort() may add a
@@ -554,6 +597,10 @@ class TicketController extends Controller
                 }
             }
 
+            if ($request->boolean('sidebar')) {
+                return $this->sidebarTicketList($query, $request);
+            }
+
             $this->applyTicketListFilters($query, $request);
             $stats = $this->buildTicketListStats($query);
             $this->applyCardStatusFilter($query, $request);
@@ -581,7 +628,9 @@ class TicketController extends Controller
             $progressMap = \App\Http\Controllers\ConsultantWorkloadController::progressMapForTickets($ticketIds);
 
             // Tiket yang sudah dibaca oleh employee yang sedang login (hanya jika role punya fungsi istimewa ticket.read)
-            $canReadFeature = (bool) \App\Models\Employee::find($sessionUser['id'])?->hasPermission('ticket.read');
+            // Reuse $employee dari cek 'All Tickets' di atas kalau sudah di-load — hindari Employee::find() dua kali.
+            $employee ??= Employee::find($sessionUser['id']);
+            $canReadFeature = (bool) $employee?->hasPermission('ticket.read');
             $readAtMap = $canReadFeature
                 ? DB::table('ticket_reads')
                     ->where('employee_id', $sessionUser['id'])
@@ -761,7 +810,8 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules'])
+        // 'sla.policy' di-eager load untuk liveSlaSummary() (kolom SLA di list).
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules', 'sla.policy'])
             ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
@@ -832,24 +882,19 @@ class TicketController extends Controller
         if ($request->filled('description')) {
             $query->where('description', 'like', '%' . $request->description . '%');
         }
-        // Date range — cocokkan start_date, fallback ke created_at
+        // Date range — cocokkan created_at, sama persis dengan applyTicketListFilters()
+        // (filter list di layar) supaya jumlah tiket yang di-export selalu sinkron dengan
+        // yang tampil di layar untuk filter yang sama. Sebelumnya di sini menyaring by
+        // start_date — kolom itu artinya "kapan Ticket Lead pertama kali di-assign", BUKAN
+        // kapan tiket dibuat (lihat assignTicketLead(), start_date di-set now() cuma saat
+        // first assign) — jadi tiket yang sempat unassigned lama bisa lolos filter di layar
+        // (created_at-nya masih dalam rentang) tapi hilang dari export (start_date sudah
+        // melenceng ke bulan lain).
         if ($request->filled('date_from')) {
-            $dateFrom = $request->date_from;
-            $query->where(function ($q) use ($dateFrom) {
-                $q->whereDate('start_date', '>=', $dateFrom)
-                  ->orWhere(function ($q2) use ($dateFrom) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '>=', $dateFrom);
-                  });
-            });
+            $query->where('created_at', '>=', \Carbon\Carbon::parse($request->input('date_from') . ' 00:00:00', 'Asia/Jakarta'));
         }
         if ($request->filled('date_to')) {
-            $dateTo = $request->date_to;
-            $query->where(function ($q) use ($dateTo) {
-                $q->whereDate('start_date', '<=', $dateTo)
-                  ->orWhere(function ($q2) use ($dateTo) {
-                      $q2->whereNull('start_date')->whereDate('created_at', '<=', $dateTo);
-                  });
-            });
+            $query->where('created_at', '<=', \Carbon\Carbon::parse($request->input('date_to') . ' 23:59:59', 'Asia/Jakarta'));
         }
         // Customer — filter kolom di ticket/index.blade.php sekarang mengirim customer_id
         // (bukan nama) sejak dropdown-nya diisi dari /api/tickets/filter-options.
@@ -910,12 +955,43 @@ class TicketController extends Controller
                     . ($ds->type ? ", {$ds->type}" : ''));
             });
 
-        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
+        // Sama seperti index(): activity date terakhir dari timesheet support tiket
+        // (selain yang rejected) dan riwayat pause SLA (hindari N+1 di liveSlaSummary()).
+        $activityDateMap = \App\Models\Timesheet::whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('activity_date')
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->get()
+            ->groupBy('ticket_id')
+            ->map(fn ($group) => $group->max('activity_date')?->format('Y-m-d'));
+
+        $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+            ->get()
+            ->groupBy('ticket_id');
+
+        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $activityDateMap, $pausesByTicket) {
+            $sla = $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id));
+
+            // Tutup tiket: end_date, atau (tiket closed lama yang end_date-nya kosong)
+            // resolved_at SLA lalu updated_at — sama dengan kolom Close Date di list.
+            $isFinal  = in_array($ticket->status, ['closed', 'cancelled'], true);
+            $closedAt = $ticket->end_date
+                ?? ($ticket->status === 'closed' ? ($sla['resolved_at'] ?? $ticket->updated_at) : null);
+
+            // Day on Close: dihitung sejak created_at; tiket final dibekukan di waktu tutupnya.
+            $dayEnd = $isFinal ? ($sla['resolved_at'] ?? $ticket->updated_at) : now();
+            $dayOnClose = $ticket->created_at && $dayEnd
+                ? max(0, (int) ceil(($dayEnd->getTimestamp() - $ticket->created_at->getTimestamp()) / 86400))
+                : null;
+
             return [
                 'ticket_number'          => $ticket->ticket_number,
                 'description'            => $ticket->description,
                 'created_at'             => $ticket->created_at,
-                'start_date'             => $ticket->start_date,
+                'last_update'            => $ticket->last_message_at ?? $ticket->created_at,
+                'closed_at'              => $closedAt,
+                'day_on_close'           => $dayOnClose,
+                'activity_date'          => $activityDateMap[$ticket->ticket_id] ?? null,
+                'sla'                    => $sla,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
                 'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->nick_name ?? $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
@@ -926,7 +1002,6 @@ class TicketController extends Controller
                 'module'                 => $ticket->module_names,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
-                'end_date'               => $ticket->end_date,
                 'assign_delivery'        => $deliverySupportMap[$ticket->ticket_id] ?? null,
             ];
         });
@@ -1533,6 +1608,10 @@ class TicketController extends Controller
                                 });
                         });
                 }
+            }
+
+            if ($request->boolean('sidebar')) {
+                return $this->sidebarTicketList($query, $request);
             }
 
             $this->applyTicketListFilters($query, $request);
@@ -2196,22 +2275,28 @@ class TicketController extends Controller
                 ->orderBy('ticket_confirmation.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids for each confirmation
+            // Decode member_ids for each confirmation, then bulk-load ALL member
+            // names in one query instead of one query per confirmation row (was
+            // N+1 — each pending confirmation triggered its own employee lookup).
             foreach ($confirmations as $confirmation) {
                 $confirmation->member_ids = json_decode($confirmation->member_ids, true) ?? [];
-                
-                // Get member names
-                if (!empty($confirmation->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $confirmation->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $confirmation->member_names = $members;
-                } else {
-                    $confirmation->member_names = [];
-                }
+            }
+
+            $allMemberIds = collect($confirmations)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($confirmations as $confirmation) {
+                $confirmation->member_names = collect($confirmation->member_ids)
+                    ->map(fn($id) => $memberNameMap->get($id))
+                    ->filter()
+                    ->values()
+                    ->toArray();
             }
 
             return response()->json([
@@ -3268,18 +3353,25 @@ class TicketController extends Controller
                 ->orderBy('member_change_requests.created_at', 'desc')
                 ->get();
 
-            // Decode member_ids and get names
+            // Decode member_ids and get names — bulk-load in one query instead
+            // of one query per pending change request (was N+1).
             foreach ($memberChanges as $change) {
                 $change->member_ids = json_decode($change->member_ids, true) ?? [];
-                
+            }
+
+            $allMemberIds = collect($memberChanges)->flatMap(fn($c) => $c->member_ids)->unique()->values();
+
+            $memberNameMap = $allMemberIds->isEmpty()
+                ? collect()
+                : DB::table('employee')
+                    ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
+                    ->whereIn('employee.employee_id', $allMemberIds)
+                    ->pluck('employee_basic_data.first_name', 'employee.employee_id');
+
+            foreach ($memberChanges as $change) {
                 if (!empty($change->member_ids)) {
-                    $members = DB::table('employee')
-                        ->join('employee_basic_data', 'employee.employee_id', '=', 'employee_basic_data.employee_id')
-                        ->whereIn('employee.employee_id', $change->member_ids)
-                        ->pluck('employee_basic_data.first_name')
-                        ->toArray();
-                    
-                    $change->member_names = implode(', ', $members);
+                    $names = collect($change->member_ids)->map(fn($id) => $memberNameMap->get($id))->filter();
+                    $change->member_names = $names->isEmpty() ? 'None' : $names->implode(', ');
                 } else {
                     $change->member_names = 'None';
                 }
@@ -3303,6 +3395,57 @@ class TicketController extends Controller
         }
     }
 
+    /**
+     * Kirim event "orang ditambahkan ke tiket" ke Power Automate supaya orang itu
+     * ikut masuk ke group chat Teams tiket tersebut.
+     *
+     * Flow tidak menyimpan chat id (aksi HTTP untuk memanggil balik EcoSystem
+     * butuh lisensi Premium), jadi payload membawa topic group chat hasil
+     * rakitan fungsi yang sama dengan yang dipakai flow "ticket validated" saat
+     * membuat grupnya; flow mencarinya lewat aksi Teams "List chats" lalu
+     * mencocokkannya persis.
+     *
+     * Semua kegagalan ditelan: penambahan member tidak boleh gagal hanya karena
+     * notifikasi Teams bermasalah.
+     *
+     * @param  'member'|'pic'  $role
+     */
+    private function notifyTeamsTicketPerson(Ticket $ticket, int $employeeId, string $role, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            if (!$powerAutomate->isFlowReady(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED)) {
+                return;
+            }
+
+            // Tanpa email kerja, konektor Teams tidak bisa menemukan orangnya —
+            // lebih baik flow tidak dipanggil sama sekali daripada gagal separuh.
+            $person = $powerAutomate->employeeContact($employeeId);
+            if (!$person) {
+                Log::info('PowerAutomate: penambahan ke wadah Teams dilewati, employee tanpa email kerja', [
+                    'ticket_id'   => $ticket->ticket_id,
+                    'employee_id' => $employeeId,
+                ]);
+                return;
+            }
+
+            $powerAutomate->dispatchAfterResponse(
+                \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
+                $powerAutomate->ticketMemberPayload($ticket, $person, $role, [
+                    'id'    => $sessionUser['id'] ?? null,
+                    'name'  => $sessionUser['name'] ?? null,
+                    'email' => $sessionUser['email'] ?? null,
+                ])
+            );
+        } catch (\Throwable $e) {
+            Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
+                'ticket_id'   => $ticket->ticket_id,
+                'employee_id' => $employeeId,
+                'error'       => $e->getMessage(),
+            ]);
+        }
+    }
     /**
      * Add a single member to ticket (Admin, PIC, or Helpdesk)
      */
@@ -4081,11 +4224,15 @@ class TicketController extends Controller
                 ->orderBy('delivery_support.created_at', 'desc')
                 ->get();
 
-            // Count tickets per support
+            // Count tickets per support — 1 query groupBy, bukan 1 query per baris support
+            $ticketCounts = DB::table('delivery_support_activities')
+                ->whereIn('delivery_support_id', $supports->pluck('id'))
+                ->select('delivery_support_id', DB::raw('count(*) as total'))
+                ->groupBy('delivery_support_id')
+                ->pluck('total', 'delivery_support_id');
+
             foreach ($supports as $support) {
-                $support->ticket_count = DB::table('delivery_support_activities')
-                    ->where('delivery_support_id', $support->id)
-                    ->count();
+                $support->ticket_count = (int) ($ticketCounts[$support->id] ?? 0);
             }
 
             return response()->json([

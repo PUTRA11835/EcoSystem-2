@@ -12,7 +12,7 @@ use Carbon\Carbon;
 
 class ActivityStage extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, Concerns\TouchesProjectActivity;
 
     protected $table = 'activity_stages';
 
@@ -79,6 +79,14 @@ class ActivityStage extends Model
     public function group()
     {
         return $this->planning();
+    }
+
+    /** Stage tidak menyimpan FK project — ambil lewat planning (group) induknya. */
+    protected function projectIdForActivity()
+    {
+        return $this->planning_id
+            ? DeliveryProjectPlanning::whereKey($this->planning_id)->value('delivery_projects_id')
+            : null;
     }
 
     /**

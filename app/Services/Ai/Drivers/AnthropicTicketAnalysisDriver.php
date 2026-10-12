@@ -9,6 +9,7 @@ use Anthropic\Beta\Messages\BetaSkillParams;
 use Anthropic\Beta\Messages\BetaTextBlockParam;
 use Anthropic\Beta\Messages\BetaTextDelta;
 use Anthropic\Client;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\TicketAnalysisDriver;
 use Closure;
 use RuntimeException;
@@ -72,19 +73,28 @@ class AnthropicTicketAnalysisDriver implements TicketAnalysisDriver
 
         $full = '';
         $sawText = false;
+        $startUsage = null;
+        $deltaUsage = null;
 
         foreach ($stream as $event) {
             if ($isAborted()) {
                 $stream->close();
+                AiUsageRecorder::recordAnthropicStream($model, 'ticket_analysis', $startUsage, $deltaUsage);
                 throw new RuntimeException('Analisa dibatalkan (koneksi ditutup).');
             }
 
-            if ('content_block_start' === $event->type) {
+            if ('message_start' === $event->type) {
+                $startUsage = $event->message->usage;
+            } elseif ('message_delta' === $event->type) {
+                $deltaUsage = $event->usage;
+            } elseif ('content_block_start' === $event->type) {
                 $this->emitProgress($event->contentBlock, $onEvent, $sawText);
             } elseif ('content_block_delta' === $event->type && $event->delta instanceof BetaTextDelta) {
                 $full .= $event->delta->text;
             }
         }
+
+        AiUsageRecorder::recordAnthropicStream($model, 'ticket_analysis', $startUsage, $deltaUsage);
 
         if ('' === trim($full)) {
             throw new RuntimeException('Claude tidak mengembalikan teks analisa.');

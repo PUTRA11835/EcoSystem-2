@@ -2,15 +2,16 @@
 
 namespace App\Models;
 
-use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class ResourceTimeline extends Model
 {
-    use HasFactory, Auditable;
+    use HasFactory;
 
-    protected static ?string $auditModule = 'Reporting';
+    // Not Auditable on purpose: rows are per-day, so the Audit Log would get one row
+    // per day (and bulk deletes bypass model events). ResourceTimelineService writes
+    // one range-level Audit Log row per action instead.
 
     protected $fillable = [
         'employee_id',

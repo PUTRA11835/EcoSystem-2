@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\AuthController;
+use App\Support\IntendedUrl;
+use App\Services\TwoFactorAuthService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -47,7 +49,21 @@ class CheckAuthToken
             return $response;
         }
 
-        $redirect = redirect()->route('login')->with('error', 'Please login first');
+        // Simpan URL tujuan supaya setelah login user kembali ke halaman yang
+        // ia klik (mis. deep link /ticket/123 dari kartu Teams), bukan dashboard.
+        // Dikirim dua jalur: session (rapi) + query ?redirect= (tahan bila cookie
+        // session belum/tidak terbawa saat link dibuka dari aplikasi lain).
+        $intended = null;
+        if ($request->isMethod('GET') && !$request->ajax()) {
+            $intended = IntendedUrl::remember($request->fullUrl(), $request);
+        }
+
+        $loginUrl = route('login');
+        if ($intended !== null) {
+            $loginUrl .= '?' . http_build_query([IntendedUrl::QUERY_KEY => $intended]);
+        }
+
+        $redirect = redirect()->to($loginUrl)->with('error', 'Please login first');
 
         if (isset($expired)) {
             $redirect->withCookie($expired);
@@ -113,6 +129,17 @@ class CheckAuthToken
                 ->first();
 
             if (!$authUser || empty($authUser->employee_id)) {
+                return false;
+            }
+
+            // 2FA-enabled accounts never get restored via this cookie — a
+            // stolen/replayed remember-me cookie must not grant a full
+            // session for up to REMEMBER_DAYS with zero second-factor check.
+            // (AuthController::finalizeEmployeeLogin() already refuses to
+            // *issue* this cookie for a 2FA account in the first place; this
+            // is the defense-in-depth half — it also protects a cookie that
+            // was issued before 2FA was enabled on the account.)
+            if (TwoFactorAuthService::isEnabled($authUser)) {
                 return false;
             }
 

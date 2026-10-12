@@ -53,7 +53,7 @@
 </div>
 
 <!-- Modal Create/Edit -->
-<div id="moduleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="moduleModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div class="flex items-center justify-between mb-5">
             <h3 class="text-lg font-bold text-gray-900" id="modalTitle">Add Module</h3>
@@ -88,7 +88,7 @@
 </div>
 
 <!-- Modal Confirm Delete -->
-<div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="deleteModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center">
         <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <i class="fas fa-trash text-red-600"></i>
@@ -104,7 +104,7 @@
 </div>
 
 <!-- Modal Manage Leads -->
-<div id="leadsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="leadsModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
         <div class="flex items-center justify-between mb-1">
             <h3 class="text-lg font-bold text-gray-900">Manage Leads</h3>
@@ -135,7 +135,7 @@
 </div>
 
 <!-- Modal View Members (read-only — dikelola lewat tab Qualification per employee) -->
-<div id="membersModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="membersModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
         <div class="flex items-center justify-between mb-1">
             <h3 class="text-lg font-bold text-gray-900">Module Members</h3>

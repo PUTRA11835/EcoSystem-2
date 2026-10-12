@@ -148,6 +148,16 @@
         // enhance, hasilnya double widget yang menumpuk di bawah picker Quill.
         if (sel.className && typeof sel.className === 'string' && /\bql-/.test(sel.className)) return true;
         if (sel.closest('.ql-toolbar, .ql-container, .ql-editor')) return true;
+        // SweetAlert2 pre-render SEMUA jenis input (.swal2-select, .swal2-input,
+        // dst.) di setiap popup dan sembunyikan yang tidak dipakai lewat CSS-nya
+        // sendiri (display:none) — bukan lewat atribut yang bisa kita deteksi
+        // sebelum enhance. Kalau kita tetap enhance select tersembunyi itu,
+        // wrapper .se-wrap yang kita buat TIDAK ikut ter-display:none (rule CSS
+        // Swal2 menyasar .swal2-select, bukan wrapper kita), jadi muncul sebagai
+        // dropdown kosong "—" mengambang di tengah setiap dialog confirm/alert
+        // Swal2 manapun di seluruh aplikasi. Select di dalam popup Swal2 juga
+        // tidak pernah butuh enhancement kita — Swal2 sudah punya styling sendiri.
+        if (sel.closest('.swal2-popup')) return true;
         return false;
     }
 

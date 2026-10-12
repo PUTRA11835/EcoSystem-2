@@ -602,7 +602,7 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
 
 {{-- Add / Edit Team Member Modal (outside <form> to avoid nesting issues) --}}
 <div id="cTeamModal" class="fixed inset-0 z-50 hidden">
-    <div class="fixed inset-0 bg-black bg-opacity-50" onclick="closeCTeamModal()"></div>
+    <div class="fixed inset-0 bg-black/50" onclick="closeCTeamModal()"></div>
     <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
         <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col pointer-events-auto">
             <div class="p-6 border-b border-gray-200 flex items-center justify-between">

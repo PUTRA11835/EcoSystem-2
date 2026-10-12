@@ -130,6 +130,7 @@
     <div>
         <h3 class="text-base font-semibold text-gray-900 mb-4 pb-2 border-b border-gray-200">Employee Information</h3>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            @if($dropdownFieldActive['personnel_area'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Personnel Area</label>
                 <div class="custom-dd relative">
@@ -146,6 +147,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+            @if($dropdownFieldActive['personnel_subarea'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Personnel Subarea</label>
                 <div class="custom-dd relative">
@@ -162,6 +165,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+            @if($dropdownFieldActive['employee_group'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee Group</label>
                 <div class="custom-dd relative">
@@ -178,6 +183,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+            @if($dropdownFieldActive['employee_subgroup'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Employee Subgroup</label>
                 <div class="custom-dd relative">
@@ -194,9 +201,11 @@
                     </div>
                 </div>
             </div>
+            @endif
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+            @if($dropdownFieldActive['position'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Position</label>
                 <div class="custom-dd relative">
@@ -213,6 +222,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+            @if($dropdownFieldActive['division'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Division</label>
                 <div class="custom-dd relative">
@@ -229,6 +240,8 @@
                     </div>
                 </div>
             </div>
+            @endif
+            @if($dropdownFieldActive['department'] ?? true)
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Department</label>
                 <div class="custom-dd relative">
@@ -245,6 +258,7 @@
                     </div>
                 </div>
             </div>
+            @endif
             <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Authorization Group</label>
                 <input type="text" id="authorizationGroup" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">

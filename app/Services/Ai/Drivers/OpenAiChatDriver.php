@@ -3,6 +3,7 @@
 namespace App\Services\Ai\Drivers;
 
 use App\Services\Ai\Drivers\Concerns\TranslatesCanonicalMessages;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\ChatDriver;
 use Closure;
 use OpenAI\Client;
@@ -64,13 +65,13 @@ class OpenAiChatDriver implements ChatDriver
 
         $stream = $this->client->responses()->createStreamed($parameters);
 
-        return $this->consumeStream($stream, $onDelta, $isAborted);
+        return $this->consumeStream($stream, $model, $onDelta, $isAborted);
     }
 
     /**
      * @return array{0: ?array<int, array<string, mixed>>, 1: array<int, array<string, mixed>>, 2: ?string}
      */
-    private function consumeStream($stream, Closure $onDelta, Closure $isAborted): array
+    private function consumeStream($stream, string $model, Closure $onDelta, Closure $isAborted): array
     {
         foreach ($stream as $event) {
             if ($isAborted()) {
@@ -85,6 +86,8 @@ class OpenAiChatDriver implements ChatDriver
                 case 'response.completed':
                 case 'response.incomplete':
                 case 'response.failed':
+                    AiUsageRecorder::recordOpenAi($model, 'chat', $event->response->response->usage ?? null);
+
                     return $this->finalize($event->response->response);
 
                 case 'error':

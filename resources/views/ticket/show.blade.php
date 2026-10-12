@@ -43,7 +43,7 @@
 <div class="flex flex-col h-full">
     {{-- Back to Tickets --}}
     <div class="px-4 pt-4 pb-2">
-        <a href="{{ route('ticket.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 transition-all text-sm">
+        <a href="{{ route('ticket.index') }}" class="flex items-center gap-2 px-3 py-2 rounded-lg text-white/80 hover:bg-white/10 transition-all text-sm">
             <i class="fas fa-arrow-left text-xs"></i>
             <span class="font-medium">Back to Tickets</span>
         </a>
@@ -52,7 +52,7 @@
     {{-- Filter Tabs --}}
     @if($can('room-chat.tab-all-ticket') || $can('room-chat.tab-my-ticket'))
     <div class="px-4 pb-3">
-        <div class="flex bg-white bg-opacity-10 rounded-lg p-0.5 gap-0.5">
+        <div class="flex bg-white/10 rounded-lg p-0.5 gap-0.5">
             @if($can('room-chat.tab-all-ticket'))
             <button id="sidebarTabAll" onclick="switchSidebarView('all')"
                 class="flex-1 py-1.5 text-xs font-semibold rounded-md transition-all text-white" style="background:rgba(255,255,255,0.2)">
@@ -73,10 +73,10 @@
     <div class="px-4 pb-3">
         <div class="relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <i class="fas fa-search text-white text-opacity-40 text-xs"></i>
+                <i class="fas fa-search text-white/40 text-xs"></i>
             </div>
-            <input type="text" id="sidebarSearch" placeholder="Search tickets..."
-                class="w-full pl-9 pr-3 py-2 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-sm text-white placeholder-white placeholder-opacity-50 focus:outline-none focus:bg-white focus:bg-opacity-15 transition-all"
+            <input type="text" id="sidebarTicketSearch" placeholder="Search tickets..."
+                class="w-full pl-9 pr-3 py-2 bg-white/10 border border-white/20 rounded-lg text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/15 transition-all"
                 onkeyup="filterSidebarTickets()">
         </div>
     </div>
@@ -89,8 +89,8 @@
     {{-- Sidebar Loading --}}
     <div id="sidebarLoading" class="flex-1 flex items-center justify-center">
         <div class="text-center">
-            <i class="fas fa-spinner fa-spin text-white text-opacity-50 text-lg mb-2"></i>
-            <p class="text-white text-opacity-50 text-xs">Loading...</p>
+            <i class="fas fa-spinner fa-spin text-white/50 text-lg mb-2"></i>
+            <p class="text-white/50 text-xs">Loading...</p>
         </div>
     </div>
 </div>
@@ -99,7 +99,8 @@
 @section('content')
 {{-- Quill.js CDN --}}
 <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<link rel="preconnect" href="https://cdn.quilljs.com" crossorigin>
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js" defer></script>
 @php $customDdVer = file_exists(public_path('js/custom-dropdown.js')) ? filemtime(public_path('js/custom-dropdown.js')) : time(); @endphp
 <script src="/js/custom-dropdown.js?v={{ $customDdVer }}"></script>
 
@@ -192,6 +193,14 @@
                 <i class="fas fa-exchange-alt text-xs"></i> Log Shifting
             </button>
             @endif
+            @if($can('ticket.export-chat'))
+            {{-- Unduh percakapan tiket (tanpa internal note) sebagai PDF. --}}
+            <a href="{{ route('ticket.export-chat', $ticket->ticket_id) }}"
+                title="Export Chat to PDF"
+                class="ml-2 flex-shrink-0 h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 text-gray-500 text-xs font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all">
+                <i class="fas fa-file-pdf text-xs"></i> Export Chat
+            </a>
+            @endif
             {{-- Toggle right panel --}}
             <button id="toggleRightPanelBtn" onclick="toggleRightPanel()" title="Toggle Properties Panel"
                 class="ml-2 flex-shrink-0 w-9 h-9 hidden xl:flex items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-all">
@@ -205,7 +214,16 @@
         </div>
 
         {{-- Messages Thread --}}
-        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        {{-- `min-height:0` overrides the flex default (`min-height:auto`), which
+             normally stops a `flex-1` child from shrinking below its own content's
+             height. Without it, dragging the reply editor's resize handle taller
+             couldn't shrink this thread to make room, so the parent card (which is
+             `overflow-hidden`, see the wrapper above) clipped the overflow — hiding
+             the Internal Note / Meeting / Send buttons below the visible area with
+             no way to scroll to them. This lets the thread shrink and scroll
+             internally instead, so the compose area (and its buttons) always stays
+             fully visible regardless of how tall the editor is dragged. --}}
+        <div id="messagesThread" class="flex-1 overflow-y-auto px-6 py-4 space-y-4" style="min-height:0;">
             <div id="messagesLoading" class="flex items-center justify-center py-8">
                 <svg class="animate-spin h-6 w-6 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -257,8 +275,19 @@
             {{-- Collapsible compose content --}}
             {{-- overflow:visible (default expanded) agar dropdown picker Quill ("Normal") tidak ter-clip.
                  Saat collapse via toggleReplyBox(), JS akan switch ke overflow:hidden sementara untuk
-                 menyembunyikan konten yang ter-collapse. --}}
-            <div id="replyComposeInner" style="max-height:600px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
+                 menyembunyikan konten yang ter-collapse.
+                 max-height dipakai HANYA sebagai target animasi collapse/expand (transition butuh
+                 nilai px konkret, tidak bisa dari/ke "none"). Nilainya sengaja dibuat jauh lebih besar
+                 (2000px) daripada tinggi konten realistis (To/CC row + editor di-drag maksimal + tombol
+                 aksi, sekitar ~900px), karena max-height + overflow:visible adalah kombinasi yang mudah
+                 jebak: kalau max-height < tinggi konten sebenarnya, box ini dianggap "hanya setinggi
+                 max-height" oleh flexbox parent (jadi area lain dialokasikan ruang seolah compose area
+                 sekecil itu), padahal isinya (termasuk baris tombol Send/Internal Note/Meeting di paling
+                 bawah) tetap dirender melebihi itu karena overflow:visible — hasilnya baris tombol
+                 ter-render di luar area yang diperhitungkan layout lalu ter-potong oleh overflow-hidden
+                 milik card pembungkus. Menjaga max-height selalu > tinggi konten maksimum menghilangkan
+                 celah ini. Nilai ini harus sama dengan yang di-set toggleReplyBox() (lihat JS). --}}
+            <div id="replyComposeInner" style="max-height:2000px;overflow:visible;opacity:1;transition:max-height .2s ease,opacity .2s ease;">
 
             {{-- To Row: selalu dirender; untuk non-email ticket dikontrol JS (showEmailInitMode/hideEmailInitMode) --}}
             <div class="px-4 pt-1.5" id="toRow" @if(!($ticket->channel === 'email' || $ticket->email_thread_id)) style="display:none" @endif>
@@ -334,7 +363,7 @@
 
                 <div class="relative">
                     <div class="bg-white border border-gray-300 rounded-lg">
-                        <div id="replyResizeHandle" class="reply-resize-handle" title="Tarik untuk mengubah ukuran editor"></div>
+                        <div id="replyResizeHandle" class="reply-resize-handle" title="Drag to resize the editor"></div>
                         <div id="quillEditor" style="min-height: 80px;"></div>
                     </div>
                     {{-- @mention autocomplete dropdown — fixed so it's never clipped by overflow parents --}}
@@ -356,7 +385,7 @@
                     </button>
                     @if($can('ticket.meeting'))
                     <button id="meetingBtn" onclick="openMeetingPanel()"
-                        {{ $inMeeting ? 'title=\'Meeting sedang berjalan — klik untuk menjadwalkan meeting baru\'' : '' }}
+                        {{ $inMeeting ? 'title=\'Meeting in progress — click to schedule a new meeting\'' : '' }}
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868v6.264a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
@@ -487,13 +516,15 @@
                1. ui.ticket.btn-ai-research — role mana yang BOLEH memakai
                   fitur ini sama sekali, admin-only secara default, diatur
                   admin lewat Control Center > Menu Access.
-               2. isLeadOrMember() ATAU EC Administrator — KE TIKET MANA
-                  (cuma yang orang itu benar-benar tangani; admin selalu
-                  lolos lintas-tiket). hasRole() dicek, bukan
-                  $user->role->role_id (primary saja), supaya employee
-                  dengan banyak role tetap kebagian walau EC Administrator
-                  bukan role utamanya. --}}
-        @if($can('ui.ticket.btn-ai-research') && \App\Support\TicketTeamAccess::canAccessAiResearch($user->id, $ticket, $user->hasRole(\App\Enums\RoleId::EC_ADMINISTRATOR->value)))
+               2. isLeadOrMember() ATAU role privileged (lihat
+                  TicketTeamAccess::isPrivilegedForAiResearch() — EC
+                  Administrator + role yang bisa approve di Ticket
+                  Validation) — KE TIKET MANA (cuma yang orang itu benar-benar
+                  tangani; role privileged selalu lolos lintas-tiket).
+                  hasRole()/hasAnyRole() dicek, bukan $user->role->role_id
+                  (primary saja), supaya employee dengan banyak role tetap
+                  kebagian walau role privileged-nya bukan role utamanya. --}}
+        @if($can('ui.ticket.btn-ai-research') && \App\Support\TicketTeamAccess::canAccessAiResearch($user->id, $ticket, \App\Support\TicketTeamAccess::isPrivilegedForAiResearch($user)))
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex-shrink-0 p-3">
             <a href="{{ route('ticket.ai-research', $ticket->ticket_id) }}"
                 class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-xs font-semibold text-gray-700 transition-colors">
@@ -642,7 +673,7 @@
                 // dikonfigurasi per-role via Manajemen → Roles/Permissions.
                 $canEditAdditionalInfo = $can('ui.ticket.edit-additional-info');
                 $ddBtnCls      = 'custom-dd-btn w-full flex items-center justify-between gap-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs bg-white hover:border-gray-400 transition-all';
-                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block';
+                $roValCls      = 'text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 w-full block truncate';
                 $statusLabels  = ['open'=>'Open','inprocess'=>'Inprocess','waiting_on_customer'=>'Waiting on Customer','waiting_on_3rd_party'=>'Waiting on 3rd Party','waiting_to_confirmation'=>'Waiting to Confirmation','hold'=>'Hold','cancelled'=>'Cancelled','closed'=>'Closed'];
             @endphp
             <div id="propertiesPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
@@ -962,7 +993,7 @@
                     <i id="additionalInfoChevron" class="fas fa-chevron-down text-gray-400 text-xs transition-transform duration-200"></i>
                 </div>
             </div>
-            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100">
+            <div id="additionalInfoPanel" class="px-4 pb-4 pt-3 space-y-3 border-t border-gray-100 min-w-0 overflow-hidden">
                 {{-- Contact Name --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Name</label>
@@ -971,7 +1002,7 @@
                            placeholder="Enter contact name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->name ?: ($ticket->submitted_by_name ?? '—')) }}">{{ $ticket->name ?: ($ticket->submitted_by_name ?? '—') }}</span>
                     @endif
                 </div>
                 {{-- Phone Number --}}
@@ -982,14 +1013,14 @@
                            placeholder="Enter phone number..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->no_hp ?? '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->no_hp ?? '—') }}">{{ $ticket->no_hp ?? '—' }}</span>
                     @endif
                 </div>
                 @if($ticket->submitted_by_email)
                 {{-- Contact Email (always read-only) --}}
                 <div>
                     <label class="text-xs font-semibold text-gray-500 mb-1 block">Contact Email</label>
-                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200">{{ $ticket->submitted_by_email }}</p>
+                    <p class="text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 truncate" title="{{ $ticket->submitted_by_email }}">{{ $ticket->submitted_by_email }}</p>
                 </div>
                 @endif
                 {{-- Module — tiket boleh menyentuh lebih dari satu (Ticket::modules());
@@ -1000,7 +1031,7 @@
                     @if($canEditAdditionalInfo)
                     <div class="custom-dd relative" data-fixed="true" data-multi="true" data-placeholder="Select module(s)">
                         <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs hover:border-gray-300 transition-all text-left">
-                            <span class="custom-dd-label text-gray-500">Select module(s)</span>
+                            <span class="custom-dd-label text-gray-500 truncate min-w-0">Select module(s)</span>
                             <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                         </button>
                         <input type="hidden" name="module_ids" id="additionalInfoModuleIds" value="{{ $ticket->modules->pluck('id')->implode(',') }}">
@@ -1017,7 +1048,7 @@
                     <p class="text-[11px] text-gray-400 mt-1">Nilai lama (patokan): {{ $ticket->module }}</p>
                     @endif
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->modules->pluck('name')->implode(', ') ?: '—') }}">{{ $ticket->modules->pluck('name')->implode(', ') ?: '—' }}</span>
                     @endif
                 </div>
                 {{-- Client --}}
@@ -1028,7 +1059,7 @@
                            placeholder="Enter client name..."
                            class="w-full text-xs text-gray-700 px-2.5 py-1.5 bg-gray-50 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400">
                     @else
-                    <span class="{{ $roValCls }}">{{ $ticket->client ?? '—' }}</span>
+                    <span class="{{ $roValCls }}" title="{{ strip_tags($ticket->client ?? '—') }}">{{ $ticket->client ?? '—' }}</span>
                     @endif
                 </div>
             </div>
@@ -1468,15 +1499,8 @@
         el('ticketSummaryModal').classList.add('hidden');
     };
 
-    document.getElementById('ticketSummaryModal').addEventListener('click', function (e) {
-        if (e.target === this) closeTicketSummary();
-    });
-
-    document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && !el('ticketSummaryModal').classList.contains('hidden')) {
-            closeTicketSummary();
-        }
-    });
+    // Intentionally no backdrop-click / Escape-to-close — this modal should
+    // only be dismissed via its own X button.
 })();
 </script>
 @endif
@@ -1737,6 +1761,32 @@
     pointer-events: none;
     font-family: inherit;
 }
+
+/* Opsi "hapus warna/highlight": swatch default Quill (tanpa data-value) —
+   putih dengan coretan diagonal merah + tooltip. */
+.ql-toolbar .ql-color-picker .ql-picker-item:not([data-value]) {
+    background-color: #ffffff !important;
+    background-image: linear-gradient(to top right, transparent calc(50% - 1px), #dc2626 calc(50% - 1px), #dc2626 calc(50% + 1px), transparent calc(50% + 1px));
+    border: 1px solid #d1d5db;
+}
+.ql-toolbar .ql-background .ql-picker-item:not([data-value])::after { content: none; }
+/* Quill melebarkan panel warna untuk 7 kolom (152px); highlight hanya 6 swatch
+   (5 warna + hapus) → 6 × 20px + padding, supaya tidak ada kolom kosong. */
+.ql-toolbar.ql-snow .ql-background.ql-picker .ql-picker-options {
+    box-sizing: content-box !important;
+    width: 120px !important;   /* 6 × (16px swatch + 2×2px margin) */
+    min-width: 0 !important;
+    padding: 3px 5px !important;
+}
+.ql-toolbar.ql-snow .ql-color-picker .ql-picker-item {
+    box-sizing: border-box !important;
+    width: 16px !important;
+    height: 16px !important;
+    margin: 2px !important;
+}
+
+/* Editor Body Text di modal Send & Set Status (deliverable): lebih tinggi dari editor chat. */
+#sendStatusBodyEditor .ql-editor { min-height: 180px; max-height: 320px; }
 
 /* Channel badge pada pesan */
 .msg-channel-badge {
@@ -2044,9 +2094,9 @@
    Toolbar & ikon Quill memakai warna terang/stroke gelap bawaan → dipetakan
    ke permukaan gelap + ikon terang. */
 .ql-toolbar.ql-snow { background: #1f2937 !important; border-bottom-color: #374151 !important; }
-.ql-snow .ql-stroke        { stroke: #cbd5e1 !important; }
-.ql-snow .ql-fill,
-.ql-snow .ql-stroke.ql-fill { fill: #cbd5e1 !important; }
+.ql-snow .ql-stroke:not(.ql-color-label)        { stroke: #cbd5e1 !important; }
+.ql-snow .ql-fill:not(.ql-color-label),
+.ql-snow .ql-stroke.ql-fill:not(.ql-color-label) { fill: #cbd5e1 !important; }
 .ql-snow .ql-picker-label  { color: #cbd5e1 !important; }
 .ql-snow .ql-picker-label .ql-stroke { stroke: #cbd5e1 !important; }
 .ql-snow.ql-toolbar button:hover,
@@ -2068,13 +2118,16 @@
 .ql-snow .ql-tooltip input[type=text] { background: #374151 !important; border-color: #4b5563 !important; color: #f9fafb !important; }
 .ql-snow .ql-tooltip a { color: #60a5fa !important; }
 .ql-editor.ql-blank::before { color: #6b7280 !important; }
+/* Picker warna teks/highlight: biarkan garis warna terpilih (inline style Quill)
+   tampil, dan beri swatch border terang agar terlihat di panel gelap. */
+.ql-snow .ql-color-picker .ql-picker-item { border: 1px solid #4b5563; }
 @endif
 </style>
 
 {{-- Assign to Delivery Support Modal --}}
 @if($canAssignDelivery)
-<div id="assignSupportModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl">
+<div id="assignSupportModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="px-6 py-4 border-b border-gray-200">
             <div class="flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-900">Assign to Delivery Support</h3>
@@ -2104,8 +2157,8 @@
 </div>
 
 {{-- Success Confirmation Modal --}}
-<div id="assignSuccessModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl">
+<div id="assignSuccessModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="p-6 text-center">
             <div class="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-7 h-7 text-green-600">
@@ -2131,8 +2184,8 @@
 
 {{-- PIC: Customer Mandays Modal --}}
 @if(isset($isPicCustomerMandays) && $isPicCustomerMandays)
-<div id="picMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+<div id="picMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Customer Mandays Proposal</h3>
@@ -2152,9 +2205,10 @@
                     <label class="block text-xs font-semibold text-gray-600 mb-1">
                         Proposal Title <span class="text-red-400">*</span>
                     </label>
-                    <input id="picMandaysDescription" type="text" maxlength="255"
+                    <textarea id="picMandaysDescription" rows="3" maxlength="255"
+                        oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
                         placeholder="e.g. Propose Mandays 1 / Additional MD for New FM"
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus">
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs primary-focus resize-y break-words"></textarea>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1">
@@ -2207,7 +2261,7 @@
 
 {{-- PIC: Resolution Days Modal --}}
 @if(isset($isPicResolutionDays) && $isPicResolutionDays)
-<div id="picResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="picResolutionModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2269,8 +2323,8 @@
 
 {{-- Assign Ticket Lead Modal (Admin / Helpdesk / Delivery Support Head, atau Ticket Lead tiket ini / Module Lead) --}}
 @if($canAssignTicketLead)
-<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col">
+<div id="assignTicketLeadModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Assign Ticket Lead</h3>
             <button onclick="closeAssignTicketLeadModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
@@ -2301,15 +2355,23 @@
 
 {{-- ── Send Status Modal ───────────────────────────────────────────────── --}}
 <div id="sendStatusModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col">
+    <div id="sendStatusPanel" class="bg-white rounded-xl w-full max-w-xs shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Send &amp; Set Status</h3>
-                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Pilih status setelah reply dikirim</p>
+                <p id="sendStatusSubtitle" class="text-[11px] text-gray-400 mt-0.5">Choose the status after the reply is sent</p>
             </div>
             <button onclick="closeSendStatusModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
             </button>
+        </div>
+        {{-- Body text email — hanya untuk pengiriman deliverable; rich text seperti chat reply.
+             Tidak disimpan di database. --}}
+        <div id="sendStatusBodyWrap" class="hidden px-5 pt-4">
+            <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Body Text <span class="font-normal text-gray-400">(optional — shown above the documents)</span></label>
+            <div class="border border-gray-200 rounded-lg bg-white">
+                <div id="sendStatusBodyEditor"></div>
+            </div>
         </div>
         <div class="px-4 py-4 flex flex-col gap-2">
             {{-- Inprocess --}}
@@ -2320,7 +2382,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-yellow-800 group-hover:text-white">Inprocess</div>
-                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk sedang mengerjakan</div>
+                    <div class="text-[10px] text-yellow-600 group-hover:text-yellow-100">Helpdesk is working on it</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-yellow-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2333,7 +2395,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-amber-800 group-hover:text-white">Waiting on Customer</div>
-                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Menunggu balasan customer</div>
+                    <div class="text-[10px] text-amber-600 group-hover:text-amber-100">Waiting for customer's reply</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-amber-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2346,7 +2408,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-teal-800 group-hover:text-white">Waiting to Confirmation</div>
-                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Menunggu konfirmasi customer</div>
+                    <div class="text-[10px] text-teal-600 group-hover:text-teal-100">Waiting for customer's confirmation</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-teal-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2359,7 +2421,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-indigo-800 group-hover:text-white">Waiting on 3rd Party</div>
-                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Diteruskan ke SAP / pihak ketiga</div>
+                    <div class="text-[10px] text-indigo-600 group-hover:text-indigo-100">Forwarded to SAP / third party</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-indigo-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2372,7 +2434,7 @@
                 </span>
                 <div class="text-left">
                     <div class="text-xs font-bold text-orange-800 group-hover:text-white">Hold</div>
-                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket ditahan sementara</div>
+                    <div class="text-[10px] text-orange-600 group-hover:text-orange-100">Ticket temporarily on hold</div>
                 </div>
                 <svg class="ml-auto w-4 h-4 text-orange-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
             </button>
@@ -2384,12 +2446,12 @@
 </div>
 
 {{-- ── Confirm Send Modal (review To/Cc/message/status before sending) ──── --}}
-<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="confirmSendModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
-                <h3 class="text-sm font-bold text-gray-900">Konfirmasi Kirim</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">Periksa kembali sebelum mengirim</p>
+                <h3 class="text-sm font-bold text-gray-900">Confirm Send</h3>
+                <p class="text-[11px] text-gray-400 mt-0.5">Review before sending</p>
             </div>
             <button onclick="closeConfirmSendModal()" class="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-500 hover:bg-red-700 hover:text-white transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>
@@ -2405,7 +2467,7 @@
                 <p id="confirmSendCc" class="text-xs text-gray-800 break-words">-</p>
             </div>
             <div>
-                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Pesan</span>
+                <span class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Message</span>
                 <div id="confirmSendMessage" class="text-xs text-gray-800 border border-gray-200 rounded-lg px-3 py-2 max-h-40 overflow-y-auto bg-gray-50"></div>
             </div>
             <div>
@@ -2414,16 +2476,16 @@
             </div>
         </div>
         <div class="px-5 py-4 border-t border-gray-100 flex justify-end gap-2 flex-shrink-0">
-            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Edit</button>
-            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Kirim</button>
+            <button onclick="closeConfirmSendModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all">Cancel</button>
+            <button onclick="finalizeSend()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">Send</button>
         </div>
     </div>
 </div>
 
 {{-- Helpdesk: Customer Mandays Review Modal --}}
 @if(isset($isHelpdesk) && $isHelpdesk)
-<div id="hdMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+<div id="hdMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Review Mandays Proposal</h3>
@@ -2451,9 +2513,10 @@
                     @if($hdCanEditDesc)
                     <div>
                         <label class="block text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
-                        <input type="text" id="hdDescriptionInput" maxlength="255"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800"
-                            placeholder="Proposal description...">
+                        <textarea id="hdDescriptionInput" rows="3" maxlength="255"
+                            oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-red-800 resize-y break-words"
+                            placeholder="Proposal description..."></textarea>
                     </div>
                     @endif
                     @if($hdCanEditNotes)
@@ -2505,8 +2568,8 @@
 {{-- ============================================================ --}}
 {{-- Mandays: Version List Modal (shared: PIC / Helpdesk / Head)  --}}
 {{-- ============================================================ --}}
-<div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col" style="max-height:85vh;">
+<div id="mandaysVersionListModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-6xl shadow-2xl flex flex-col" style="max-height:90vh;">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-base font-bold text-gray-900">Mandays Proposal</h3>
@@ -2528,16 +2591,16 @@
                 <p class="text-sm font-semibold text-gray-600">No proposals yet</p>
                 <p class="text-xs text-gray-400 mt-0.5">PIC has not submitted any mandays for this ticket.</p>
             </div>
-            <div id="mandaysVersionListWrap" class="hidden overflow-x-auto">
-                <table class="w-full text-xs border-collapse">
+            <div id="mandaysVersionListWrap" class="hidden">
+                <table class="w-full text-xs border-collapse table-fixed">
                     <thead>
                         <tr class="bg-gray-50">
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-16">Ver.</th>
-                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:180px;">Description</th>
-                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="min-width:140px;">Notes</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-32">Status</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-20">Total MD</th>
-                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap w-36">Last Updated</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 whitespace-nowrap" style="width:64px;">Ver.</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 " style="width:32%;">Description</th>
+                            <th class="px-3 py-2.5 text-left font-semibold text-gray-500 border border-gray-200 " style="width:24%;">Notes</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:128px;">Status</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:90px;">Total MD</th>
+                            <th class="px-3 py-2.5 text-center font-semibold text-gray-500 border border-gray-200 " style="width:140px;">Last Updated</th>
                         </tr>
                     </thead>
                     <tbody id="mandaysVersionListBody"></tbody>
@@ -2562,8 +2625,8 @@
 {{-- ============================================================ --}}
 {{-- Mandays: Version Detail Modal (read-only view per version)   --}}
 {{-- ============================================================ --}}
-<div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh]">
+<div id="mandaysVersionDetailModal" class="hidden fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl w-full max-w-5xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
                 <h3 class="text-lg font-bold text-gray-900">Mandays Proposal — <span id="mvdVersionLabel">Version —</span></h3>
@@ -2586,11 +2649,11 @@
                 <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="bg-gray-50 rounded-lg px-4 py-3">
                         <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</p>
-                        <p id="mvdDescription" class="text-xs text-gray-800">—</p>
+                        <p id="mvdDescription" class="text-xs text-gray-800 whitespace-pre-line break-words">—</p>
                     </div>
                     <div class="bg-gray-50 rounded-lg px-4 py-3">
                         <p class="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Notes</p>
-                        <p id="mvdNotes" class="text-xs text-gray-800 whitespace-pre-line">—</p>
+                        <p id="mvdNotes" class="text-xs text-gray-800 whitespace-pre-line break-words">—</p>
                     </div>
                 </div>
                 {{-- Cancel/rejection info if any --}}
@@ -2644,7 +2707,7 @@
 
 {{-- Delivery Support Head: Resolution Days Modal --}}
 @if(isset($isHead) && $isHead)
-<div id="headResolutionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="headResolutionModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2704,7 +2767,7 @@
 
 {{-- Delivery Support Head: Customer Mandays View-Only Modal --}}
 @if(isset($isHead) && $isHead)
-<div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="headCustomerMandaysModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -2752,7 +2815,7 @@
 
 {{-- ===== MEETING MODAL ===== --}}
 @if($can('ticket.meeting'))
-<div id="meetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto" onclick="if(event.target===this) closeMeetingPanel()">
+<div id="meetingModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
     <div id="meetingModalCard" class="bg-white rounded-2xl shadow-2xl w-full max-w-md sm:w-auto sm:max-w-[95vw] my-auto max-h-[92vh] flex flex-col">
         {{-- Header --}}
         <div id="meetingModalHeader" class="flex items-center justify-between px-6 py-4 rounded-t-2xl">
@@ -2938,7 +3001,7 @@
 
 {{-- ===== CONFIRM MEETING MODAL — review sebelum undangan benar-benar dikirim ===== --}}
 @if($can('ticket.meeting'))
-<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="confirmMeetingModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-lg shadow-2xl flex flex-col max-h-[85vh]">
         <div class="flex justify-between items-center px-5 py-3.5 border-b border-gray-100 flex-shrink-0">
             <div>
@@ -3136,7 +3199,8 @@
         const iconUp   = document.getElementById('replyToggleIconUp');
         if (!inner) return;
         const isExpanded = inner.style.maxHeight !== '0px';
-        inner.style.maxHeight = isExpanded ? '0px'   : '600px';
+        // 2000px harus sama dengan nilai awal inline style #replyComposeInner (lihat komentar di blade)
+        inner.style.maxHeight = isExpanded ? '0px'   : '2000px';
         inner.style.opacity   = isExpanded ? '0'     : '1';
         // overflow switch: hidden saat collapse (sembunyikan konten yang ter-collapse),
         // visible saat expand (agar dropdown picker Quill tidak ter-clip).
@@ -3321,7 +3385,7 @@
             input.classList.add('recipient-invalid');
             setTimeout(() => input.classList.remove('recipient-invalid'), 1500);
             if (!viaBlur) {
-                showNotification('Alamat email tidak valid: ' + invalid.join(', '), 'error');
+                showNotification('Invalid email address: ' + invalid.join(', '), 'error');
             }
         } else {
             input.value = '';
@@ -3659,6 +3723,7 @@
     }
     let allSidebarTickets  = [];
     let sidebarView        = 'all';
+    let sidebarLoadSeq     = 0;
     let deliverySupportList = [];
     // Set berisi ID pesan yang sudah dirender ke DOM.
     // Digunakan agar polling tidak me-render ulang pesan lama &rarr; gambar tidak flicker.
@@ -3750,8 +3815,11 @@
                 toolbar: {
                     container: [
                         ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'color': ['#dc2626', '#ea580c', '#16a34a', '#2563eb', '#7c3aed', '#6b7280', false] }],
+                        [{ 'background': ['#fff59d', '#ffcc80', '#a5d6a7', '#90caf9', '#f48fb1', false] }],
                         ['blockquote'],
                         [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': ['', 'center', 'right'] }],
                         [{ 'header': [1, 2, 3, false] }],
                         ['link', 'image'],
                         ['clean']
@@ -3809,12 +3877,16 @@
 
         // Saat teks disalin dari bubble lain (mis. internal note kuning) lalu ditempel,
         // browser ikut menyalin background bubble. Buang background agar warna latar
-        // bubble asal tidak terbawa — TAPI pertahankan warna teks (color) agar teks
-        // berwarna yang sengaja disalin tetap ikut.
+        // bubble asal tidak terbawa. Warna teks (color) dari platform lain juga dibuang
+        // (kecuali warna chip @mention) — sumber seperti Word/web/Slack sering membawa
+        // abu-abu, sehingga teks hasil paste terlihat pudar di input chat.
         quillEditor.clipboard.addMatcher(Node.ELEMENT_NODE, function (node, delta) {
             delta.ops.forEach(op => {
                 if (op.attributes) {
                     delete op.attributes.background;
+                    if (!MENTION_COLORS.includes(op.attributes.color)) {
+                        delete op.attributes.color;
+                    }
                 }
             });
             return delta;
@@ -3875,6 +3947,25 @@
             });
             const header = toolbar.querySelector('.ql-header');
             if (header) header.setAttribute('title', 'Heading');
+            const alignPickerChat = toolbar.querySelector('.ql-align');
+            if (alignPickerChat) {
+                alignPickerChat.setAttribute('title', 'Paragraph Alignment');
+                const alignLbl = { '': 'Align Left', 'center': 'Align Center', 'right': 'Align Right' };
+                alignPickerChat.querySelectorAll('.ql-picker-item').forEach(item => {
+                    item.setAttribute('title', alignLbl[item.getAttribute('data-value') || ''] || 'Align');
+                });
+            }
+            const colorPicker = toolbar.querySelector('.ql-color');
+            if (colorPicker) colorPicker.setAttribute('title', 'Text Color');
+            const bgPicker = toolbar.querySelector('.ql-background');
+            if (bgPicker) bgPicker.setAttribute('title', 'Highlight');
+            // Tooltip per swatch; swatch tanpa data-value = hapus warna.
+            [[colorPicker, 'Text color', 'Remove text color'], [bgPicker, 'Highlight', 'Remove highlight']].forEach(([picker, label, removeLabel]) => {
+                if (!picker) return;
+                picker.querySelectorAll('.ql-picker-item').forEach(item => {
+                    item.setAttribute('title', item.hasAttribute('data-value') ? label : removeLabel);
+                });
+            });
 
             // Inject attachment button into toolbar
             const attachGroup = document.createElement('span');
@@ -3973,7 +4064,17 @@
         renderToTags();
         renderCcTags();
         loadMessages().then(scrollToMessageFromHash);
-        switchSidebarView(canViewMyTicketTab ? 'my' : 'all');
+        (function () {
+            // Ingat tab terakhir (All/My) supaya tidak reset saat pindah ticket
+            let saved = null;
+            try { saved = sessionStorage.getItem('sbTicketsView:{{ session('user.id') }}'); } catch (_) {}
+            const hasAll = !!document.getElementById('sidebarTabAll');
+            const hasMy  = !!document.getElementById('sidebarTabMy');
+            let view = canViewMyTicketTab ? 'my' : 'all';
+            if (saved === 'all' && hasAll) view = 'all';
+            else if (saved === 'my' && hasMy) view = 'my';
+            switchSidebarView(view);
+        })();
         markMessagesRead();
         startMessagePolling();
 
@@ -4306,13 +4407,9 @@
             lightboxImg.src = '';
         };
 
-        // Klik overlay/tombol close → tutup. Klik pada gambar itu sendiri → jangan tutup.
-        overlay.addEventListener('click', function (e) {
-            if (e.target === lightboxImg) return;
+        // Hanya tombol close (X) yang menutup — tidak ada klik-di-luar atau Escape.
+        overlay.querySelector('.lightbox-close').addEventListener('click', function () {
             window.closeImageLightbox();
-        });
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape' && overlay.classList.contains('open')) window.closeImageLightbox();
         });
 
         // Event delegation: tangkap klik gambar di dalam thread pesan.
@@ -4329,26 +4426,37 @@
     })();
 
     // ==================== AUTO POLLING: reload pesan & cek email baru ====================
+    async function messagePollTick() {
+        // Jika tiket dari email, proses inbox dulu
+        if (ticketChannel === 'email') {
+            try {
+                await fetch('/api/email/process-inbox', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                    },
+                    credentials: 'same-origin'
+                });
+            } catch (_) {}
+        }
+        // Selalu reload pesan (bisa ada balasan dari agent lain juga)
+        await loadMessages();
+    }
+
     function startMessagePolling() {
-        setInterval(async function () {
-            // Jika tiket dari email, proses inbox dulu
-            if (ticketChannel === 'email') {
-                try {
-                    await fetch('/api/email/process-inbox', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                        },
-                        credentials: 'same-origin'
-                    });
-                } catch (_) {}
-            }
-            // Selalu reload pesan (bisa ada balasan dari agent lain juga)
-            await loadMessages();
-        }, 15000); // setiap 15 detik
+        // Skip kerja polling selagi tab di-background/minimize — untuk tiket email,
+        // tick ini manggil Microsoft Graph (bukan cuma DB lokal) tiap 15 detik; kalau
+        // staff buka banyak tab tiket, biaya itu berlipat tanpa ada yang melihat
+        // hasilnya. Begitu tab aktif lagi, sinkron ulang segera (bukan nunggu interval
+        // berikutnya) supaya pesan tidak basi. Pola sama seperti startEmailPolling()
+        // di staging/index.blade.php.
+        setInterval(() => { if (!document.hidden) messagePollTick(); }, 15000); // setiap 15 detik
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) messagePollTick();
+        });
     }
 
     // ==================== MESSAGES ====================
@@ -4639,7 +4747,7 @@
             if (i % 2 === 1) return part; // tag utuh — jangan disentuh
             return part.replace(
                 /(^|[^\w/&#])#[ \t]?(\d{6,10})(?!\d)/g,
-                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Buka tiket #${num}">#${num}</a>`
+                (m, pre, num) => `${pre}<a href="/ticket/ref/${num}" target="_blank" rel="noopener noreferrer" style="${_linkStyle}" title="Open ticket #${num}">#${num}</a>`
             );
         }).join('');
     }
@@ -4766,7 +4874,7 @@
 
     function slaMsgBtn(msg) {
         const hasSla = !!(msg.sla_message && msg.sla_message.trim());
-        const tip    = hasSla ? escHtml(msg.sla_message) : 'Tambah pesan SLA';
+        const tip    = hasSla ? escHtml(msg.sla_message) : 'Add SLA message';
         return `<button class="sla-open-btn${hasSla ? ' has-sla' : ''}"
                         title="${tip}"
                         onclick="openSlaModal(${msg.id}, this)"
@@ -4798,7 +4906,7 @@
         const val = document.getElementById('slaMsgTextarea').value.trim();
         const btn = document.getElementById('slaSaveBtn');
         btn.disabled = true;
-        btn.textContent = 'Menyimpan...';
+        btn.textContent = 'Saving...';
         try {
             const res = await fetch(`/api/tickets/${ticketId}/messages/${_slaCurrentMsgId}/sla-message`, {
                 method: 'PATCH',
@@ -4811,14 +4919,14 @@
             if (res.ok && _slaCurrentTrigger) {
                 _slaCurrentTrigger.dataset.slaVal = val;
                 _slaCurrentTrigger.classList.toggle('has-sla', val.length > 0);
-                _slaCurrentTrigger.title = val.length > 0 ? val : 'Tambah pesan SLA';
+                _slaCurrentTrigger.title = val.length > 0 ? val : 'Add SLA message';
             }
             closeSlaModal();
         } catch (err) {
             console.error('Failed to save SLA message', err);
         } finally {
             btn.disabled = false;
-            btn.textContent = 'Simpan';
+            btn.textContent = 'Save';
         }
     }
 
@@ -5292,7 +5400,10 @@
                 .replace(/^(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+/i, '')
                 .replace(/(\s*<p[^>]*>\s*(<br\s*\/?>)?\s*<\/p>\s*)+$/i, '');
         } while (html !== prev);
-        return html.trim();
+        // Quill menandai alignment lewat class (ql-align-*) yang tidak ada CSS-nya di
+        // email → ubah ke inline style agar rata kanan/tengah ikut sampai ke customer.
+        return html.trim()
+            .replace(/\sclass="ql-align-(center|right|justify)"/g, ' style="text-align:$1"');
     }
 
     // ── Send Status Modal ─────────────────────────────────────────────────────
@@ -5307,10 +5418,66 @@
         if (el) el.textContent = text;
     }
 
+    // Kolom Body Text (rich text) hanya muncul saat mengirim deliverable; modal juga
+    // dilebarkan agar nyaman mengetik. Editor Quill dibuat lazy saat pertama dibutuhkan.
+    let deliverableBodyQuill = null;
+
+    function ensureDeliverableBodyQuill() {
+        if (deliverableBodyQuill || !window.Quill) return deliverableBodyQuill;
+        deliverableBodyQuill = new Quill('#sendStatusBodyEditor', {
+            theme: 'snow',
+            placeholder: 'Type the message that appears above the documents...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    [{ 'align': ['', 'center', 'right'] }],
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['link', 'clean'],
+                ],
+            },
+        });
+        // Tooltip picker rata paragraf (kiri / tengah / kanan).
+        const alignPicker = document.querySelector('#sendStatusBodyWrap .ql-align');
+        if (alignPicker) alignPicker.setAttribute('title', 'Paragraph Alignment');
+        const alignLabels = { '': 'Align Left', 'center': 'Align Center', 'right': 'Align Right' };
+        document.querySelectorAll('#sendStatusBodyWrap .ql-align .ql-picker-item').forEach(item => {
+            item.setAttribute('title', alignLabels[item.getAttribute('data-value') || ''] || 'Align');
+        });
+        return deliverableBodyQuill;
+    }
+
+    function setStatusModalBodyText(show) {
+        const wrap  = document.getElementById('sendStatusBodyWrap');
+        const panel = document.getElementById('sendStatusPanel');
+        if (wrap)  wrap.classList.toggle('hidden', !show);
+        if (panel) {
+            panel.classList.toggle('max-w-xs', !show);
+            panel.classList.toggle('max-w-2xl', show);
+        }
+        if (show) {
+            const q = ensureDeliverableBodyQuill();
+            if (q) q.setContents([]);
+        }
+    }
+
+    // HTML body text, atau '' bila editor kosong.
+    function readDeliverableBodyHtml() {
+        // Baca langsung dari elemen editor (bukan dari state instance) agar selalu
+        // memakai apa yang benar-benar diketik user di modal.
+        const root = document.querySelector('#sendStatusBodyEditor .ql-editor');
+        if (!root || (root.textContent || '').trim() === '' && !root.querySelector('img')) return '';
+        // Quill menandai alignment lewat class (ql-align-*) yang tidak ada CSS-nya di
+        // bubble/email → ubah ke inline style agar rata kanan/tengah tetap terlihat.
+        return trimQuillHtml(root.innerHTML)
+            .replace(/\sclass="ql-align-(center|right|justify)"/g, ' style="text-align:$1"');
+    }
+
     function openSendStatusModal(messageType) {
         _statusModalMode = 'reply';
         _pendingSendType = messageType;
-        setStatusModalSubtitle('Pilih status setelah reply dikirim');
+        setStatusModalBodyText(false);
+        setStatusModalSubtitle('Choose the status after the reply is sent');
         // Reset ke default inprocess setiap kali modal dibuka
         const defaultRadio = document.querySelector('input[name="sendStatus"][value="inprocess"]');
         if (defaultRadio) defaultRadio.checked = true;
@@ -5322,14 +5489,16 @@
     function openDeliverableStatusModal(id) {
         _statusModalMode      = 'deliverable';
         _pendingDeliverableId = id;
-        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        setStatusModalSubtitle('Choose the ticket status before the documents are sent');
+        setStatusModalBodyText(true);
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
     // Bulk send: status dipilih sekali, lalu dipakai untuk semua dokumen terpilih.
     function openDeliverableBulkStatusModal() {
         _statusModalMode = 'deliverable-bulk';
-        setStatusModalSubtitle('Pilih status tiket sebelum dokumen dikirim');
+        setStatusModalSubtitle('Choose the ticket status before the documents are sent');
+        setStatusModalBodyText(true);
         document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
@@ -5340,32 +5509,41 @@
         _statusModalMode      = 'reply';
     }
 
-    function confirmSendWithStatus(chosenStatus) {
-        document.getElementById('sendStatusModal').classList.add('hidden');
-        if (_statusModalMode === 'deliverable') {
-            const id = _pendingDeliverableId;
-            _pendingDeliverableId = null;
-            _statusModalMode      = 'reply';
-            _doSendDeliverable(id, chosenStatus || 'inprocess');
-            return;
-        }
-        if (_statusModalMode === 'deliverable-bulk') {
-            _statusModalMode = 'reply';
-            _doBulkSendDeliverables(chosenStatus || 'inprocess');
-            return;
-        }
-        openConfirmSendModal(chosenStatus || 'inprocess');
+    // Kirim deliverable yang menunggu konfirmasi ({mode, ids, status, bodyText}).
+    let _pendingDeliverableSend = null;
+
+    // Pratinjau isi yang akan dikirim: body text di atas, lalu Doc Type + File per dokumen.
+    function deliverablePreviewHtml(ids, bodyHtml) {
+        const docs = ids.map(id => deliverableData.find(d => d.id === id)).filter(Boolean);
+        const list = docs.map(d => `<div class="mt-2"><span class="text-gray-500">Doc Type:</span> <strong>${escHtmlD(d.doc_type)}</strong><br>`
+            + `<span class="text-gray-500">File:</span> ${escHtmlD(d.file_name || '-')}</div>`).join('');
+        return '<strong>Deliverable Document</strong>'
+            + (bodyHtml ? `<div class="mt-1.5">${bodyHtml}</div>` : '')
+            + list;
     }
 
-    // Klik backdrop modal → tutup
-    document.getElementById('sendStatusModal').addEventListener('click', function(e) {
-        if (e.target === this) closeSendStatusModal();
-    });
+    function confirmSendWithStatus(chosenStatus) {
+        const status = chosenStatus || 'inprocess';
+        if (_statusModalMode === 'deliverable' || _statusModalMode === 'deliverable-bulk') {
+            // Body text dibaca sebelum modal ditutup; hanya diteruskan ke request, tidak disimpan.
+            const bodyText = readDeliverableBodyHtml();
+            const ids = _statusModalMode === 'deliverable' ? [_pendingDeliverableId] : [..._selectedDelivIds];
+            _pendingDeliverableSend = { mode: _statusModalMode, ids, status, bodyText };
+            document.getElementById('sendStatusModal').classList.add('hidden');
+            // Konfirmasi dulu (To/Cc, isi, status) supaya user sadar chat akan terkirim ke customer.
+            openConfirmSendModal(status, { messageHtml: deliverablePreviewHtml(ids, bodyText) });
+            return;
+        }
+        document.getElementById('sendStatusModal').classList.add('hidden');
+        openConfirmSendModal(status);
+    }
+
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     // ── Confirm Send Modal ────────────────────────────────────────────────────
     let _pendingChosenStatus = null;
 
-    function openConfirmSendModal(chosenStatus) {
+    function openConfirmSendModal(chosenStatus, opts) {
         _pendingChosenStatus = chosenStatus;
 
         // Pastikan input TO/CC yang belum ter-commit ikut ditampilkan.
@@ -5385,7 +5563,9 @@
 
         document.getElementById('confirmSendTo').textContent = toEmails.length ? toEmails.join(', ') : '-';
         document.getElementById('confirmSendCc').textContent = ccEmails.length ? ccEmails.join(', ') : '-';
-        document.getElementById('confirmSendMessage').innerHTML = trimQuillHtml(quillEditor.root.innerHTML) || '<span class="text-gray-400">(kosong)</span>';
+        document.getElementById('confirmSendMessage').innerHTML = (opts && opts.messageHtml)
+            || trimQuillHtml(quillEditor.root.innerHTML)
+            || '<span class="text-gray-400">(empty)</span>';
 
         const badge = document.getElementById('confirmSendStatusBadge');
         badge.className = `sb-badge sb-status-${chosenStatus}`;
@@ -5394,23 +5574,34 @@
         document.getElementById('confirmSendModal').classList.remove('hidden');
     }
 
+    // Cancel/X pada konfirmasi → kembali ke modal "Send & Set Status" (reply maupun
+    // deliverable). State (mode, tipe kirim, body text di editor) sengaja dipertahankan;
+    // modal status yang menutup dirinya sendiri lewat X-nya.
     function closeConfirmSendModal() {
         document.getElementById('confirmSendModal').classList.add('hidden');
-        _pendingSendType = null;
-        _pendingChosenStatus = null;
+        _pendingDeliverableSend = null;
+        _pendingChosenStatus    = null;
+        document.getElementById('sendStatusModal').classList.remove('hidden');
     }
 
     async function finalizeSend() {
         document.getElementById('confirmSendModal').classList.add('hidden');
+        if (_pendingDeliverableSend) {
+            const p = _pendingDeliverableSend;
+            _pendingDeliverableSend  = null;
+            _pendingDeliverableId    = null;
+            _statusModalMode         = 'reply';
+            _pendingChosenStatus     = null;
+            if (p.mode === 'deliverable') await _doSendDeliverable(p.ids[0], p.status, p.bodyText);
+            else                          await _doBulkSendDeliverables(p.status, p.bodyText);
+            return;
+        }
         await _doSendReply(_pendingSendType, _pendingChosenStatus);
         _pendingSendType = null;
         _pendingChosenStatus = null;
     }
 
-    // Klik backdrop modal → tutup (setara tombol Edit, tidak jadi kirim)
-    document.getElementById('confirmSendModal').addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmSendModal();
-    });
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     async function sendReply(messageType) {
         const rawHtml      = quillEditor.root.innerHTML;
@@ -5602,6 +5793,7 @@
     // ==================== SIDEBAR TICKETS ====================
     function switchSidebarView(view) {
         sidebarView = view;
+        try { sessionStorage.setItem('sbTicketsView:{{ session('user.id') }}', view); } catch (_) {}
         const tabAll = document.getElementById('sidebarTabAll');
         const tabMy  = document.getElementById('sidebarTabMy');
         if (tabAll && tabMy) {
@@ -5613,23 +5805,61 @@
         loadSidebarTickets();
     }
 
-    async function loadSidebarTickets() {
+    // Cache daftar sidebar (memori + sessionStorage) supaya pindah tab / pindah ticket
+    // langsung tampil dari cache, lalu disegarkan di belakang layar (stale-while-revalidate).
+    const sidebarCache = {};
+    const SIDEBAR_CACHE_PREFIX = 'sbTickets:{{ session('user.id') }}:';
+    function sidebarCacheGet(key) {
+        if (sidebarCache[key]) return sidebarCache[key];
         try {
-            let endpoint = '/api/tickets';
-            if (userRole === EC_USER_ROLE) endpoint = '/api/tickets/my';
-            else if ([EC_ADMINISTRATOR_ROLE, DELIVERY_SUPPORT_USER_ROLE, DELIVERY_HELPDESK_ROLE, DELIVERY_RPMO_HEAD_ROLE].includes(userRole) && sidebarView === 'my') endpoint = '/api/tickets/my';
+            const raw = sessionStorage.getItem(SIDEBAR_CACHE_PREFIX + key);
+            if (raw) return (sidebarCache[key] = JSON.parse(raw));
+        } catch (_) {}
+        return null;
+    }
+    function sidebarCacheSet(key, data) {
+        sidebarCache[key] = data;
+        try { sessionStorage.setItem(SIDEBAR_CACHE_PREFIX + key, JSON.stringify(data)); } catch (_) {}
+    }
 
-            const response = await fetch(endpoint, {
+    async function loadSidebarTickets() {
+        const loadingEl = document.getElementById('sidebarLoading');
+        try {
+            const endpoint = (userRole === EC_USER_ROLE || sidebarView === 'my') ? '/api/tickets/my' : '/api/tickets';
+
+            // sidebar=1 -> server hanya kirim kolom ringan (tanpa stats/SLA/progress), max 300 baris
+            const q = (document.getElementById('sidebarTicketSearch')?.value || '').trim();
+            const params = new URLSearchParams({ sidebar: '1' });
+            if (q) params.set('q', q);
+            const reqSeq = ++sidebarLoadSeq;
+            const cacheKey = endpoint + '?' + params.toString();
+
+            const cached = sidebarCacheGet(cacheKey);
+            if (cached) {
+                allSidebarTickets = cached;
+                renderSidebarTickets(cached);
+                loadingEl.classList.add('hidden');
+            } else {
+                document.getElementById('sidebarTicketList').innerHTML = '';
+                loadingEl.classList.remove('hidden');
+            }
+
+            const response = await fetch(cacheKey, {
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin'
             });
             const data = await response.json();
+            if (reqSeq !== sidebarLoadSeq) return; // ada request lebih baru, abaikan hasil lama
 
-            document.getElementById('sidebarLoading').classList.add('hidden');
+            loadingEl.classList.add('hidden');
 
             if (data.success) {
-                allSidebarTickets = data.data.sort((a, b) => new Date(b.last_message_at || b.created_at) - new Date(a.last_message_at || a.created_at));
-                renderSidebarTickets(allSidebarTickets);
+                sidebarCacheSet(cacheKey, data.data);
+                // Hindari re-render (kedip) kalau isi sama dengan cache
+                if (!cached || JSON.stringify(cached) !== JSON.stringify(data.data)) {
+                    allSidebarTickets = data.data;
+                    renderSidebarTickets(allSidebarTickets);
+                }
             }
         } catch (error) {
             document.getElementById('sidebarLoading').classList.add('hidden');
@@ -5679,7 +5909,7 @@
             const [sLabel, sCls] = statusMap[sRaw] || ['Unknown', 'sb-status-default'];
 
             return `
-                <a href="/ticket/${t.ticket_id}" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${heading}">
+                <a href="/ticket/${t.ticket_id}" onclick="sidebarTicketNavigating(this)" class="sidebar-ticket-item ${isActive ? 'active' : ''}" title="${heading}">
                     <div class="flex items-start justify-between gap-1 mb-0.5">
                         <span class="text-[11px] font-bold text-gray-800 truncate leading-tight">${heading}</span>
                         <span class="text-[9px] text-gray-400 flex-shrink-0 mt-0.5" title="${timeTitle}">${timeAgo}</span>
@@ -5693,18 +5923,24 @@
         }).join('');
     }
 
+    // Feedback instan saat ticket diklik: tandai aktif + redupkan sisanya sampai halaman baru terbuka
+    function sidebarTicketNavigating(el) {
+        document.querySelectorAll('#sidebarTicketList .sidebar-ticket-item').forEach(a => a.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('sidebarTicketList').style.opacity = '0.6';
+        document.body.style.cursor = 'progress';
+    }
+
+    window.addEventListener('pageshow', () => {
+        const l = document.getElementById('sidebarTicketList');
+        if (l) l.style.opacity = '';
+        document.body.style.cursor = '';
+    });
+
+    let sidebarSearchTimer = null;
     function filterSidebarTickets() {
-        const term = document.getElementById('sidebarSearch').value.toLowerCase();
-        if (!term) {
-            renderSidebarTickets(allSidebarTickets);
-            return;
-        }
-        const filtered = allSidebarTickets.filter(t =>
-            (t.ticket_number && t.ticket_number.toLowerCase().includes(term)) ||
-            (t.description && t.description.toLowerCase().includes(term)) ||
-            (t.customer?.customer_name && t.customer.customer_name.toLowerCase().includes(term))
-        );
-        renderSidebarTickets(filtered);
+        clearTimeout(sidebarSearchTimer);
+        sidebarSearchTimer = setTimeout(loadSidebarTickets, 300);
     }
 
     // ==================== SIDEBAR RESIZE ====================
@@ -6266,9 +6502,7 @@
         document.getElementById('confirmMeetingModal').classList.add('hidden');
     }
 
-    document.getElementById('confirmMeetingModal')?.addEventListener('click', function(e) {
-        if (e.target === this) closeConfirmMeetingModal();
-    });
+    // Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
     async function finalizeMeetingSend() {
         const payload = _pendingMeetingPayload;
@@ -6543,7 +6777,7 @@
     });
 
     async function hideTicket() {
-        if (!await showConfirm('Sembunyikan tiket ini? Tiket tidak akan muncul di daftar utama.', 'Hide Ticket', 'danger')) return;
+        if (!await showConfirm('Hide this ticket? It will no longer appear in the main list.', 'Hide Ticket', 'danger')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/hide`, {
                 method: 'PATCH',
@@ -6555,18 +6789,18 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Tiket berhasil disembunyikan.', 'success');
+                showNotification('Ticket hidden successfully.', 'success');
                 setTimeout(() => window.location.reload(), 800);
             } else {
-                showNotification(data.message || 'Gagal menyembunyikan tiket.', 'error');
+                showNotification(data.message || 'Failed to hide the ticket.', 'error');
             }
         } catch (e) {
-            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 
     async function unhideTicket() {
-        if (!await showConfirm('Tampilkan kembali tiket ini? Tiket akan muncul di daftar utama.', 'Unhide Ticket', 'primary')) return;
+        if (!await showConfirm('Unhide this ticket? It will appear in the main list again.', 'Unhide Ticket', 'primary')) return;
         try {
             const res = await fetch(`/api/tickets/${ticketId}/unhide`, {
                 method: 'PATCH',
@@ -6578,13 +6812,13 @@
             });
             const data = await res.json();
             if (data.success) {
-                showNotification('Tiket berhasil ditampilkan kembali.', 'success');
+                showNotification('Ticket unhidden successfully.', 'success');
                 setTimeout(() => window.location.reload(), 800);
             } else {
-                showNotification(data.message || 'Gagal menampilkan tiket.', 'error');
+                showNotification(data.message || 'Failed to unhide the ticket.', 'error');
             }
         } catch (e) {
-            showNotification('Terjadi kesalahan. Coba lagi.', 'error');
+            showNotification('An error occurred. Please try again.', 'error');
         }
     }
 
@@ -6879,18 +7113,18 @@
             const badgeClass  = MANDAYS_STATUS_BADGE[v.status]  || 'bg-gray-100 text-gray-600';
             const statusLabel = MANDAYS_STATUS_LABELS[v.status] || v.status;
             const desc = v.description
-                ? escHtml(v.description)
+                ? `<span class="whitespace-pre-line break-words">${escHtml(v.description)}</span>`
                 : '<span class="text-gray-300">&mdash;</span>';
             const note = v.proposal_notes
-                ? `<span class="text-gray-500" title="${escHtml(v.proposal_notes)}">${escHtml(v.proposal_notes.substring(0, 40))}${v.proposal_notes.length > 40 ? '&hellip;' : ''}</span>`
+                ? `<span class="text-gray-500 whitespace-pre-line break-words">${escHtml(v.proposal_notes)}</span>`
                 : '<span class="text-gray-300">&mdash;</span>';
             const lastUpdate = v.last_update
                 ? new Date(v.last_update).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false })
                 : '&mdash;';
             html += `<tr class="hover:bg-gray-50 cursor-pointer transition-colors" onclick="openMandaysVersionDetail(${v.id})">
                 <td class="px-3 py-2.5 border border-gray-100 text-center font-bold text-gray-700 whitespace-nowrap">v${v.version}</td>
-                <td class="px-3 py-2.5 border border-gray-100 text-gray-800 whitespace-nowrap">${desc}</td>
-                <td class="px-3 py-2.5 border border-gray-100 whitespace-nowrap">${note}</td>
+                <td class="px-3 py-2.5 border border-gray-100 text-gray-800 align-top break-words">${desc}</td>
+                <td class="px-3 py-2.5 border border-gray-100 align-top break-words">${note}</td>
                 <td class="px-3 py-2.5 border border-gray-100 text-center whitespace-nowrap">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badgeClass}">${statusLabel}</span>
                 </td>
@@ -7174,7 +7408,7 @@
             // Populate description & notes fields
             const descInput  = document.getElementById('picMandaysDescription');
             const notesInput = document.getElementById('picMandaysNotes');
-            if (descInput)  { descInput.value  = picDraftData?.description    || ''; descInput.readOnly  = picReadOnly; }
+            if (descInput)  { descInput.value  = picDraftData?.description    || ''; descInput.readOnly  = picReadOnly; descInput.style.height='auto'; descInput.style.height=descInput.scrollHeight+'px'; }
             if (notesInput) { notesInput.value = picDraftData?.proposal_notes || ''; notesInput.readOnly = picReadOnly; }
             const descWrap = document.getElementById('picDescNotesWrap');
             if (descWrap) descWrap.querySelectorAll('input,textarea').forEach(el => {
@@ -7355,7 +7589,7 @@
             return;
         }
         if (payload.details.length === 0) {
-            showNotification('Isi minimal satu nilai mandays sebelum menyimpan.', 'warning');
+            showNotification('Enter at least one mandays value before saving.', 'warning');
             return;
         }
         const btn = document.getElementById('picBtnSaveDraft');
@@ -7885,7 +8119,7 @@
                 if (isEditable) {
                     metaWrap.classList.remove('hidden');
                     const descEl = document.getElementById('hdDescriptionInput');
-                    if (descEl) descEl.value = proposal.description || '';
+                    if (descEl) { descEl.value = proposal.description || ''; descEl.style.height='auto'; descEl.style.height=descEl.scrollHeight+'px'; }
                     const notesEl = document.getElementById('hdProposalNotesInput');
                     if (notesEl) notesEl.value = proposal.proposal_notes || '';
                 } else {
@@ -8493,12 +8727,7 @@
         document.getElementById('credentialModal').classList.remove('flex');
     }
 
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            const modal = document.getElementById('credentialModal');
-            if (modal && !modal.classList.contains('hidden')) closeCredentialModal();
-        }
-    });
+    // Intentionally no Escape-to-close — only the X/Close button closes this modal.
     @endif
 
     // ==================== INTERNAL NOTE EDIT / DELETE ====================
@@ -8693,7 +8922,7 @@
 
 @if($canViewCredential ?? false)
 {{-- Customer Credential Modal --}}
-<div id="credentialModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="credentialModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-lg w-full shadow-2xl" onclick="event.stopPropagation()">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div class="flex items-center gap-2">
@@ -8715,8 +8944,8 @@
             </button>
         </div>
     </div>
-    {{-- Click outside to close --}}
-    <div class="absolute inset-0 -z-10" onclick="closeCredentialModal()"></div>
+    {{-- Intentionally no click-outside-to-close — only the X/Close button closes this modal. --}}
+    <div class="absolute inset-0 -z-10"></div>
 </div>
 @endif
 
@@ -8726,8 +8955,8 @@
 {{-- Confirm modal dipakai dari partial global: resources/views/partials/confirm-modal.blade.php --}}
 
 {{-- ==================== SLA MESSAGE MODAL ==================== --}}
-<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeSlaModal()">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+<div id="slaMsgModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center">
@@ -8736,8 +8965,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold text-gray-900">Pesan SLA</h3>
-                    <p class="text-xs text-gray-400 leading-none mt-0.5">Pesan ini akan tampil di laporan SLA menggantikan pesan asli</p>
+                    <h3 class="text-sm font-bold text-gray-900">SLA Message</h3>
+                    <p class="text-xs text-gray-400 leading-none mt-0.5">This message will appear in the SLA report in place of the original message</p>
                 </div>
             </div>
             <button onclick="closeSlaModal()" class="text-gray-400 hover:text-gray-600 transition p-1 rounded-lg hover:bg-gray-100">
@@ -8749,19 +8978,19 @@
         <div class="px-6 py-4">
             <textarea id="slaMsgTextarea"
                       rows="4"
-                      placeholder="Tulis pesan SLA di sini..."
+                      placeholder="Write the SLA message here..."
                       class="w-full text-sm text-gray-700 border border-gray-200 rounded-xl px-3 py-2.5 resize-none outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition font-inherit placeholder-gray-300"
                       onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey))submitSlaMessage()"></textarea>
-            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter untuk simpan</p>
+            <p class="text-xs text-gray-400 mt-1.5">Ctrl+Enter to save</p>
         </div>
         <div class="flex gap-2 justify-end px-6 pb-5">
             <button onclick="closeSlaModal()"
                     class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition font-medium">
-                Batal
+                Cancel
             </button>
             <button id="slaSaveBtn" onclick="submitSlaMessage()"
                     class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                Simpan
+                Save
             </button>
         </div>
     </div>
@@ -8769,7 +8998,7 @@
 
 @if($can('ticket.sla-log'))
 {{-- ==================== SLA LOG MODAL ==================== --}}
-<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeSlaLogModal()">
+<div id="slaLogModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4">
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
         <div class="flex-shrink-0 bg-white border-b border-gray-100">
             <div class="flex items-center justify-between px-6 py-4">
@@ -8900,7 +9129,7 @@ async function _loadSlaLogData() {
         const json = await res.json();
         if (!json.success || !json.data) {
             document.getElementById('slaLogContent').innerHTML =
-                '<p class="text-center text-gray-400 text-sm p-8">Tidak ada data SLA untuk tiket ini.</p>';
+                '<p class="text-center text-gray-400 text-sm p-8">No SLA data for this ticket.</p>';
             return;
         }
 
@@ -8943,7 +9172,7 @@ async function _loadSlaLogData() {
         const events = d.events || [];
         if (!events.length) {
             document.getElementById('slaLogContent').innerHTML =
-                '<p class="text-center text-gray-400 text-sm p-8">Belum ada event SLA tercatat.</p>';
+                '<p class="text-center text-gray-400 text-sm p-8">No SLA events recorded yet.</p>';
             return;
         }
 
@@ -9006,7 +9235,7 @@ async function _loadSlaLogData() {
             </div>`;
     } catch (e) {
         document.getElementById('slaLogContent').innerHTML =
-            '<p class="text-center text-red-400 text-sm p-8">Gagal memuat data SLA.</p>';
+            '<p class="text-center text-red-400 text-sm p-8">Failed to load SLA data.</p>';
     }
 }
 </script>
@@ -9016,7 +9245,7 @@ async function _loadSlaLogData() {
 {{-- ==================== LOG SHIFTING MODAL ====================
      Shortcut dari room chat — sumber data sama dengan Reporting > Log Shifting
      dan modal klik-kanan di list ticket (GET /api/reporting/log-shifting/{id}). --}}
-<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4" onclick="if(event.target===this)closeLogShiftingTicketModal()">
+<div id="logShiftingTicketModal" class="hidden fixed inset-0 bg-black/50 z-[70] items-center justify-center p-4">
     <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
             <div class="flex items-center gap-3">
@@ -9160,6 +9389,31 @@ async function _loadLogShiftingData() {
             </div>
         </div>
 
+        {{-- Document checklist — mandatory/optional per ticket type, dan status
+             kelengkapannya (lihat App\Support\DeliverableDocumentRequirements).
+             Disembunyikan bila ticket type ini tidak punya aturan. --}}
+        <div id="delivChecklist" class="hidden px-6 py-3 border-b border-gray-100 shrink-0">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                    Document Checklist — {{ $ticket->ticket_type }}
+                </span>
+                <span id="delivChecklistBadge" class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"></span>
+            </div>
+            <div class="overflow-hidden border border-gray-200 rounded-lg">
+                <table class="w-full text-xs border-collapse">
+                    <thead>
+                        <tr class="bg-gray-50 border-b border-gray-200">
+                            <th class="px-3 py-1.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Doc Type</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Mandatory</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Optional</th>
+                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-16">Ok</th>
+                        </tr>
+                    </thead>
+                    <tbody id="delivChecklistItems" class="divide-y divide-gray-100"></tbody>
+                </table>
+            </div>
+        </div>
+
         {{-- Bulk action bar (muncul saat ≥1 dokumen terpilih) --}}
         <div id="delivBulkBar" class="hidden items-center justify-between gap-3 px-6 py-2.5 bg-indigo-50 border-b border-indigo-100 shrink-0">
             <div class="flex items-center gap-3 text-xs">
@@ -9199,7 +9453,7 @@ async function _loadLogShiftingData() {
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Upload Date</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Time</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap" style="min-width:90px">Doc Type</th>
-                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Body Text</th>
+                        <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:200px">Description</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide" style="min-width:160px">File Name</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Status</th>
                         <th class="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">Action</th>
@@ -9219,55 +9473,30 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== NEW DOCUMENT MODAL ==================== --}}
 <div id="newDocModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
-        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-            <h3 class="text-sm font-bold text-gray-900">New Document</h3>
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+        <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 shrink-0">
+            <h3 class="text-sm font-bold text-gray-900">New Documents</h3>
             <button onclick="closeNewDocModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <div class="px-5 py-4 space-y-4">
-            {{-- Doc Type --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
-                <select id="ndDocType" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-400 focus:outline-none">
-                    <option value="" selected disabled hidden>Select Type</option>
-                </select>
-            </div>
-            {{-- Body Text --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
-                <textarea id="ndBodyText" rows="3" placeholder="Short description..."
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
-            </div>
-            {{-- File --}}
-            <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">File</label>
-                <div class="flex items-center gap-2">
-                    <label class="flex-1 min-w-0 cursor-pointer flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:bg-gray-50 transition">
-                        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
-                        </svg>
-                        <span id="ndFileName" class="text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
-                        <input type="file" id="ndFile" class="hidden" onchange="updateFileName()">
-                    </label>
-                    <button onclick="document.getElementById('ndFile').value=''; document.getElementById('ndFileName').textContent='Choose file...'"
-                        class="px-2 py-2 text-gray-400 hover:text-red-500 transition" title="Clear">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
+        <div class="px-5 py-4 overflow-y-auto flex-1">
+            {{-- Satu baris per dokumen: Doc Type, File, Description (internal) --}}
+            <div id="ndRows" class="space-y-3"></div>
+            <button type="button" onclick="addNewDocRow()"
+                class="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                Add Document
+            </button>
             {{-- Error --}}
-            <p id="ndError" class="hidden text-xs text-red-600 font-medium"></p>
+            <p id="ndError" class="hidden mt-3 text-xs text-red-600 font-medium"></p>
         </div>
-        <div class="px-5 pb-5 flex gap-2">
+        <div class="px-5 pb-5 pt-2 flex gap-2 shrink-0">
             <button onclick="submitNewDoc()" id="ndSubmitBtn"
                 class="flex-1 bg-red-700 hover:bg-red-800 text-white text-sm font-semibold py-2.5 rounded-lg transition">
-                Save Document
+                Save Documents
             </button>
             <button onclick="closeNewDocModal()"
                 class="px-4 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
@@ -9279,9 +9508,9 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== EDIT DELIVERABLE MODAL ==================== --}}
 <div id="editDelivModal" class="hidden fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-            <h3 class="text-sm font-bold text-gray-900">Edit Body Text</h3>
+            <h3 class="text-sm font-bold text-gray-900">Edit Description</h3>
             <button onclick="closeEditDelivModal()" class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -9291,8 +9520,8 @@ async function _loadLogShiftingData() {
         <div class="px-5 py-4 space-y-4">
             <input type="hidden" id="edDelivId">
             <div>
-                <label class="text-xs font-semibold text-gray-600 mb-1 block">Body Text</label>
-                <textarea id="edBodyText" rows="5" placeholder="Short description..."
+                <label class="text-xs font-semibold text-gray-600 mb-1 block">Description <span class="font-normal text-gray-400">(internal — not sent to customer)</span></label>
+                <textarea id="edDescription" rows="5" placeholder="Internal note for this file..."
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
             </div>
             <p id="edError" class="hidden text-xs text-red-600 font-medium"></p>
@@ -9311,7 +9540,7 @@ async function _loadLogShiftingData() {
 </div>
 
 {{-- ==================== EDIT INTERNAL NOTE MODAL ==================== --}}
-<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4" onclick="if(event.target===this)closeEditNoteModal()">
+<div id="editNoteModal" class="hidden fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 flex flex-col" style="max-height:85vh">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
             <div class="flex items-center gap-2">
@@ -9358,7 +9587,64 @@ async function _loadLogShiftingData() {
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
+// Aturan doc type mandatory/optional untuk ticket type ini — null bila ticket
+// type-nya tidak punya aturan (lihat App\Support\DeliverableDocumentRequirements).
+const DELIV_REQUIREMENTS = @json(\App\Support\DeliverableDocumentRequirements::forTicket($ticket));
 let deliverableData = [];
+let deliverableFolderUrl = null;
+
+async function copyDeliverableFolderLink() {
+    if (!deliverableFolderUrl) return;
+    let ok = false;
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(deliverableFolderUrl);
+            ok = true;
+        }
+    } catch (e) {
+        ok = false;
+    }
+
+    if (!ok) {
+        const ta = document.createElement('textarea');
+        ta.value = deliverableFolderUrl;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        document.body.removeChild(ta);
+    }
+
+    const label = document.getElementById('delivCopyLinkLabel');
+    if (label) {
+        label.textContent = ok ? 'Copied!' : 'Press Ctrl+C';
+        clearTimeout(window._delivCopyLinkTimer);
+        window._delivCopyLinkTimer = setTimeout(() => { label.textContent = 'Copy Link'; }, 1800);
+    }
+}
+
+async function shareDeliverableFolderLink() {
+    if (!deliverableFolderUrl) return;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'Deliverable Documents — {{ $ticket->ticket_number }}',
+                url: deliverableFolderUrl
+            });
+            return;
+        } catch (e) {
+            // User membatalkan share sheet atau API gagal — fallback ke copy link.
+            if (e && e.name === 'AbortError') return;
+        }
+    }
+
+    await copyDeliverableFolderLink();
+}
 
 // Doc Type dropdown dimuat dari master data (menu Management > Master Ticket
 // Settings > Document Type), bukan hardcode lagi — lihat DeliverableDocumentTypeController.
@@ -9378,7 +9664,7 @@ async function delivParseJson(res) {
     } catch (_) {
         let msg;
         if (res.status === 413) {
-            msg = 'File terlalu besar untuk server. Kecilkan ukuran file atau hubungi admin untuk menaikkan batas upload.';
+            msg = 'File is too large for the server. Reduce the file size or contact an admin to raise the upload limit.';
         } else if (res.status === 419) {
             msg = 'Sesi kedaluwarsa. Muat ulang halaman lalu coba lagi.';
         } else if (res.status >= 500) {
@@ -9413,6 +9699,7 @@ async function loadDeliverables() {
         if (!json.success) throw new Error(json.message);
         deliverableData = json.data ?? [];
         renderDeliverableTable(deliverableData);
+        renderDeliverableChecklist(deliverableData);
 
         // Update badge
         const badge = document.getElementById('delivBadgeCount');
@@ -9426,10 +9713,36 @@ async function loadDeliverables() {
         const footer = document.getElementById('deliverableFooter');
         if (!json.has_folder) {
             footer.innerHTML = '<span class="text-orange-500">' + (json.folder_message || 'Folder belum siap untuk upload file.') + '</span>';
+        } else if (json.folder_url) {
+            deliverableFolderUrl = json.folder_url;
+            footer.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <a href="${json.folder_url}" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 text-white text-[11px] font-semibold rounded-lg transition hover:opacity-90"
+                       style="background-color: var(--primary-color);">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                        </svg>
+                        Open OneDrive Folder
+                    </a>
+                    <button type="button" onclick="copyDeliverableFolderLink()" id="delivCopyLinkBtn"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg transition hover:bg-gray-50">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                        </svg>
+                        <span id="delivCopyLinkLabel">Copy Link</span>
+                    </button>
+                    <button type="button" onclick="shareDeliverableFolderLink()"
+                            class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-[11px] font-semibold rounded-lg transition hover:bg-gray-50">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+                        </svg>
+                        Share
+                    </button>
+                </div>`;
         } else {
-            footer.innerHTML = json.folder_url
-                ? `<a href="${json.folder_url}" target="_blank" rel="noopener" class="text-blue-500 hover:underline">Open OneDrive Folder</a>`
-                : '';
+            deliverableFolderUrl = null;
+            footer.innerHTML = '';
         }
     } catch (e) {
         document.getElementById('deliverableBody').innerHTML =
@@ -9498,7 +9811,7 @@ function renderDeliverableTable(data) {
                 <span class="inline-block bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">${escHtmlD(d.doc_type)}</span>
             </td>
             <td class="px-3 py-2 text-gray-700 max-w-[220px]">
-                <span class="line-clamp-2">${d.body_text ? escHtmlD(d.body_text) : '<span class="text-gray-300">—</span>'}</span>
+                <span class="line-clamp-2">${d.description ? escHtmlD(d.description) : '<span class="text-gray-300">—</span>'}</span>
             </td>
             <td class="px-3 py-2">${fileCell}</td>
             <td class="px-3 py-2 whitespace-nowrap">
@@ -9517,6 +9830,64 @@ function renderDeliverableTable(data) {
     const selectAll = document.getElementById('delivSelectAll');
     if (selectAll) selectAll.disabled = validIds.size === 0;
     updateDelivBulkBar();
+}
+
+/**
+ * Checklist tabel "Doc Type | Mandatory | Optional | Ok" di atas tabel
+ * dokumen, plus badge Complete/Incomplete. Kolom "Ok" menampilkan JUMLAH
+ * dokumen dengan doc_type yang sama (case-insensitive); requirement dianggap
+ * terpenuhi bila jumlahnya minimal satu — cocok dengan cara dropdown "New Document"
+ * mengisi doc_type dari master data. `req.mandatory` menentukan requirement
+ * ini masuk kolom Mandatory atau Optional (persis format tabel aturan yang
+ * diminta: satu baris per doc type, kolom Mandatory/Optional saling
+ * eksklusif, kolom Ok menandai kelengkapan).
+ */
+function renderDeliverableChecklist(data) {
+    const section = document.getElementById('delivChecklist');
+    if (!DELIV_REQUIREMENTS || DELIV_REQUIREMENTS.length === 0) {
+        section.classList.add('hidden');
+        return;
+    }
+
+    const uploadedCounts = {};
+    (data || []).forEach(d => {
+        const key = (d.doc_type || '').trim().toUpperCase();
+        uploadedCounts[key] = (uploadedCounts[key] || 0) + 1;
+    });
+    const mark = (on, cls) => on
+        ? `<svg class="w-3.5 h-3.5 mx-auto ${cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>`
+        : '';
+
+    let mandatoryTotal = 0;
+    let mandatoryDone  = 0;
+
+    const rows = DELIV_REQUIREMENTS.map(req => {
+        const count = uploadedCounts[req.doc_type.trim().toUpperCase()] || 0;
+        const ok = count > 0;
+        if (req.mandatory) {
+            mandatoryTotal++;
+            if (ok) mandatoryDone++;
+        }
+
+        return `<tr class="${!ok && req.mandatory ? 'bg-red-50/40' : ''}">
+            <td class="px-3 py-1.5 font-medium text-gray-700">${escHtmlD(req.doc_type)}</td>
+            <td class="px-3 py-1.5 text-center">${mark(req.mandatory, 'text-gray-500')}</td>
+            <td class="px-3 py-1.5 text-center">${mark(!req.mandatory, 'text-gray-400')}</td>
+            <td class="px-3 py-1.5 text-center font-semibold ${ok ? 'text-green-600' : 'text-gray-300'}">${count}</td>
+        </tr>`;
+    });
+
+    document.getElementById('delivChecklistItems').innerHTML = rows.join('');
+
+    const badge = document.getElementById('delivChecklistBadge');
+    const isComplete = mandatoryDone === mandatoryTotal;
+    badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold '
+        + (isComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800');
+    badge.textContent = isComplete
+        ? 'Complete'
+        : `Incomplete — ${mandatoryDone}/${mandatoryTotal} mandatory`;
+
+    section.classList.remove('hidden');
 }
 
 // ── Bulk selection (Send/Delete beberapa dokumen sekaligus) ─────────────────
@@ -9605,50 +9976,11 @@ function bulkSendDeliverables() {
     openDeliverableBulkStatusModal();
 }
 
-async function _doBulkSendDeliverables(chosenStatus) {
+async function _doBulkSendDeliverables(chosenStatus, bodyText) {
     const ids = [..._selectedDelivIds];
     if (ids.length === 0) return;
-
-    if (typeof commitToInput === 'function') commitToInput();
-    if (typeof commitCcInput === 'function') commitCcInput();
-    const toList     = (typeof toEmails !== 'undefined' && Array.isArray(toEmails)) ? toEmails : [];
-    const ccListSend = (typeof ccEmails !== 'undefined' && Array.isArray(ccEmails)) ? ccEmails : [];
-
-    const overlay = document.getElementById('deliverableLoadingOverlay');
-    if (overlay) overlay.classList.remove('hidden');
-
-    let ok = 0, emailFail = 0, hardFail = 0, lastErr = '';
-    for (const id of ids) {
-        try {
-            const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
-                method: 'PATCH',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ ticket_status: chosenStatus || null, to_emails: toList, cc_emails: ccListSend }),
-            });
-            const json = await delivParseJson(res);
-            if (!json.success) throw new Error(json.message);
-            if (json.email_failed) emailFail++; else ok++;
-        } catch (e) { hardFail++; lastErr = e.message; }
-    }
-
+    await _doSendDeliverables(ids, chosenStatus, bodyText);
     _selectedDelivIds.clear();
-    if (chosenStatus && typeof updateStatusUI === 'function') updateStatusUI(chosenStatus);
-    await loadDeliverables();
-    if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
-    if (overlay) overlay.classList.add('hidden');
-
-    if (hardFail === 0 && emailFail === 0) {
-        showToast(`${ok} document${ok > 1 ? 's' : ''} sent to customer.`, 'success');
-    } else if (hardFail === ids.length) {
-        showToast('Failed to send documents: ' + lastErr, 'error');
-    } else {
-        const parts = [];
-        if (ok)        parts.push(`${ok} sent`);
-        if (emailFail) parts.push(`${emailFail} saved but email failed`);
-        if (hardFail)  parts.push(`${hardFail} failed`);
-        showToast(parts.join(', ') + '.', 'error');
-    }
 }
 
 function escHtmlD(s) {
@@ -9661,7 +9993,6 @@ function escHtmlD(s) {
 // perlu fetch ulang tiap kali modal dibuka.
 async function loadDeliverableDocTypes() {
     if (deliverableDocTypesLoaded) return;
-    const select = document.getElementById('ndDocType');
     try {
         const res  = await fetch('/api/deliverable-document-types?is_active=1', { credentials: 'same-origin' });
         const json = await res.json();
@@ -9670,31 +10001,120 @@ async function loadDeliverableDocTypes() {
         deliverableDocTypes = [];
     }
     deliverableDocTypesLoaded = true;
+}
 
-    // Placeholder tetap "selected disabled hidden" — hanya tampil sebagai label
-    // default, tidak bisa dipilih ulang dari daftar begitu tipe asli ada.
-    select.innerHTML = '<option value="" selected disabled hidden>Select Type</option>'
+// Baris dokumen di modal "New Documents". Tiap baris punya Doc Type, File, dan
+// Description (catatan internal — tidak dikirim ke customer).
+function ndDocTypeOptions() {
+    return '<option value="" selected disabled hidden>Select Type</option>'
         + deliverableDocTypes.map(t => `<option value="${escHtmlD(t.name)}">${escHtmlD(t.name)}</option>`).join('');
 }
 
+function addNewDocRow() {
+    const row = document.createElement('div');
+    row.className = 'nd-row border border-gray-200 rounded-xl p-3 bg-gray-50/50';
+    row.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-x-3 gap-y-2.5 items-end">
+            <div class="sm:col-span-4">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">Doc Type <span class="text-red-500">*</span></label>
+                <select class="nd-type w-full px-2.5 py-2 border border-gray-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-red-400 focus:outline-none">${ndDocTypeOptions()}</select>
+            </div>
+            <div class="sm:col-span-7">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">File</label>
+                <label class="nd-file-box cursor-pointer flex items-center gap-2 px-2.5 py-2 border border-dashed border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition">
+                    <input type="file" class="nd-file hidden" onchange="updateNewDocRowFile(this)">
+                    <svg class="nd-file-icon w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                    </svg>
+                    <span class="nd-file-name text-xs text-gray-400 truncate flex-1 min-w-0">Choose file...</span>
+                    <button type="button" onclick="clearNewDocRowFile(this, event)" title="Remove file"
+                        class="nd-file-clear hidden shrink-0 text-gray-400 hover:text-red-500 transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </label>
+            </div>
+            <div class="sm:col-span-1 flex sm:justify-end">
+                <button type="button" onclick="removeNewDocRow(this)" title="Remove row"
+                    class="nd-remove px-2 py-2 text-gray-400 hover:text-red-500 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>
+            <div class="sm:col-span-12">
+                <label class="text-[11px] font-semibold text-gray-600 mb-1 block">Description <span class="font-normal text-gray-400">(internal — not sent to customer)</span></label>
+                <textarea rows="2" maxlength="1000" placeholder="Internal note for this file..."
+                    class="nd-desc w-full px-2.5 py-2 border border-gray-300 rounded-lg text-xs resize-none bg-white focus:ring-2 focus:ring-red-400 focus:outline-none"></textarea>
+            </div>
+        </div>
+        <p class="nd-row-status hidden mt-2 text-[11px] font-medium"></p>`;
+    document.getElementById('ndRows').appendChild(row);
+    refreshNewDocRemoveButtons();
+}
+
+function removeNewDocRow(btn) {
+    btn.closest('.nd-row')?.remove();
+    refreshNewDocRemoveButtons();
+}
+
+// Minimal satu baris selalu ada — tombol hapus disembunyikan bila tinggal satu.
+function refreshNewDocRemoveButtons() {
+    const rows = document.querySelectorAll('#ndRows .nd-row');
+    rows.forEach(r => r.querySelector('.nd-remove').classList.toggle('invisible', rows.length === 1));
+}
+
+// File terpilih → kotak berubah dari garis putus-putus abu-abu menjadi border hijau
+// solid dengan ikon centang dan nama file tebal, supaya jelas beda dengan yang kosong.
+function updateNewDocRowFile(input) {
+    const f    = input.files[0];
+    const box  = input.closest('.nd-file-box');
+    const name = box.querySelector('.nd-file-name');
+    const icon = box.querySelector('.nd-file-icon');
+    name.textContent = f ? f.name : 'Choose file...';
+    name.title       = f ? f.name : '';
+    name.classList.toggle('text-gray-400', !f);
+    name.classList.toggle('text-green-800', !!f);
+    name.classList.toggle('font-semibold', !!f);
+    icon.classList.toggle('text-gray-400', !f);
+    icon.classList.toggle('text-green-600', !!f);
+    icon.innerHTML = f
+        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>';
+    box.classList.toggle('border-dashed', !f);
+    box.classList.toggle('border-gray-300', !f);
+    box.classList.toggle('bg-white', !f);
+    box.classList.toggle('border-green-500', !!f);
+    box.classList.toggle('bg-green-50', !!f);
+    box.querySelector('.nd-file-clear').classList.toggle('hidden', !f);
+}
+
+function clearNewDocRowFile(btn, ev) {
+    ev.preventDefault();   // jangan buka dialog pilih file (tombol ada di dalam <label>)
+    ev.stopPropagation();
+    const input = btn.closest('.nd-file-box').querySelector('.nd-file');
+    input.value = '';
+    updateNewDocRowFile(input);
+}
+
+function refreshNewDocTypeOptions() {
+    document.querySelectorAll('#ndRows .nd-type').forEach(sel => {
+        const current = sel.value;
+        sel.innerHTML = ndDocTypeOptions();
+        if (current) sel.value = current;
+    });
+}
+
 function openNewDocModal() {
-    document.getElementById('ndDocType').value = '';
-    document.getElementById('ndBodyText').value = '';
-    document.getElementById('ndFile').value = '';
-    document.getElementById('ndFileName').textContent = 'Choose file...';
+    document.getElementById('ndRows').innerHTML = '';
+    addNewDocRow();
     document.getElementById('ndError').classList.add('hidden');
     document.getElementById('ndSubmitBtn').disabled = false;
+    document.getElementById('ndSubmitBtn').textContent = 'Save Documents';
     document.getElementById('newDocModal').classList.remove('hidden');
-    loadDeliverableDocTypes();
+    // Opsi Doc Type dimuat sekali lalu dicache; isi ulang baris setelah termuat.
+    loadDeliverableDocTypes().then(refreshNewDocTypeOptions);
 }
 
 function closeNewDocModal() {
     document.getElementById('newDocModal').classList.add('hidden');
-}
-
-function updateFileName() {
-    const f = document.getElementById('ndFile').files[0];
-    document.getElementById('ndFileName').textContent = f ? f.name : 'Choose file...';
 }
 
 // Upload file langsung ke Graph dalam potongan (chunked), bypass server Laravel
@@ -9736,79 +10156,112 @@ async function _deliverableUploadChunked(uploadUrl, file, onProgress) {
     return itemId;
 }
 
-async function submitNewDoc() {
-    const docType  = document.getElementById('ndDocType').value.trim();
-    const bodyText = document.getElementById('ndBodyText').value.trim();
-    const file     = document.getElementById('ndFile').files[0];
-    const errEl    = document.getElementById('ndError');
+// Upload + simpan satu baris dokumen. Mengembalikan tanpa error bila sukses.
+async function _saveNewDocRow(rowEl, submitBtn, label) {
+    const docType     = rowEl.querySelector('.nd-type').value.trim();
+    const description = rowEl.querySelector('.nd-desc').value.trim();
+    const file        = rowEl.querySelector('.nd-file').files[0];
 
+    let onedriveItemId = null;
+
+    if (file) {
+        // Step 1: minta upload session (tidak membawa byte file — request kecil).
+        submitBtn.textContent = `${label} Preparing upload…`;
+        const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ file_name: file.name }),
+        });
+        const sessionJson = await delivParseJson(sessionRes);
+        if (!sessionJson.success) throw new Error(sessionJson.message);
+
+        // Step 2: upload file langsung ke OneDrive (chunked).
+        onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
+            submitBtn.textContent = `${label} Uploading… ${pct}%`;
+        });
+        if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+    }
+
+    // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
+    submitBtn.textContent = `${label} Saving…`;
+    const body = { doc_type: docType };
+    if (description) body.description = description;
+    if (onedriveItemId) {
+        body.onedrive_item_id = onedriveItemId;
+        body.file_name        = file.name;
+    }
+
+    const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+    });
+    const json = await delivParseJson(res);
+    if (!json.success) throw new Error(json.message);
+}
+
+async function submitNewDoc() {
+    const rows  = [...document.querySelectorAll('#ndRows .nd-row')];
+    const errEl = document.getElementById('ndError');
     errEl.classList.add('hidden');
 
-    if (!docType) { errEl.textContent = 'Please select a Doc Type.'; errEl.classList.remove('hidden'); return; }
-
-    // Cegah upload melebihi batas sebelum request dikirim, agar tidak berakhir
-    // dengan halaman error HTML dari server (penyebab "Unexpected token '<'").
-    if (file && file.size > DELIV_MAX_FILE_BYTES) {
-        const mb = (file.size / 1024 / 1024).toFixed(1);
-        errEl.textContent = `File terlalu besar (${mb} MB). Maksimal 100 MB.`;
+    // Validasi semua baris dulu sebelum ada yang diupload.
+    const invalid = [];
+    rows.forEach((row, i) => {
+        const statusEl = row.querySelector('.nd-row-status');
+        statusEl.classList.add('hidden');
+        const file = row.querySelector('.nd-file').files[0];
+        const problem = !row.querySelector('.nd-type').value.trim() ? 'Please select a Doc Type.'
+            : (file && file.size > DELIV_MAX_FILE_BYTES)
+                ? `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum 100 MB.`
+                : null;
+        if (problem) {
+            statusEl.textContent = problem;
+            statusEl.className = 'nd-row-status mt-2 text-[11px] font-medium text-red-600';
+            invalid.push(i + 1);
+        }
+    });
+    if (invalid.length) {
+        errEl.textContent = `Please fix row ${invalid.join(', ')} before saving.`;
         errEl.classList.remove('hidden');
         return;
     }
 
     const submitBtn = document.getElementById('ndSubmitBtn');
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving…';
 
+    // Simpan berurutan; baris yang sudah berhasil dihapus dari modal supaya bila ada
+    // yang gagal, "Save" ulang tidak menggandakan dokumen yang sudah tersimpan.
+    let saved = 0;
     try {
-        let onedriveItemId = null;
-
-        if (file) {
-            // Step 1: minta upload session (tidak membawa byte file — request kecil).
-            submitBtn.textContent = 'Preparing upload…';
-            const sessionRes  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/upload-session`, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ file_name: file.name }),
-            });
-            const sessionJson = await delivParseJson(sessionRes);
-            if (!sessionJson.success) throw new Error(sessionJson.message);
-
-            // Step 2: upload file langsung ke OneDrive (chunked).
-            onedriveItemId = await _deliverableUploadChunked(sessionJson.upload_url, file, pct => {
-                submitBtn.textContent = `Uploading… ${pct}%`;
-            });
-            if (!onedriveItemId) throw new Error('Upload completed but no item ID returned.');
+        for (let i = 0; i < rows.length; i++) {
+            const label = rows.length > 1 ? `(${i + 1}/${rows.length})` : '';
+            try {
+                await _saveNewDocRow(rows[i], submitBtn, label);
+            } catch (e) {
+                const statusEl = rows[i].querySelector('.nd-row-status');
+                statusEl.textContent = 'Error: ' + e.message;
+                statusEl.className = 'nd-row-status mt-2 text-[11px] font-medium text-red-600';
+                errEl.textContent = saved > 0
+                    ? `${saved} of ${rows.length} saved. Row ${i + 1} failed — fix it and save again.`
+                    : `Row ${i + 1} failed: ${e.message}`;
+                errEl.classList.remove('hidden');
+                showToast('Upload failed: ' + e.message, 'error');
+                return;
+            }
+            rows[i].remove();
+            saved++;
         }
-
-        // Step 3: simpan metadata dokumen (server buat share link kalau ada file).
-        submitBtn.textContent = 'Saving…';
-        const body = { doc_type: docType };
-        if (bodyText) body.body_text = bodyText;
-        if (onedriveItemId) {
-            body.onedrive_item_id = onedriveItemId;
-            body.file_name        = file.name;
-        }
-
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables`, {
-            method: 'POST',
-            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify(body),
-        });
-        const json = await delivParseJson(res);
-        if (!json.success) throw new Error(json.message);
 
         closeNewDocModal();
-        await loadDeliverables();
-        showToast('Document saved successfully.', 'success');
-    } catch (e) {
-        errEl.textContent = 'Error: ' + e.message;
-        errEl.classList.remove('hidden');
-        showToast('Upload failed: ' + e.message, 'error');
+        showToast(`${saved} document${saved > 1 ? 's' : ''} saved successfully.`, 'success');
     } finally {
+        if (saved > 0) await loadDeliverables();
+        refreshNewDocRemoveButtons();
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Save Document';
+        submitBtn.textContent = 'Save Documents';
     }
 }
 
@@ -9819,7 +10272,13 @@ function sendDeliverable(id) {
 }
 
 // Pengiriman sebenarnya, dipanggil oleh confirmSendWithStatus setelah status dipilih.
-async function _doSendDeliverable(id, chosenStatus) {
+function _doSendDeliverable(id, chosenStatus, bodyText) {
+    return _doSendDeliverables([id], chosenStatus, bodyText);
+}
+
+// Kirim satu atau beberapa dokumen sekaligus → SATU bubble chat / SATU email.
+// `bodyText` hanya diteruskan ke email/bubble, tidak disimpan di database.
+async function _doSendDeliverables(ids, chosenStatus, bodyText) {
     // Ambil To/Cc dari kolom composer reply (sama seperti kirim pesan biasa) agar dokumen
     // dikirim ke alamat yang diisi user, BUKAN email ticket default. Commit dulu input yang
     // belum ter-Enter supaya nilai terakhir yang diketik ikut terkirim.
@@ -9831,8 +10290,8 @@ async function _doSendDeliverable(id, chosenStatus) {
     const overlay = document.getElementById('deliverableLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
     try {
-        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/${id}/send`, {
-            method: 'PATCH',
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/send`, {
+            method: 'POST',
             headers: {
                 'X-CSRF-TOKEN': CSRF,
                 'Accept': 'application/json',
@@ -9840,6 +10299,8 @@ async function _doSendDeliverable(id, chosenStatus) {
             },
             credentials: 'same-origin',
             body: JSON.stringify({
+                ids,
+                body_text: bodyText || null,
                 ticket_status: chosenStatus || null,
                 to_emails: toList,
                 cc_emails: ccListSend,
@@ -9852,11 +10313,12 @@ async function _doSendDeliverable(id, chosenStatus) {
         await loadDeliverables();
         // Muat ulang chat agar bubble deliverable + status email (termasuk "Tidak terkirim") ikut update.
         if (typeof loadMessages === 'function') { try { await loadMessages(); } catch (_) {} }
+        const n = ids.length;
         if (json.email_failed) {
             // Dokumen tersimpan & masuk chat, tapi EMAIL ke customer gagal → peringatan, bukan sukses.
             showToast(json.email_error || 'Document saved, but the email to the customer could not be delivered.', 'error');
         } else {
-            showToast('Document sent to customer.', 'success');
+            showToast(`${n} document${n > 1 ? 's' : ''} sent to customer.`, 'success');
         }
     } catch (e) {
         showDelivError(e.message);
@@ -9887,12 +10349,12 @@ async function deleteDeliverable(id) {
     }
 }
 
-// ── Edit body text ─────────────────────────────────────────────────
+// ── Edit description ─────────────────────────────────────────────────
 function editDeliverable(id) {
     const d = deliverableData.find(x => x.id === id);
     if (!d) return;
     document.getElementById('edDelivId').value = id;
-    document.getElementById('edBodyText').value = d.body_text ?? '';
+    document.getElementById('edDescription').value = d.description ?? '';
     document.getElementById('edError').classList.add('hidden');
     const btn = document.getElementById('edSubmitBtn');
     btn.disabled = false;
@@ -9906,7 +10368,7 @@ function closeEditDelivModal() {
 
 async function submitEditDeliv() {
     const id        = parseInt(document.getElementById('edDelivId').value);
-    const bodyText  = document.getElementById('edBodyText').value.trim();
+    const description = document.getElementById('edDescription').value.trim();
     const errEl     = document.getElementById('edError');
     const submitBtn = document.getElementById('edSubmitBtn');
 
@@ -9923,7 +10385,7 @@ async function submitEditDeliv() {
                 'Content-Type': 'application/json',
             },
             credentials: 'same-origin',
-            body: JSON.stringify({ body_text: bodyText }),
+            body: JSON.stringify({ description }),
         });
         const json = await delivParseJson(res);
         if (!json.success) throw new Error(json.message);
@@ -9933,7 +10395,7 @@ async function submitEditDeliv() {
         renderDeliverableTable(deliverableData);
 
         closeEditDelivModal();
-        showToast('Body text updated.', 'success');
+        showToast('Description updated.', 'success');
     } catch (e) {
         errEl.textContent = 'Error: ' + e.message;
         errEl.classList.remove('hidden');
@@ -9943,9 +10405,7 @@ async function submitEditDeliv() {
     }
 }
 
-document.getElementById('editDelivModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEditDelivModal();
-});
+// Intentionally no backdrop-click-to-close — only the X button closes this modal.
 
 // Tampilkan error di footer modal deliverable (non-blocking)
 function showDelivError(msg) {
@@ -9955,13 +10415,9 @@ function showDelivError(msg) {
     setTimeout(() => { if (el.querySelector('.text-red-600')) el.innerHTML = ''; }, 5000);
 }
 
-// Close deliverable modal on backdrop click
-document.getElementById('deliverableModal').addEventListener('click', function(e) {
-    if (e.target === this) closeDeliverableModal();
-});
-// Intentionally no backdrop-click-to-close on #newDocModal — it should only
-// be dismissed via its own close controls (X / Cancel), never by an
-// accidental click outside while filling the "New Document" form.
+// Intentionally no backdrop-click-to-close on any deliverable modal — they
+// should only be dismissed via their own close controls (X / Cancel), never
+// by an accidental click outside.
 
 // Load badge on page load
 (async () => {
@@ -9977,6 +10433,26 @@ document.getElementById('deliverableModal').addEventListener('click', function(e
             badge.classList.remove('hidden');
         }
     } catch {}
+})();
+
+// ==================== GLOBAL MODAL BODY-SCROLL LOCK ====================
+// Setiap modal di halaman ini di-toggle lewat class "hidden" pada elemen
+// id-nya berakhiran "Modal". Daripada menambal body.style.overflow di tiap
+// fungsi open/close satu-satu, MutationObserver ini mengamati class semua
+// modal sekaligus — begitu ada modal yang tampil, scroll body dikunci; begitu
+// tidak ada modal yang terbuka sama sekali, scroll body dikembalikan.
+(function () {
+    const modals = Array.from(document.querySelectorAll('[id$="Modal"]'));
+    if (!modals.length) return;
+
+    function syncBodyScrollLock() {
+        const anyOpen = modals.some(m => !m.classList.contains('hidden'));
+        document.body.style.overflow = anyOpen ? 'hidden' : '';
+    }
+
+    const observer = new MutationObserver(syncBodyScrollLock);
+    modals.forEach(m => observer.observe(m, { attributes: true, attributeFilter: ['class'] }));
+    syncBodyScrollLock();
 })();
 </script>
 

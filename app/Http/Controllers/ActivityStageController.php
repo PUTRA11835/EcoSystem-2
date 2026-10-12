@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityStage;
+use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectPlanning;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -384,6 +385,9 @@ class ActivityStageController extends Controller
                     $stage->order_sequence = $stageData['sequence'];
                     $stage->saveQuietly();
                 }
+
+                // saveQuietly tidak memicu event → catat aktivitas project manual.
+                DeliveryProject::markActivity($planning->delivery_projects_id);
 
                 return response()->json([
                     'success' => true,

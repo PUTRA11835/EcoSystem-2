@@ -6,10 +6,35 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="user-data" content='@json(session("user"))'>
     <title>@yield('title', 'Dashboard') - EcoSystem</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    @vite(['resources/css/app.css'])
+
+    {{-- Google Fonts is non-critical (page renders fine with the fallback font
+         for a moment) — loading it as a blocking <link rel="stylesheet"> delays
+         first paint on every page. Preload + swap the `rel` on load lets the
+         browser fetch it in parallel with everything else without blocking
+         rendering; the <noscript> fallback covers browsers/crawlers with JS
+         disabled. `display=optional` (not `swap`) because the base stylesheet
+         applies Inter via a `*` selector — swapping it in after first paint
+         would reflow every element on the page and show up as layout shift;
+         optional only uses Inter when it's already cached (e.g. a repeat
+         visit), otherwise it sticks with the fallback for that load.
+
+         Font Awesome is self-hosted from public/vendor/fontawesome (mirrored
+         from cdnjs 6.4.0) instead of the CDN: the upstream CSS ships
+         `font-display:block` on every @font-face, which hides all icons for
+         up to 3s on a slow connection (Lighthouse "Font display" audit) and
+         can't be overridden from a <link> tag — only by owning the CSS file.
+         Patched to `font-display:swap` in the local copy. Being same-origin
+         also drops one third-party connection + DNS/TLS round trip. --}}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=optional" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" as="style" href="{{ asset('vendor/fontawesome/css/all.min.css') }}" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=optional">
+        <link rel="stylesheet" href="{{ asset('vendor/fontawesome/css/all.min.css') }}">
+    </noscript>
+
     @php
         $preferences = session('user_preferences', [
             'theme' => 'light',
@@ -18,8 +43,16 @@
             'font_size' => 'medium',
             'compact_mode' => false,
             'show_animations' => true,
+            'seasonal_theme' => 'none',
         ]);
-        
+
+        // Musik latar musiman — MURNI wewenang admin (Control Center → Seasonal
+        // Theme), tidak ada preferensi per-user untuk memilih lagu/menonaktifkan
+        // permanen. Null kalau admin belum pasang apa pun (tombol mute di header
+        // tidak dirender sama sekali dalam kondisi ini — lihat di bawah).
+        $globalBgMusicUrl = \App\Support\GlobalSeasonalTheme::soundUrl();
+        $globalBgMusicVolume = \App\Support\GlobalSeasonalTheme::soundVolume();
+
         // Convert hex to RGB for Tailwind
         $primaryColor = $preferences['primary_color'];
         $rgb = sscanf($primaryColor, "#%02x%02x%02x");
@@ -63,8 +96,15 @@
     @endphp
     
     <style>
-        * { 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; 
+        /* Cross-document View Transitions — pasangan dari deklarasi yang sama di
+           auth/login.blade.php. Progressive enhancement murni CSS, tidak ada
+           dampak di browser yang tidak mendukungnya. */
+        @view-transition {
+            navigation: auto;
+        }
+
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }
         
         :root {
@@ -165,7 +205,27 @@
         .nav-link.active {
             box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
         }
-        
+
+        /* Sidebar menu search — highlight a matching item instead of hiding others. */
+        .nav-link.sidebar-search-match {
+            background-color: rgba(255,255,255,0.18) !important;
+            box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.5);
+        }
+
+        /* Pin-to-Dashboard button injected into each sidebar link (JS) — faint
+           until hovered, solid gold once pinned, same icon state either way. */
+        .nav-link { position: relative; }
+        .nav-pin-btn {
+            margin-left: auto; flex-shrink: 0;
+            width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+            border: none; background: transparent; border-radius: 6px;
+            color: rgba(255,255,255,0.28); font-size: 11px;
+            opacity: 0; transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+        }
+        .nav-link:hover .nav-pin-btn { opacity: 1; }
+        .nav-pin-btn:hover { background-color: rgba(255,255,255,0.15); color: #fff; }
+        .nav-pin-btn.pinned { opacity: 1; color: #fbbf24; }
+
         @if($preferences['compact_mode'])
         .p-6 { padding: 1rem !important; }
         .p-8 { padding: 1.5rem !important; }
@@ -576,7 +636,17 @@
            Tailwind v4 preflight sets border-width:0 and no padding on all
            elements. Restore a consistent, comfortable appearance site-wide.
            Using :where() keeps specificity at (0,0,0) so any Tailwind utility
-           class or inline style can still override without needing !important. */
+           class or inline style can still override without needing !important.
+           MUST be wrapped in @layer base: this <style> tag is raw HTML (not
+           run through Vite/Tailwind), so without an explicit layer it lands
+           in the browser's unlayered "top" layer — which beats EVERY rule in
+           Tailwind's own @layer utilities regardless of specificity, no
+           matter how low :where() makes it. That silently broke every pl-*/
+           pr-*/py-* utility on every <input>/<select>/<textarea> site-wide
+           (e.g. search-box icons overlapping placeholder text) since whenever
+           this block was added — @layer base has lower priority than
+           @layer utilities, restoring the "utilities can override" intent. */
+        @layer base {
         :where(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]):not([type="range"])),
         :where(select),
         :where(textarea) {
@@ -589,6 +659,7 @@
         :where(textarea) {
             padding: 0.625rem 0.75rem; /* slightly taller for multiline */
             line-height: 1.625rem;
+        }
         }
 
         /* primary-focus — consistent focus ring matching brand colour */
@@ -629,18 +700,6 @@
         }
     </style>
     
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '{{ $primaryColor }}',
-                        'primary-dark': 'rgb({{ $primaryDarkRgb }})',
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         #toast-container {
             position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999;
@@ -705,27 +764,54 @@
 <body class="text-gray-900 min-h-screen" style="background-color: var(--bg-color);">
     <div id="toast-container"></div>
     <div class="flex min-h-screen">
-        
+
         <!-- Mobile sidebar backdrop (only visible when drawer is open on < lg) -->
         <div id="sidebarOverlay" onclick="closeSidebar()" class="fixed inset-0 z-40 hidden lg:hidden" style="background-color: rgba(0,0,0,0.5);"></div>
 
+        {{-- Tema musiman: resolve preferensi user ('default' → ikut admin) SEKALI di sini,
+             dipakai untuk dekorasi sidebar saja (bukan seluruh halaman — lihat feedback
+             di App\Support\SeasonalThemeResolver / partials.seasonal-theme). --}}
+        @php
+            $effectiveSeasonalTheme = \App\Support\SeasonalThemeResolver::effectiveFor($preferences['seasonal_theme'] ?? 'default');
+        @endphp
+
         <!-- Sidebar - Modern Design -->
-        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen overflow-y-auto {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
-            <!-- Logo Section -->
-            <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
-                    <div class="w-full rounded-xl p-3 backdrop-blur-sm">
-                        <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
+        <aside id="sidebar" class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
+            @if($effectiveSeasonalTheme !== 'none')
+                @include('partials.seasonal-theme', [
+                    'themeKey' => $effectiveSeasonalTheme,
+                    'showAnimations' => $preferences['show_animations'] ?? true,
+                    'placement' => 'sidebar',
+                ])
+            @endif
+            {{-- Fixed header: logo + menu search — stays put while the nav list below scrolls --}}
+            <div class="shrink-0">
+                <!-- Logo Section -->
+                <div class="sidebar-logo p-5 pb-2 flex items-center justify-center">
+                        <div class="w-full rounded-xl p-3 backdrop-blur-sm">
+                            <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto"/>
+                        </div>
+                </div>
+                @unless(View::hasSection('sidebar-nav'))
+                <div class="px-4 pb-2">
+                    <div class="relative">
+                        <i class="fas fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white/50"></i>
+                        <input type="text" id="sidebarSearch" oninput="filterSidebarMenu(this.value)" placeholder="Search menu..."
+                            class="w-full pl-8 pr-3 py-2 rounded-lg bg-white/10 placeholder-white/50 text-white text-sm border border-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 focus:bg-white/15 transition-all">
                     </div>
+                </div>
+                @endunless
             </div>
 
-            <!-- Navigation Menu -->
+            <!-- Navigation Menu (only this part scrolls) -->
+            <div class="flex-1 overflow-y-auto" id="sidebarNavScroll">
             @hasSection('sidebar-nav')
                 @yield('sidebar-nav')
             @else
             <nav class="py-6 px-4">
                 <!-- HOME - Visible to all roles -->
                 <div class="mb-2">
-                    <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('dashboard') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('dashboard') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-home"></i>
                         </span>
@@ -736,7 +822,7 @@
                 @if($can('ai-assistant'))
                 <!-- AI ASSISTANT -->
                 <div class="mb-2">
-                    <a href="{{ route('ai-assistant') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-assistant*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('ai-assistant') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-assistant*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-robot"></i>
                         </span>
@@ -748,7 +834,7 @@
                 @if($can('ai-research'))
                 <!-- AI RESEARCH -->
                 <div class="mb-2">
-                    <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('ai-research') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ai-research*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-magnifying-glass-chart"></i>
                         </span>
@@ -760,7 +846,7 @@
                 @if($can('word-report-generator'))
                 <!-- WORD REPORT GENERATOR -->
                 <div class="mb-2">
-                    <a href="{{ route('reports.generate.page') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('reports/generate*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('reports.generate.page') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('reports/generate*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-file-word"></i>
                         </span>
@@ -772,7 +858,7 @@
                 @if($can('calendar'))
                 <!-- CALENDAR Dropdown -->
                 <div class="mb-2">
-                    <button onclick="toggleCalendarDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleCalendarDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('calendar*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-calendar-alt"></i>
                         </span>
@@ -781,7 +867,7 @@
                     </button>
                     <div id="calendarDropdown" class="nav-text {{ Request::is('calendar*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('calendar.events'))
-                        <a href="{{ route('calendar.events') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('calendar.events') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/events*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-calendar-check text-xs"></i>
                             </span>
@@ -789,7 +875,7 @@
                         </a>
                         @endif
                         @if($can('calendar.timesheets'))
-                        <a href="{{ route('calendar.timesheets') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('calendar.timesheets') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('calendar/timesheets*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-clock text-xs"></i>
                             </span>
@@ -803,7 +889,7 @@
                 @if($can('reporting'))
                 <!-- REPORTING Dropdown -->
                 <div class="mb-2">
-                    <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleReportingDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('reporting*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-chart-line"></i>
                         </span>
@@ -825,7 +911,8 @@
                             || Request::is('reporting/ticket-by-module*')
                             || Request::is('reporting/log-shifting*')
                             || Request::is('reporting/resolution-days*')
-                            || Request::is('reporting/customer-md*');
+                            || Request::is('reporting/customer-md*')
+                            || Request::is('reporting/weekly-consolidation*');
                         $canRepProject = $can('reporting.collection-outlook') || $can('reporting.consultant-assignment') || $can('reporting.resource-timeline');
                         $canRepSupport = $can('reporting.validation')
                             || $can('reporting.md-recap')
@@ -834,13 +921,14 @@
                             || $can('reporting.ticket-by-module')
                             || $can('reporting.log-shifting')
                             || $can('reporting.resolution-days')
-                            || $can('reporting.customer-md');
+                            || $can('reporting.customer-md')
+                            || $can('reporting.weekly-consolidation');
                     @endphp
                     <div id="reportingDropdown" class="nav-text {{ Request::is('reporting*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($canRepProject)
                         {{-- Reporting → Project --}}
                         <div>
-                            <button onclick="toggleReportingProjectDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repProjectActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <button onclick="toggleReportingProjectDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repProjectActive ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-project-diagram text-xs"></i>
                                 </span>
@@ -849,7 +937,7 @@
                             </button>
                             <div id="reportingProjectDropdown" class="nav-text {{ $repProjectActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                                 @if($can('reporting.collection-outlook'))
-                                <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ $repCoProject ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.collection-outlook') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ $repCoProject ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-hand-holding-usd text-xs"></i>
                                     </span>
@@ -857,7 +945,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.consultant-assignment'))
-                                <a href="{{ route('reporting.consultant-assignment') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/consultant-assignment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.consultant-assignment') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/consultant-assignment*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-users text-xs"></i>
                                     </span>
@@ -865,7 +953,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.resource-timeline'))
-                                <a href="{{ route('reporting.resource-timeline') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resource-timeline*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.resource-timeline') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resource-timeline*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-calendar-alt text-xs"></i>
                                     </span>
@@ -878,7 +966,7 @@
                         @if($canRepSupport)
                         {{-- Reporting → Support --}}
                         <div>
-                            <button onclick="toggleReportingSupportDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repSupportActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <button onclick="toggleReportingSupportDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repSupportActive ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-headset text-xs"></i>
                                 </span>
@@ -887,7 +975,7 @@
                             </button>
                             <div id="reportingSupportDropdown" class="nav-text {{ $repSupportActive ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                                 @if($can('reporting.validation'))
-                                <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-check-circle text-xs"></i>
                                     </span>
@@ -895,7 +983,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.md-recap'))
-                                <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.md-recap') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/md-recap*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-table text-xs"></i>
                                     </span>
@@ -903,7 +991,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.collection-outlook-support'))
-                                <a href="{{ route('reporting.collection-outlook-support') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.collection-outlook-support') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-hand-holding-usd text-xs"></i>
                                     </span>
@@ -911,7 +999,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.ticketing-overview'))
-                                <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.ticketing-overview') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticketing-overview*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-headset text-xs"></i>
                                     </span>
@@ -919,7 +1007,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.ticket-by-module'))
-                                <a href="{{ route('reporting.ticket-by-module') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.ticket-by-module') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/ticket-by-module*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-puzzle-piece text-xs"></i>
                                     </span>
@@ -927,7 +1015,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.log-shifting'))
-                                <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.log-shifting') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/log-shifting*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-clock text-xs"></i>
                                     </span>
@@ -935,7 +1023,7 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.resolution-days'))
-                                <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.resolution-days') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/resolution-days*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-hourglass-half text-xs"></i>
                                     </span>
@@ -943,18 +1031,26 @@
                                 </a>
                                 @endif
                                 @if($can('reporting.customer-md'))
-                                <a href="{{ route('reporting.customer-md') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/customer-md*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('reporting.customer-md') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/customer-md*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                         <i class="fas fa-file-invoice-dollar text-xs"></i>
                                     </span>
                                     <span class="nav-text text-sm">Customer MD</span>
                                 </a>
                                 @endif
+                                @if($can('reporting.weekly-consolidation'))
+                                <a href="{{ route('reporting.weekly-consolidation') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('reporting/weekly-consolidation*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                                    <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                        <i class="fas fa-clipboard-list text-xs"></i>
+                                    </span>
+                                    <span class="nav-text text-sm">Weekly Consolidation</span>
+                                </a>
+                                @endif
                             </div>
                         </div>
                         @endif
                         @if($can('reporting.diagram-report'))
-                        <a href="{{ route('reporting.diagram-report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/diagram-report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('reporting.diagram-report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/diagram-report*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-chart-pie text-xs"></i>
                             </span>
@@ -968,7 +1064,7 @@
                 @if($can('master'))
                 <!-- MASTER Dropdown -->
                 <div class="mb-2">
-                    <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleMasterDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('master*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-database"></i>
                         </span>
@@ -977,7 +1073,7 @@
                     </button>
                     <div id="masterDropdown" class="nav-text {{ Request::is('master*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('master.employee'))
-                        <a href="{{ route('master.employee.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('master.employee.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/employee*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-users text-xs"></i>
                             </span>
@@ -985,7 +1081,7 @@
                         </a>
                         @endif
                         @if($can('master.customer'))
-                        <a href="{{ route('master.customer.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('master.customer.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('master/customer*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-user-tie text-xs"></i>
                             </span>
@@ -999,7 +1095,7 @@
                 @if($can('financial'))
                 <!-- FINANCIAL -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-coins"></i>
                         </span>
@@ -1011,7 +1107,7 @@
                 @if($can('general'))
                 <!-- HR & GENERAL -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-users-cog"></i>
                         </span>
@@ -1023,7 +1119,7 @@
                 @if($can('business'))
                 <!-- BUSINESS DEV -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-briefcase"></i>
                         </span>
@@ -1038,7 +1134,7 @@
                     @php
                         $ticketActive = Request::is('ticket') || (Request::is('ticket/*') && !Request::is('ticket/task*') && !Request::is('ticket/consultant-workload*'));
                     @endphp
-                    <a href="{{ route('ticket.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $ticketActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('ticket.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $ticketActive ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-ticket-alt"></i>
                         </span>
@@ -1050,7 +1146,7 @@
                 @if($can('ticket.my-tasks'))
                 <!-- MY TASKS -->
                 <div class="mb-2">
-                    <a href="{{ route('ticket.task') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('ticket.task') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-tasks"></i>
                         </span>
@@ -1062,7 +1158,7 @@
                 @if($can('ticket.consultant-workload'))
                 <!-- CONSULTANT WORKLOAD -->
                 <div class="mb-2">
-                    <a href="{{ route('ticket.consultant-workload') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('ticket.consultant-workload') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-users-cog"></i>
                         </span>
@@ -1074,7 +1170,7 @@
                 @if($can('tickets.staging'))
                 <!-- TICKET VALIDATION -->
                 <div class="mb-2">
-                    <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('staging.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-clipboard-check"></i>
                         </span>
@@ -1094,7 +1190,7 @@
                 @if($can('delivery'))
                 <!-- DELIVERY Dropdown -->
                 <div class="mb-2">
-                    <button onclick="toggleDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-truck"></i>
                         </span>
@@ -1103,7 +1199,7 @@
                     </button>
                     <div id="deliveryDropdown" class="nav-text {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('delivery.project'))
-                        <a href="{{ route('projects.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('projects.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-project-diagram text-xs"></i>
                             </span>
@@ -1111,7 +1207,7 @@
                         </a>
                         @endif
                         @if($can('delivery.support'))
-                        <a href="{{ route('delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('delivery/support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('delivery/support*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-headset text-xs"></i>
                             </span>
@@ -1126,7 +1222,7 @@
                 <!-- CONTROL CENTER -->
                 @php $adminOpen = Request::is('admin*'); @endphp
                 <div class="mb-2">
-                    <button onclick="toggleAdminDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $adminOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleAdminDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $adminOpen ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-shield-alt"></i>
                         </span>
@@ -1135,57 +1231,81 @@
                     </button>
                     <div id="adminDropdown" class="nav-text {{ $adminOpen ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                         @if($can('control-center.overview'))
-                        <a href="{{ route('admin.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-th-large text-xs"></i></span>
                             <span class="nav-text text-sm">Overview</span>
                         </a>
                         @endif
                         @if($can('control-center.activity-log'))
-                        <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/activity-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.activity-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/activity-log*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-history text-xs"></i></span>
                             <span class="nav-text text-sm">Activity Log</span>
                         </a>
                         @endif
                         @if($can('control-center.audit-log'))
-                        <a href="{{ route('admin.audit-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/audit-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.audit-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/audit-log*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-clipboard-list text-xs"></i></span>
                             <span class="nav-text text-sm">Audit Log</span>
                         </a>
                         @endif
                         @if($can('control-center.login-log'))
-                        <a href="{{ route('admin.login-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/login-log*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.login-log') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/login-log*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-sign-in-alt text-xs"></i></span>
                             <span class="nav-text text-sm">Login Log</span>
                         </a>
                         @endif
+                        @if($can('control-center.security'))
+                        <a href="{{ route('admin.security-center') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/security-center*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-shield-alt text-xs"></i></span>
+                            <span class="nav-text text-sm">Security Center</span>
+                        </a>
+                        @endif
                         @if($can('control-center.sessions'))
-                        <a href="{{ route('admin.sessions') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.sessions') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
                             <span class="nav-text text-sm">Active Sessions</span>
                         </a>
                         @endif
                         @if($can('control-center.failed-jobs'))
-                        <a href="{{ route('admin.failed-jobs') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/failed-jobs*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.failed-jobs') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/failed-jobs*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-exclamation-triangle text-xs"></i></span>
                             <span class="nav-text text-sm">Failed Jobs</span>
                         </a>
                         @endif
+                        @if($can('control-center.schedule-monitor'))
+                        <a href="{{ route('admin.schedule-monitor') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/schedule-monitor*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-clock text-xs"></i></span>
+                            <span class="nav-text text-sm">Schedule Monitor</span>
+                        </a>
+                        @endif
                         @if($can('control-center.backup'))
-                        <a href="{{ route('admin.backup') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/backup*') || Request::is('admin/export*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.backup') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/backup*') || Request::is('admin/export*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-database text-xs"></i></span>
                             <span class="nav-text text-sm">Backup & Export</span>
                         </a>
                         @endif
                         @if($can('control-center.sounds'))
-                        <a href="{{ route('admin.sounds') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sounds*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.sounds') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sounds*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-music text-xs"></i></span>
                             <span class="nav-text text-sm">Notif Sounds</span>
                         </a>
                         @endif
                         @if($can('control-center.ai-settings'))
-                        <a href="{{ route('admin.ai-settings') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-settings*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('admin.ai-settings') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-settings*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-microchip text-xs"></i></span>
                             <span class="nav-text text-sm">AI Settings</span>
+                        </a>
+                        @endif
+                        @if($can('control-center.ai-usage'))
+                        <a href="{{ route('admin.ai-usage') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/ai-usage*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-chart-line text-xs"></i></span>
+                            <span class="nav-text text-sm">AI Usage</span>
+                        </a>
+                        @endif
+                        @if($can('control-center.two-factor-enforcement'))
+                        <a href="{{ route('admin.two-factor-enforcement') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/two-factor-enforcement*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-shield-halved text-xs"></i></span>
+                            <span class="nav-text text-sm">Two-Factor Enforcement</span>
                         </a>
                         @endif
                     </div>
@@ -1196,7 +1316,7 @@
                 <!-- SLA Dropdown -->
                 @php $slaDropdownOpen = Request::is('sla*'); @endphp
                 <div class="mb-2">
-                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaDropdownOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleSlaDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ $slaDropdownOpen ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-stopwatch"></i>
                         </span>
@@ -1205,7 +1325,7 @@
                     </button>
                     <div id="slaDropdown" class="nav-text {{ $slaDropdownOpen ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($showSlaMenu)
-                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('sla.report') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/report*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-chart-bar text-xs"></i>
                             </span>
@@ -1213,7 +1333,7 @@
                         </a>
                         @endif
                         @if($canManageSla)
-                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('sla.config') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('sla/config*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-cog text-xs"></i>
                             </span>
@@ -1228,7 +1348,7 @@
                 <!-- RPMO -->
                 @php $rpmoDropdownOpen = Request::is('rpmo*'); @endphp
                 <div class="mb-2">
-                    <button onclick="toggleRpmoDropdown()" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl {{ $rpmoDropdownOpen ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all" style="background:none;border:none;cursor:pointer;text-align:left;">
+                    <button onclick="toggleRpmoDropdown()" class="nav-link w-full flex items-center gap-3 px-4 py-3 rounded-xl {{ $rpmoDropdownOpen ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all" style="background:none;border:none;cursor:pointer;text-align:left;">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-cogs"></i>
                         </span>
@@ -1240,7 +1360,7 @@
 
                     <div id="rpmoSubmenu" class="{{ $rpmoDropdownOpen ? '' : 'hidden' }} pl-4 mt-1 space-y-1">
                         @if($can('rpmo.overview'))
-                        <a href="{{ route('rpmo') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') && !Request::is('rpmo/*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
+                        <a href="{{ route('rpmo') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo') && !Request::is('rpmo/*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all text-sm">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-tachometer-alt"></i>
                             </span>
@@ -1248,7 +1368,7 @@
                         </a>
                         @endif
                         @if($can('rpmo.periods'))
-                        <a href="{{ route('rpmo.periods.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo/periods*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all text-sm">
+                        <a href="{{ route('rpmo.periods.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-xl {{ Request::is('rpmo/periods*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all text-sm">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-calendar-alt"></i>
                             </span>
@@ -1262,7 +1382,7 @@
                 @if($can('legal'))
                 <!-- LEGAL -->
                 <div class="mb-2">
-                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="#" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-balance-scale"></i>
                         </span>
@@ -1274,7 +1394,7 @@
                 @if($can('management'))
                 <!-- MANAJEMEN -->
                 <div class="mb-2">
-                    <button onclick="toggleManajemenDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('management*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <button onclick="toggleManajemenDropdown()" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('management*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-shield-alt"></i>
                         </span>
@@ -1283,7 +1403,7 @@
                     </button>
                     <div id="manajemenDropdown" class="nav-text {{ Request::is('management*') ? '' : 'hidden' }} mt-2 ml-4 space-y-1">
                         @if($can('management.roles'))
-                        <a href="{{ route('management.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/roles*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('management.roles.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/roles*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-user-tag text-xs"></i>
                             </span>
@@ -1291,7 +1411,7 @@
                         </a>
                         @endif
                         @if($can('management.permissions'))
-                        <a href="{{ route('management.permissions.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/permissions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('management.permissions.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/permissions*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-key text-xs"></i>
                             </span>
@@ -1299,7 +1419,7 @@
                         </a>
                         @endif
                         @if($can('management.holidays'))
-                        <a href="{{ route('management.holidays.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/holidays*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('management.holidays.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/holidays*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-calendar-day text-xs"></i>
                             </span>
@@ -1307,7 +1427,7 @@
                         </a>
                         @endif
                         @if($can('management.hidden-tickets'))
-                        <a href="{{ route('management.hidden-tickets.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/hidden-tickets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('management.hidden-tickets.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/hidden-tickets*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-eye-slash text-xs"></i>
                             </span>
@@ -1315,7 +1435,7 @@
                         </a>
                         @endif
                         @if($can('management.module-groups'))
-                        <a href="{{ route('management.module-groups.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/module-groups*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                        <a href="{{ route('management.module-groups.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/module-groups*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
                                 <i class="fas fa-layer-group text-xs"></i>
                             </span>
@@ -1324,7 +1444,7 @@
                         @endif
                         @if($can('management.employee'))
                         <div class="mt-1">
-                            <button onclick="toggleMasterMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <button onclick="toggleMasterMgmtDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/employee*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                 <span class="w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-users text-xs"></i>
                                 </span>
@@ -1333,63 +1453,69 @@
                             </button>
                             <div id="masterMgmtDropdown" class="nav-text {{ Request::is('management/employee*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                                 @if($can('management.employee.basic-data'))
-                                <a href="{{ route('management.employee.basic-data.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/basic-data*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.basic-data.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/basic-data*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-id-card text-xs"></i></span>
                                     <span class="nav-text text-xs">Basic Data</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.address'))
-                                <a href="{{ route('management.employee.address.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/address*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.address.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/address*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-map-marker-alt text-xs"></i></span>
                                     <span class="nav-text text-xs">Address</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.identification'))
-                                <a href="{{ route('management.employee.identification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/identification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.identification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/identification*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-fingerprint text-xs"></i></span>
                                     <span class="nav-text text-xs">Identification</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.family'))
-                                <a href="{{ route('management.employee.family.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/family*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.family.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/family*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-users text-xs"></i></span>
                                     <span class="nav-text text-xs">Family</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.education'))
-                                <a href="{{ route('management.employee.education.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/education*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.education.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/education*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-graduation-cap text-xs"></i></span>
                                     <span class="nav-text text-xs">Education</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.qualification'))
-                                <a href="{{ route('management.employee.qualification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/qualification*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.qualification.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/qualification*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-certificate text-xs"></i></span>
                                     <span class="nav-text text-xs">Qualification</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.contract'))
-                                <a href="{{ route('management.employee.contract.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/contract*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.contract.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/contract*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-file-contract text-xs"></i></span>
                                     <span class="nav-text text-xs">Contract</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.bank'))
-                                <a href="{{ route('management.employee.bank.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/bank*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.bank.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/bank*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-university text-xs"></i></span>
                                     <span class="nav-text text-xs">Bank Account</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.payment'))
-                                <a href="{{ route('management.employee.payment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/payment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.payment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/payment*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-money-bill text-xs"></i></span>
                                     <span class="nav-text text-xs">Basic Payment</span>
                                 </a>
                                 @endif
                                 @if($can('management.employee.attachment'))
-                                <a href="{{ route('management.employee.attachment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/attachment*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.employee.attachment.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/attachment*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-paperclip text-xs"></i></span>
                                     <span class="nav-text text-xs">Attachment</span>
+                                </a>
+                                @endif
+                                @if($can('management.employee.dropdown-settings'))
+                                <a href="{{ route('management.employee.dropdown-settings.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/employee/dropdown-settings*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                                    <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-list-ul text-xs"></i></span>
+                                    <span class="nav-text text-xs">Dropdown Settings</span>
                                 </a>
                                 @endif
                             </div>
@@ -1397,7 +1523,7 @@
                         @endif
                         @if($can('management.ticket'))
                         <div class="mt-1">
-                            <button onclick="toggleMasterTicketDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/ticket*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <button onclick="toggleMasterTicketDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/ticket*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                 <span class="w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-ticket-alt text-xs"></i>
                                 </span>
@@ -1406,7 +1532,7 @@
                             </button>
                             <div id="masterTicketDropdown" class="nav-text {{ Request::is('management/ticket*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                                 @if($can('management.ticket.document-type'))
-                                <a href="{{ route('management.ticket.document-type.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/ticket/document-type*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.ticket.document-type.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/ticket/document-type*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-file-alt text-xs"></i></span>
                                     <span class="nav-text text-xs">Document Type</span>
                                 </a>
@@ -1416,7 +1542,7 @@
                         @endif
                         @if($can('management.delivery'))
                         <div class="mt-1">
-                            <button onclick="toggleMasterDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/delivery*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <button onclick="toggleMasterDeliveryDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ Request::is('management/delivery*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                 <span class="w-4 h-4 flex items-center justify-center">
                                     <i class="fas fa-truck text-xs"></i>
                                 </span>
@@ -1425,13 +1551,13 @@
                             </button>
                             <div id="masterDeliveryDropdown" class="nav-text {{ Request::is('management/delivery*') ? '' : 'hidden' }} mt-1 ml-4 space-y-1">
                                 @if($can('management.delivery.project'))
-                                <a href="{{ route('management.delivery.project.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/project*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.delivery.project.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/project*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-diagram-project text-xs"></i></span>
                                     <span class="nav-text text-xs">Project Type</span>
                                 </a>
                                 @endif
                                 @if($can('management.delivery.support'))
-                                <a href="{{ route('management.delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <a href="{{ route('management.delivery.support.index') }}" class="nav-link flex items-center gap-3 px-4 py-2 rounded-lg {{ Request::is('management/delivery/support*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
                                     <span class="w-3 h-3 flex items-center justify-center"><i class="fas fa-headset text-xs"></i></span>
                                     <span class="nav-text text-xs">Support Type</span>
                                 </a>
@@ -1444,11 +1570,11 @@
                 @endif
 
                 <!-- Divider -->
-                <div class="my-6 border-t border-white border-opacity-10"></div>
+                <div class="my-6 border-t border-white/10"></div>
                 
                 <!-- SETTINGS - Visible to all roles -->
                 <div class="mb-2">
-                    <a href="{{ route('settings.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('settings*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                    <a href="{{ route('settings.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('settings*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
                         <span class="nav-icon w-5 h-5 flex items-center justify-center">
                             <i class="fas fa-cog"></i>
                         </span>
@@ -1457,15 +1583,23 @@
                 </div>
             </nav>
             @endif
+            </div>
         </aside>
 
         <!-- Main Content -->
         <main id="mainContent" class="sidebar-transition flex-1 ml-0 lg:ml-64 min-w-0">
             <!-- Header - Modern Design -->
             <header class="sticky top-0 z-40 shadow-sm border-b border-gray-100" style="background-color: var(--card-bg);">
+                @if($effectiveSeasonalTheme !== 'none')
+                    @include('partials.seasonal-theme', [
+                        'themeKey' => $effectiveSeasonalTheme,
+                        'showAnimations' => $preferences['show_animations'] ?? true,
+                        'placement' => 'header',
+                    ])
+                @endif
                 <div class="px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3">
                     <div class="flex items-center gap-3 sm:gap-4 min-w-0">
-                        <button onclick="toggleSidebar()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl hover:bg-opacity-10 primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
+                        <button onclick="toggleSidebar()" class="flex-shrink-0 w-10 h-10 flex items-center justify-center border-2 rounded-xl primary-hover primary-border transition-all" style="border-color: var(--primary-color); color: var(--text-color);">
                             <i class="fas fa-bars"></i>
                         </button>
                         <div class="min-w-0">
@@ -1479,6 +1613,21 @@
                         @yield('page-actions')
                         <!-- Notification Bell -->
                         <div class="flex items-center gap-2">
+                            @if($globalBgMusicUrl)
+                                {{-- Musik latar musiman: admin-only (di atas, App\Support\GlobalSeasonalTheme).
+                                     Tombol ini CUMA mute/unmute LOKAL demi aksesibilitas (WCAG 1.4.2 —
+                                     audio otomatis wajib bisa dikontrol user), BUKAN pemilihan lagu/tema.
+                                     Status "sudah di-unmute" disimpan di sessionStorage (bukan preferensi
+                                     tersimpan permanen) — reset tiap sesi browser baru, dan TIDAK ditulis
+                                     ke server sama sekali. Digerbang keberadaan $globalBgMusicUrl: kalau
+                                     admin belum pasang musik apa pun, tombol ini tidak dirender sama sekali. --}}
+                                <audio id="globalBgMusic" loop preload="auto" muted data-volume="{{ $globalBgMusicVolume }}" src="{{ $globalBgMusicUrl }}"></audio>
+                                <button id="bgMusicToggleBtn" onclick="toggleGlobalBgMusic()"
+                                    title="Unmute background music"
+                                    class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-gray-400 hover:text-red-800">
+                                    <i id="bgMusicToggleIcon" class="fas fa-music text-sm"></i>
+                                </button>
+                            @endif
                             <button id="soundToggleBtn" onclick="toggleNotifSound()"
                                 title="Disable notification sound"
                                 class="w-10 h-10 flex items-center justify-center border-2 border-gray-200 rounded-xl hover:border-red-800 hover:bg-red-50 transition-all text-red-700 hover:text-red-800">
@@ -1595,6 +1744,181 @@
         // Desktop = docked sidebar (>= Tailwind lg breakpoint 1024px).
         // Below that we treat the sidebar as a slide-in drawer with a backdrop.
         function isDesktopViewport() { return window.innerWidth >= 1024; }
+
+        // Sidebar menu search — never hides anything (too risky to get a nested
+        // dropdown's show/hide logic wrong on a live page); instead it highlights
+        // matches and force-opens whichever collapsed dropdown(s) contain one, so
+        // the match is actually visible without relying on the collapse toggle.
+        var sidebarSearchOpenedIds = [];
+        // Top-level wrappers (the `.mb-2` div around each root nav item/group —
+        // Home, Reporting, Control Center, ... all 21 of them, verified to be
+        // the ONLY place that class is used inside the nav list; nested
+        // sub-groups like Reporting > Project use a plain unclassed <div>) that
+        // THIS search hid, so clearing the box restores exactly what was there.
+        var sidebarSearchHiddenWrappers = [];
+
+        function filterSidebarMenu(query) {
+            var q = query.trim().toLowerCase();
+            var scroll = document.getElementById('sidebarNavScroll');
+            if (!scroll) return;
+
+            scroll.querySelectorAll('.nav-link.sidebar-search-match').forEach(function (el) {
+                el.classList.remove('sidebar-search-match');
+            });
+
+            if (!q) {
+                sidebarSearchHiddenWrappers.forEach(function (el) { el.style.removeProperty('display'); });
+                sidebarSearchHiddenWrappers = [];
+                // Re-collapse only the dropdowns THIS search opened — leave
+                // everything else (e.g. already-open-because-active-route) alone.
+                sidebarSearchOpenedIds.forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (el) el.classList.add('hidden');
+                });
+                sidebarSearchOpenedIds = [];
+                return;
+            }
+
+            var firstMatch = null;
+
+            // One pass per TOP-LEVEL section: hide the whole section unless it
+            // (its own name, or any item/sub-item anywhere inside it) matches.
+            // A section that matches is shown in full (its unrelated sub-groups
+            // keep whatever expand state they already had) rather than trying
+            // to selectively hide individual nested items too — far less prone
+            // to a filtering bug accidentally swallowing a real menu item.
+            scroll.querySelectorAll('.mb-2').forEach(function (wrapper) {
+                var wrapperHasMatch = false;
+
+                wrapper.querySelectorAll('a.nav-link, button.nav-link').forEach(function (link) {
+                    var textEl = link.querySelector('.nav-text');
+                    var text = (textEl ? textEl.textContent : link.textContent).trim().toLowerCase();
+                    if (!text || text.indexOf(q) === -1) return;
+
+                    wrapperHasMatch = true;
+                    link.classList.add('sidebar-search-match');
+                    if (!firstMatch) firstMatch = link;
+
+                    // Expand every ANCESTOR dropdown so the match is reachable...
+                    var el = link.parentElement;
+                    while (el && el !== scroll) {
+                        if (el.id && /Dropdown$/.test(el.id) && el.classList.contains('hidden')) {
+                            el.classList.remove('hidden');
+                            if (sidebarSearchOpenedIds.indexOf(el.id) === -1) sidebarSearchOpenedIds.push(el.id);
+                        }
+                        el = el.parentElement;
+                    }
+                    // ...and if the match IS a toggler itself, also expand the
+                    // dropdown it controls (that's a sibling, not an ancestor).
+                    var ownDropdown = link.nextElementSibling;
+                    if (ownDropdown && ownDropdown.id && /Dropdown$/.test(ownDropdown.id) && ownDropdown.classList.contains('hidden')) {
+                        ownDropdown.classList.remove('hidden');
+                        if (sidebarSearchOpenedIds.indexOf(ownDropdown.id) === -1) sidebarSearchOpenedIds.push(ownDropdown.id);
+                    }
+                });
+
+                if (wrapperHasMatch) {
+                    wrapper.style.removeProperty('display');
+                } else {
+                    wrapper.style.display = 'none';
+                    sidebarSearchHiddenWrappers.push(wrapper);
+                }
+            });
+
+            if (firstMatch) firstMatch.scrollIntoView({ block: 'nearest' });
+        }
+
+        // Keep the sidebar's scroll position across full page navigations (this
+        // app is server-rendered — every menu click is a fresh page load, which
+        // otherwise resets scroll to the top). sessionStorage survives exactly
+        // one tab's navigation history, which is the right scope here: per-tab
+        // convenience, not shared/critical state.
+        (function () {
+            var scrollEl = document.getElementById('sidebarNavScroll');
+            if (!scrollEl) return;
+            var KEY = 'wc_sidebar_scroll_top';
+
+            try {
+                var saved = sessionStorage.getItem(KEY);
+                if (saved !== null) scrollEl.scrollTop = parseInt(saved, 10) || 0;
+            } catch (e) {}
+
+            scrollEl.addEventListener('scroll', function () {
+                try { sessionStorage.setItem(KEY, String(scrollEl.scrollTop)); } catch (e) {}
+            }, { passive: true });
+
+            // A left-click on a real menu link navigates away immediately —
+            // the 'scroll' listener above only fires on manual scrolling, so
+            // also save scrollTop at the moment a link is clicked.
+            scrollEl.addEventListener('click', function (ev) {
+                var link = ev.target.closest('a.nav-link');
+                if (!link) return;
+                try { sessionStorage.setItem(KEY, String(scrollEl.scrollTop)); } catch (e) {}
+            });
+        })();
+
+        // ── Pin menu (sidebar → Dashboard "Command Center") ─────────────────────
+        // Pins are identified by href, not a menu slug — the sidebar has no single
+        // data source tagging each of its ~100 hardcoded <a> items with one, so
+        // this reads/writes the already-rendered DOM instead of touching every nav
+        // block. Persisted through the existing generic preferences endpoint
+        // (same one Settings uses), so a pin follows the account across devices.
+        window.PINNED_MENUS = @json(array_values(session('user_preferences')['pinned_menus'] ?? []));
+
+        function isMenuPinned(href) {
+            return window.PINNED_MENUS.indexOf(href) !== -1;
+        }
+
+        function savePinnedMenus() {
+            fetch('/settings/preferences', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ pinned_menus: window.PINNED_MENUS })
+            }).catch(function (e) { console.error('Failed to save pinned menus', e); });
+        }
+
+        function toggleMenuPin(href, btn) {
+            var idx = window.PINNED_MENUS.indexOf(href);
+            if (idx === -1) window.PINNED_MENUS.push(href);
+            else window.PINNED_MENUS.splice(idx, 1);
+
+            document.querySelectorAll('.nav-pin-btn[data-href="' + CSS.escape(href) + '"]').forEach(function (b) {
+                b.classList.toggle('pinned', idx === -1);
+            });
+
+            savePinnedMenus();
+            // Dashboard's Command Center widget (home.blade.php), if present on
+            // this page, defines this hook to refresh its "Pinned" tab live.
+            if (typeof window.onPinnedMenusChanged === 'function') window.onPinnedMenusChanged();
+        }
+
+        (function initSidebarPins() {
+            var scroll = document.getElementById('sidebarNavScroll');
+            if (!scroll) return;
+
+            scroll.querySelectorAll('a.nav-link').forEach(function (link) {
+                var href = link.getAttribute('href');
+                if (!href || href === '#') return;
+
+                var btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'nav-pin-btn' + (isMenuPinned(href) ? ' pinned' : '');
+                btn.dataset.href = href;
+                btn.title = 'Pin to Dashboard Command Center';
+                btn.innerHTML = '<i class="fa-solid fa-thumbtack"></i>';
+                btn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    toggleMenuPin(href, btn);
+                });
+
+                link.appendChild(btn);
+            });
+        })();
 
         function openSidebar() {
             var sidebar = document.getElementById('sidebar');
@@ -1869,6 +2193,10 @@
          Usage: if (await showConfirm('msg', 'title', 'danger')) { ... } --}}
     @include('partials.confirm-modal')
 
+    {{-- Global text-prompt modal — replaces browser native prompt() everywhere.
+         Usage: const v = await showPrompt('msg', 'title', {placeholder, maxLength}) --}}
+    @include('partials.prompt-modal')
+
     @stack('scripts')
 
     {{-- ==================== GLOBAL SELECT ENHANCER ====================
@@ -2005,6 +2333,53 @@
 
         // Sync button UI to persisted state on page load
         _applySoundUi();
+
+        // ── Musik latar musiman (admin-only, lihat App\Support\GlobalSeasonalTheme) ──
+        // sessionStorage BUKAN preferensi tersimpan — reset tiap sesi browser baru,
+        // murni supaya status unmute tetap konsisten selagi user pindah-pindah
+        // halaman DALAM sesi yang sama (tiap halaman = document baru, audio-nya
+        // ikut dibuat ulang dari nol setiap kali — lihat catatan di bawah).
+        (function initGlobalBgMusic() {
+            const audio = document.getElementById('globalBgMusic');
+            const btn   = document.getElementById('bgMusicToggleBtn');
+            const icon  = document.getElementById('bgMusicToggleIcon');
+            if (!audio || !btn || !icon) return; // admin belum pasang musik apa pun
+
+            // Volume diatur admin, berlaku sama untuk semua user — dibaca dari
+            // data-volume (data-* attribute, bukan preferensi tersimpan di
+            // browser) supaya nilainya selalu sinkron dengan apa yang admin set
+            // di Control Center, tanpa kemungkinan tertinggal versi lama.
+            const vol = parseFloat(audio.dataset.volume);
+            audio.volume = isNaN(vol) ? 0.5 : vol;
+
+            function reflectUi() {
+                icon.className = 'fas fa-music text-sm';
+                btn.classList.toggle('text-red-700', !audio.muted);
+                btn.classList.toggle('text-gray-400', audio.muted);
+                btn.title = audio.muted ? 'Unmute background music' : 'Mute background music';
+            }
+
+            const wantsUnmuted = sessionStorage.getItem('bgMusicUnmuted') === '1';
+            audio.muted = !wantsUnmuted;
+            // Selalu mulai lewat play() yang di-muted (diizinkan browser tanpa gesture
+            // user apa pun). Kalau user sebelumnya sudah unmute di halaman lain dalam
+            // sesi ini, di sini dicoba unmute lagi langsung — browser MUNGKIN
+            // mengizinkan (Chrome dkk punya heuristik "sudah pernah putar audio di
+            // situs ini"), MUNGKIN juga tidak (kebijakan autoplay browser, beda-beda
+            // per browser/versi) — kalau diblokir, audio otomatis tetap ter-mute dan
+            // ikon merefleksikan keadaan sebenarnya (tidak berpura-pura menyala),
+            // user tinggal klik tombolnya sekali lagi (klik = gesture asli, dijamin
+            // berhasil unmute).
+            audio.play().catch(() => {});
+            reflectUi();
+
+            window.toggleGlobalBgMusic = function () {
+                audio.muted = !audio.muted;
+                sessionStorage.setItem('bgMusicUnmuted', audio.muted ? '0' : '1');
+                if (!audio.muted) { audio.play().catch(() => {}); }
+                reflectUi();
+            };
+        })();
 
         /* ---- browser (OS) notification ---- */
         function showOsNotification(title, body, url) {
@@ -2157,12 +2532,14 @@
             resolution_days_proposed:     { bg: '#e0e7ff', color: '#4f46e5', fa: 'fa-users' },
             contract_end_reminder:        { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-file-contract' },
             top_invoice_reminder:         { bg: '#dbeafe', color: '#2563eb', fa: 'fa-file-invoice-dollar' },
+            timesheet_reminder:           { bg: '#ffedd5', color: '#ea580c', fa: 'fa-user-clock' },
             ticket_member_added:          { bg: '#dcfce7', color: '#16a34a', fa: 'fa-user-plus' },
             ticket_member_removed:        { bg: '#fee2e2', color: '#dc2626', fa: 'fa-user-minus' },
             ticket_member_reactivated:    { bg: '#dbeafe', color: '#2563eb', fa: 'fa-user-check' },
             ticket_internal_note:         { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-sticky-note' },
             ticket_reply:                 { bg: '#dbeafe', color: '#2563eb', fa: 'fa-reply' },
-            customer_email_reply:         { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
+            note_reply:                   { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-reply' },
+            customer_email_reply:        { bg: '#dcfce7', color: '#16a34a', fa: 'fa-envelope' }
         };
         var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
@@ -2180,11 +2557,13 @@
                 case 'resolution_days_proposed':     return 'Resolution Days — needs review';
                 case 'contract_end_reminder':        return 'Contract deadline reminder';
                 case 'top_invoice_reminder':         return 'Invoice submission due';
+                case 'timesheet_reminder':           return 'Timesheet reminder';
                 case 'ticket_member_added':       return (n.from_name || 'Someone') + ' added you to a ticket';
                 case 'ticket_member_removed':     return (n.from_name || 'Someone') + ' removed a member from a ticket';
                 case 'ticket_member_reactivated': return (n.from_name || 'Someone') + ' re-added a member to a ticket';
                 case 'ticket_internal_note':      return (n.from_name || 'Someone') + ' added an internal note';
                 case 'ticket_reply':              return (n.from_name || 'Someone') + ' replied to a ticket';
+                case 'note_reply':                return (n.from_name || 'Someone') + ' replied to your message';
                 case 'customer_email_reply':      return (n.from_name || 'Customer') + ' replied via email';
                 default: return (n.from_name || 'Someone') + ' mentioned you';
             }
@@ -2438,7 +2817,7 @@
             navigator.serviceWorker.addEventListener('message', function (event) {
                 if (event.data && event.data.type === 'PUSH_RECEIVED') {
                     var payload = event.data.payload || {};
-                    var msgTypes = ['ticket_reply', 'ticket_internal_note'];
+                    var msgTypes = ['ticket_reply', 'ticket_internal_note', 'note_reply'];
                     /* Chat/message types use chat sound; others use ticket/alert sound. */
                     if (msgTypes.includes(payload.type)) {
                         if (typeof window.playChatSound === 'function') window.playChatSound();

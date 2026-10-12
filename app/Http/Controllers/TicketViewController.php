@@ -141,7 +141,7 @@ class TicketViewController extends Controller
         // for it, so the bell badge doesn't stay stuck after the user has seen them here.
         Notification::where('employee_id', $user->id)
             ->where('ticket_id', $ticket->ticket_id)
-            ->whereIn('type', ['ticket_reply', 'ticket_internal_note'])
+            ->whereIn('type', ['ticket_reply', 'ticket_internal_note', 'note_reply'])
             ->where('is_read', false)
             ->update(['is_read' => true, 'read_at' => now()]);
 

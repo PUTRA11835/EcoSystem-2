@@ -16,7 +16,7 @@ class TicketDeliverable extends Model
     protected $fillable = [
         'ticket_id',
         'doc_type',
-        'body_text',
+        'description',
         'file_name',
         'onedrive_file_id',
         'onedrive_file_url',

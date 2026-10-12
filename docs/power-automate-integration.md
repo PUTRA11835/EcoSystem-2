@@ -65,6 +65,11 @@ POWER_AUTOMATE_TEAMS_MEMBER_ROLE_IDS=5,6
 POWER_AUTOMATE_TEAMS_EXCLUDE_MEMBERS=admin@eclectic.co.id,support01@eclectic.co.id
 # Khusus jalur group chat (tidak menyentuh keanggotaan channel).
 POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS=
+# Tim Delivery Support tiket (Delivery Owner, Support Manager, CO PM, Support
+# Admin) ikut jadi peserta group chat. Lihat bab 6c.2.
+POWER_AUTOMATE_TEAMS_INCLUDE_SUPPORT_TEAM=true
+# Batas peserta satu group chat (batas konektor Teams = 20). 0 = tanpa batas.
+POWER_AUTOMATE_TEAMS_MAX_MEMBERS=20
 
 POWER_AUTOMATE_REMINDER_INTERVAL_MINUTES=1
 POWER_AUTOMATE_REMINDER_MAX_COUNT=0
@@ -79,12 +84,18 @@ Membangkitkan secret:
 php artisan tinker --execute="echo Str::random(48);"
 ```
 
-Keempat `POWER_AUTOMATE_FLOW_*` dibiarkan kosong dulu — diisi di bagian 4, 5, 6,
-dan 6b setelah flow-nya dibuat dan disimpan. **Flow yang URL-nya kosong otomatis
+Keempat `POWER_AUTOMATE_FLOW_*` dibiarkan kosong dulu — diisi di bagian 4, 6,
+dan 6c setelah flow-nya dibuat dan disimpan. **Flow yang URL-nya kosong otomatis
 dilewati**, jadi keempat otomasi bisa dinyalakan bertahap satu per satu.
 
+`POWER_AUTOMATE_FLOW_TICKET_VALIDATED` dan `..._TICKET_MEMBER_ADDED` diisi URL
+flow bentuk **group chat** (bab 6c) — bentuk yang berlaku sejak 9 September 2026.
+Bab 5 dan 6b menggambarkan bentuk channel yang dipakai sebelumnya dan kini
+berstatus arsip.
+
 `POWER_AUTOMATE_TEAMS_MEMBER_ROLE_IDS` berisi `role_id` dari tabel
-`employee_role` yang pemegangnya selalu ditarik ke setiap channel tiket baru —
+`employee_role` yang pemegangnya selalu ikut jadi peserta setiap group chat
+tiket baru —
 default `5` (Delivery Support Head) dan `6` (Delivery Support Service Helpdesk).
 Keanggotaan role dibaca dari pivot `employee_role_assignment`, bukan kolom di
 tabel `employee`. Kosongkan untuk mematikan penambahan berbasis role.
@@ -311,6 +322,11 @@ tenant), urutan opsinya:
 **Nama:** `EcoSystem - Ticket Validated`
 **Env:** `POWER_AUTOMATE_FLOW_TICKET_VALIDATED`
 
+> **Bentuk channel di bab ini ARSIP sejak 9 September 2026.** Yang berlaku
+> sekarang adalah bentuk **group chat** di bab 6c. Bagian *5.1 Kapan EcoSystem
+> memanggilnya* dan *5.2 Sample payload* tetap akurat — pemicu dan payloadnya
+> tidak berubah — tetapi langkah designer di 5.3/5.4 menggambarkan flow 2 yang
+> sudah tidak dipanggil lagi.
 ### 5.1 Kapan EcoSystem memanggilnya
 
 Dari `StagingTicketController::approve()`, setelah tiket resmi tersimpan.
@@ -354,21 +370,15 @@ Pemanggilan terjadi **setelah response dikirim** ke browser, jadi tombol
     { "employee_id": 58, "name": "Rina Kartika", "email": "rina@eclectic.co.id" }
   ],
   "lead_emails": ["rina@eclectic.co.id"],
-  "channel": {
-    "name": "26090012 - Error saat posting GR di MIGO",
-    "description": "Error saat posting GR di MIGO | Customer: PT Contoh Sejahtera | Modul: MM",
+  "chat": {
+    "topic": "26090012 - Error saat posting GR di MIGO",
     "members": [
-      { "name": null, "email": "rina@eclectic.co.id", "source": "module_lead" },
-      { "name": "Antonius Cahyadi Sutanto", "email": "antonius.cs@eclectic.co.id", "source": "role" },
-      { "name": "Santo Suharyono", "email": "santo.suharyono@eclectic.co.id", "source": "role" }
-    ],
-    "member_emails": [
       "rina@eclectic.co.id",
       "antonius.cs@eclectic.co.id",
       "santo.suharyono@eclectic.co.id"
     ],
-    "member_csv": "rina@eclectic.co.id;antonius.cs@eclectic.co.id;santo.suharyono@eclectic.co.id",
-    "member_count": 3
+    "members_csv": "rina@eclectic.co.id;antonius.cs@eclectic.co.id;santo.suharyono@eclectic.co.id",
+    "has_lead": true
   },
   "validated_by": { "id": 12, "name": "Helpdesk Support" }
 }
@@ -377,22 +387,22 @@ Pemanggilan terjadi **setelah response dikirim** ke browser, jadi tombol
 `module_leads` dan `lead_emails` sengaja sudah jadi di payload. Pemetaan modul →
 lead → email kerja adalah pengetahuan EcoSystem; flow tidak perlu menebaknya.
 
-Begitu pula `channel.member_emails` (ditambahkan 7 Sep 2026): daftar orang yang
-harus bisa membaca channel tiket = Module Lead **+** pemegang role di
-`POWER_AUTOMATE_TEAMS_MEMBER_ROLE_IDS` (default `5,6` = Delivery Support Head dan
-Delivery Support Service Helpdesk) — hanya dua sumber itu. Sudah dedup, sudah
-dibuang yang masuk `_EXCLUDE_MEMBERS`, sudah dibuang yang tidak punya email kerja
-dan yang employee-nya non-aktif. `POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS` **tidak**
-ikut: knob itu khusus jalur group chat (menjaga peserta ≥3 agar grup boleh diberi
-nama, dan penerima cadangan untuk modul tanpa lead) — di jalur channel keduanya
-tidak berlaku. Langkah pemakaiannya di
-[`power-automate/README.md`](power-automate/README.md) bagian *Konfigurasi flow 2
-→ langkah 5*.
+Begitu pula `chat.members_csv`: peserta group chat tiket = Module Lead **+**
+pemegang role di `POWER_AUTOMATE_TEAMS_MEMBER_ROLE_IDS` (default `5,6` = Delivery
+Support Head dan Delivery Support Service Helpdesk) **+**
+`POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS`. Sudah dedup case-insensitive, sudah dibuang
+yang masuk `_EXCLUDE_MEMBERS`, sudah dibuang yang tidak punya email kerja dan yang
+employee-nya non-aktif, dan sudah dirangkai dengan pemisah titik-koma — bentuk
+yang diterima field *Members to add* pada aksi Teams **Create a chat**. Langkah
+pemakaiannya di [`power-automate/README.md`](power-automate/README.md) bagian
+*Konfigurasi flow 5*.
 
-> Ingat bedanya: di Teams, *standard channel* tidak punya daftar anggota sendiri.
-> Yang menentukan siapa bisa membaca channel adalah keanggotaan **team**-nya —
-> jadi `member_emails` dipakai untuk aksi **Add a member to a team**, bukan aksi
-> "add to channel" (yang memang tidak ada).
+> **Satu alamat salah menggagalkan seluruh aksi.** Teams menolak *Create a chat*
+> kalau ada alamat yang bukan mailbox Microsoft 365, atau kalau pesertanya kurang
+> dari 3 orang (syarat agar grup boleh diberi nama). Karena itu `_EXCLUDE_MEMBERS`
+> wajib memuat akun sistem seperti `admin@eclectic.co.id` dan
+> `support01@eclectic.co.id`, dan `_EXTRA_MEMBERS` dipakai untuk menjaga jumlah
+> peserta.
 
 ### 5.3 Langkah A — kartu ke channel tim
 
@@ -663,6 +673,8 @@ bukan mengunci tiket yang sama terus.
 
 ## 6b. Flow 4 — Consultant di-assign → masuk channel tiket
 
+> **ARSIP sejak 9 September 2026**, sama seperti bab 5: pemicu dan payload di
+> bawah tetap akurat, tapi wadahnya kini group chat (bab 6c), bukan channel.
 Langkah designer lengkapnya ada di
 [`power-automate/README.md`](power-automate/README.md) bagian *Konfigurasi flow 4*.
 Yang perlu diketahui di sini: kapan dipanggil dan bentuk payloadnya.
@@ -689,8 +701,8 @@ disimpan ulang dengan orang yang sama juga tidak memicu apa pun.
   "sent_at": "2026-09-07T14:05:00+07:00",
   "source": "EcoSystem",
   "ticket": { "...": "sama persis dengan blok ticket di flow 2" },
-  "channel": {
-    "name": "26090012 - Error saat posting GR di MIGO",
+  "chat": {
+    "topic": "26090012 - Error saat posting GR di MIGO",
     "number": "26090012"
   },
   "person": {
@@ -704,14 +716,179 @@ disimpan ulang dengan orang yang sama juga tidak memicu apa pun.
 }
 ```
 
-`channel.name` dirakit ulang oleh fungsi yang **sama** dengan yang dipakai flow 2
-saat membuat channelnya, jadi flow bisa mencocokkannya persis lewat aksi Teams
-**List channels** + **Filter array** — tanpa perlu menyimpan Channel Id, yang
-akan menuntut aksi HTTP berlisensi Premium. `channel.number` adalah kunci
-cadangan untuk kasus subject tiket diedit setelah channelnya terbentuk.
+`chat.topic` dirakit ulang oleh fungsi yang **sama** dengan yang dipakai flow
+tiket-divalidasi saat membuat grupnya (`PowerAutomateService::ticketChatTopic()`),
+jadi flow bisa mencocokkannya persis lewat aksi Teams **List chats** + **Filter
+array** — tanpa perlu menyimpan Chat Id, yang akan menuntut aksi HTTP berlisensi
+Premium. `chat.number` adalah kunci cadangan untuk kasus subject tiket diedit
+setelah grupnya terbentuk.
+
+> Bentuk channel yang diarsipkan memakai blok `channel` (`name` + `number`) dan
+> aksi **List channels** di posisi yang sama persis. Blok itu **sudah tidak
+> dikirim** sejak 9 September 2026.
+
+---
+
+## 6c. Flow 5 & 6 — bentuk GROUP CHAT (berlaku sejak 9 September 2026)
+
+Hasil meeting 9 September 2026: wadah tiket adalah **group chat Teams per tiket**
+— bentuk yang selama ini sudah biasa dibuat manual oleh tim support — dan
+consultant yang di-assign ditambahkan ke group chat itu, bukan ke channel.
+
+**Di Power Automate keduanya dibuat sebagai flow BARU** (flow 5 & 6), sementara
+flow 2 & 4 bentuk channel dibiarkan tersimpan sebagai arsip. **Di EcoSystem tidak
+ada dua jalur**: kodenya hanya mengenal bentuk group chat, dan payloadnya cuma
+membawa blok `chat`. Konsekuensinya kalau suatu saat bentuk channel dipakai lagi,
+sisi EcoSystem yang menyesuaikan — kembalikan `ticketChannelPayload()` dan
+`channelMembers()` dari commit `d67d446`.
+
+| Peristiwa | Flow | `.env` | Aksi Teams inti |
+|---|---|---|---|
+| Staging di-approve | 5 `EcoSystem - Ticket Validated (Group Chat)` | `POWER_AUTOMATE_FLOW_TICKET_VALIDATED` | **Create a chat** → Post card → mention lead |
+| Consultant di-assign | 6 `EcoSystem - Ticket Member Added (Group Chat)` | `POWER_AUTOMATE_FLOW_TICKET_MEMBER_ADDED` | **List chats** → Filter array → **Add a user to a chat** → Post card |
+
+URL-nya masuk ke variabel `.env` yang **sudah ada**; tidak ada variabel baru.
+Pemicunya juga tidak berubah — persis seperti 5.1 dan 6b.1.
+
+### 6c.1 Bagaimana flow 6 menemukan grupnya
+
+Sama seperti flow 4 menemukan channel: **tanpa menyimpan id apa pun.** EcoSystem
+mengirim `chat.topic`, dirakit `PowerAutomateService::ticketChatTopic()` — fungsi
+yang sama dipakai flow 5 saat membuat grup dan flow 6 saat mencarinya kembali,
+jadi pencocokannya exact-match, bukan tebak-tebakan awalan.
+
+```json
+"chat": { "topic": "26090012 - Error saat posting GR di MIGO", "number": "26090012" }
+```
+
+Aksi **Add a user to a chat** (`AddMemberToChat`) dan **List chats** (`GetChats`)
+dua-duanya ada di konektor Microsoft Teams kelas **Standard**, jadi jalur ini
+tidak butuh lisensi Premium. `chat.number` adalah kunci cadangan kalau subject
+tiket diedit setelah grupnya terbentuk.
+
+### 6c.2 Siapa yang jadi peserta grup (diperbarui 11 September 2026)
+
+Daftarnya dirakit **di EcoSystem** (`PowerAutomateService::ticketChatPayload()`)
+dan tiba di flow sebagai satu string siap tempel, `chat.members_csv`. Flow tidak
+pernah memutuskan siapa pun — tiap keputusan yang dipindah ke designer berarti
+satu ekspresi yang harus diketik tangan dan tidak bisa diuji.
+
+| Kelompok | Sumber | Per tiket? |
+|---|---|---|
+| Module Lead | `module_leads` untuk `module_id` tiket | ya |
+| **Tim Delivery Support** | Delivery Owner, Support Manager (bisa >1), CO PM, Support Admin dari delivery support tiket | ya |
+| Role penjaga | `POWER_AUTOMATE_TEAMS_MEMBER_ROLE_IDS` (default 5, 6) | tidak |
+| Anggota tetap | `POWER_AUTOMATE_TEAMS_EXTRA_MEMBERS` | tidak |
+
+**Tim Delivery Support masuk sejak 11 September 2026.** Sebelumnya grup tiket
+tidak memuat pemilik delivery-nya sendiri. Tiga hal yang perlu diingat:
+
+* **Tiket tidak punya kolom `delivery_support_id`** — kaitannya lewat tabel
+  `delivery_support_activities` (satu baris dibuat saat helpdesk memilih delivery
+  support di modal validasi). `deliverySupportIdForTicket()` membacanya dari sana,
+  bukan dari request, sehingga tiket yang di-assign belakangan ikut terbaca.
+* **Support Manager bisa lebih dari satu**, tersimpan di pivot
+  `delivery_support_managers`. Kolom lama `delivery_support.support_manager_id`
+  masih ada di skema tapi tidak lagi di-update — isinya bisa basi.
+* **Sales tidak ikut** (`sales_id` sengaja dilewati: bukan pelaksana tiket).
+
+Bisa dimatikan lewat `POWER_AUTOMATE_TEAMS_INCLUDE_SUPPORT_TEAM=false`.
+
+Payload flow 5 juga membawa blok `delivery_support` (`name`, `type`, `team`,
+`team_csv`) untuk ditampilkan di Adaptive Card; emailnya sendiri sudah ikut lewat
+`chat.members_csv`.
+
+### 6c.3 Tiga hal yang berbeda dari bentuk channel
+
+* **Batas 20 peserta per group chat** (batas konektor Teams). Kelebihan satu
+  orang membuat *Create a chat* menolak seluruh permintaan, jadi EcoSystem
+  memotong daftarnya lebih dulu di `POWER_AUTOMATE_TEAMS_MAX_MEMBERS` (default
+  20) dan menulis peringatan ke log. Yang dipotong adalah yang paling belakang —
+  anggota tetap dan role penjaga — bukan lead modul atau tim Delivery Support.
+  Anggarannya kira-kira: 2 lead + 4 tim support + 2 role penjaga + anggota tetap,
+  sisanya slot consultant lewat flow 6. Bentuk channel tidak punya batas ini.
+* **`List chats` harus dipaginasi.** Aksi itu mengembalikan chat *terbaru* milik
+  akun koneksi; dengan 62-129 tiket/bulan, grup tiket lama jatuh di luar halaman
+  pertama dan flow 6 diam-diam melaporkan "chat tidak ketemu". **Settings →
+  Pagination → On**, threshold setinggi mungkin. `List channels` di flow 4 tidak
+  punya masalah ini karena sekali panggil mengembalikan seluruh channel.
+* **`_EXTRA_MEMBERS` dan `_EXCLUDE_MEMBERS` kembali menentukan.** Di bentuk
+  channel keduanya nyaris menganggur; di group chat, `_EXTRA_MEMBERS` menjaga
+  peserta tetap ≥3 (syarat Teams agar grup boleh diberi nama) sekaligus jadi
+  penerima cadangan untuk modul tanpa Module Lead, dan satu alamat non-mailbox
+  yang lolos `_EXCLUDE_MEMBERS` membuat *Create a chat* menolak seluruh
+  permintaan.
+
+Sebagai gantinya, dua batasan bentuk channel hilang: grup hanya terlihat oleh
+pesertanya (tidak ada lagi "semua anggota team melihat semua tiket"), dan kartu di
+group chat langsung memberi notifikasi ke pesertanya tanpa perlu @mention
+tambahan.
+
+### 6c.4 Field yang mudah terlewat
+
+Pada aksi **Add a user to a chat**, isi **Visible history start date time**
+dengan `0001-01-01T00:00:00Z`. Dibiarkan kosong, consultant yang baru masuk tidak
+bisa membaca pesan sebelumnya — padahal justru riwayat diskusi tiket itu yang ia
+butuhkan. Field ini tidak punya padanan di bentuk channel.
+
+Langkah designer lengkap field-per-field ada di
+[`power-automate/README.md`](power-automate/README.md) bagian *Konfigurasi flow 5*
+dan *Konfigurasi flow 6*.
 
 ---
 ## 7. Pengujian bertahap
+
+### 7.0 Pagar staging — `POWER_AUTOMATE_ALLOWED_SUBMITTERS`
+
+> Ditambahkan 17 September 2026, untuk deploy ke server dev/staging sebelum
+> produksi.
+
+Server staging membaca mailbox `support@eclectic.co.id` yang **sama** dengan
+produksi. Artinya, tanpa pagar, email customer sungguhan yang kebetulan masuk saat
+staging sedang menyala akan memicu group chat Teams dan notifikasi ke employee
+sungguhan — dari server yang datanya belum tentu benar, dengan kode yang sedang
+diuji. Yang menerima tidak punya cara membedakannya dari notifikasi produksi.
+
+```dotenv
+# Staging
+POWER_AUTOMATE_ALLOWED_SUBMITTERS=putrapalampangt@gmail.com
+
+# Produksi — BIARKAN KOSONG
+POWER_AUTOMATE_ALLOWED_SUBMITTERS=
+```
+
+Aturannya:
+
+| Keadaan | Perilaku |
+|---|---|
+| Daftar **kosong** | Tanpa batas — semua flow berjalan normal. Ini keadaan produksi. |
+| Daftar terisi, pelapor **cocok** | Flow berangkat seperti biasa. |
+| Daftar terisi, pelapor **tidak cocok** | Flow dihadang, dicatat `Log::info`. |
+| Daftar terisi, pelapor **tidak teridentifikasi** | **Dihadang juga.** |
+
+Baris terakhir itu disengaja. Pagar ini ada justru untuk mencegah kebocoran ke
+orang sungguhan, jadi meloloskan payload yang tidak bisa diatribusikan akan
+membolongi tepat pada kasus yang paling tidak dipahami. Kalau ada flow yang
+diam-diam tidak berangkat di staging, `laravel.log` menyebut alasannya:
+
+```
+PowerAutomate: flow DIHADANG pagar staging
+  {"flow":"ticket_validated","submitter":"orang@customer.co.id","allowed":[...]}
+```
+
+Pagarnya dipasang di `PowerAutomateService::dispatch()` — **satu-satunya** pintu
+keluar ke Power Automate — sehingga setiap flow ikut terjaga, termasuk flow yang
+belum ditulis (flow 7 untuk sinkron chat Teams, misalnya). Email pelapor dibaca
+dari `ticket.submitted_by.email` atau `sender_email` di payload.
+
+Default-nya sengaja longgar (kosong = tanpa batas): lupa mengisi di staging
+menyebabkan notifikasi yang terlalu banyak — mengganggu, tapi ketahuan seketika;
+sedangkan default yang ketat berarti lupa mengosongkannya di produksi akan
+**membisukan** notifikasi customer sungguhan tanpa ada yang menyadarinya.
+
+**Yang TIDAK dijaga pagar ini:** jalur yang tidak lewat Power Automate — balasan
+email Graph langsung, pembuatan staging ticket, dan greeting dari
+`StagingTicketService`. Pagar ini khusus lalu lintas Teams/Power Automate.
 
 ### 7.1 Uji flow sendirian, tanpa EcoSystem
 

@@ -6,6 +6,9 @@ use Illuminate\Foundation\Configuration\Middleware;
 use App\Http\Middleware\CheckAuthToken;
 use App\Http\Middleware\CheckJarviesApiKey;
 use App\Http\Middleware\CompressJsonResponse;
+use App\Http\Middleware\DetectAccessPatterns;
+use App\Http\Middleware\DetectAttackPatterns;
+use App\Http\Middleware\EnforceTwoFactorForAdmins;
 use App\Http\Middleware\ShareMenuPermissions;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -44,10 +47,15 @@ return Application::configure(basePath: dirname(__DIR__))
         
         $middleware->web(append: [
             ShareMenuPermissions::class,
+            DetectAttackPatterns::class,
+            DetectAccessPatterns::class,
+            EnforceTwoFactorForAdmins::class,
         ]);
 
         $middleware->api(append: [
             CompressJsonResponse::class,
+            DetectAttackPatterns::class,
+            DetectAccessPatterns::class,
         ]);
 
         $middleware->alias([

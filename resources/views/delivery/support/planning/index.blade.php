@@ -203,7 +203,7 @@
                     </div>
 
                     {{-- Export Menu Dropdown --}}
-                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                    <div id="exportMenu" class="hidden absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black/5 z-50">
                         <div class="py-1" role="menu">
                             <div class="px-4 py-2 text-xs font-semibold text-gray-500 uppercase">Table View</div>
                             <!-- table export view disini -->

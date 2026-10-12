@@ -7,7 +7,7 @@
      aria-labelledby="planningImportTitle" role="dialog" aria-modal="true">
     <div class="flex min-h-screen items-center justify-center px-4 py-8">
         {{-- Backdrop --}}
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+        <div class="fixed inset-0 bg-gray-500/75 transition-opacity"
              onclick="closePlanningImportModal()"></div>
 
         {{-- Panel --}}

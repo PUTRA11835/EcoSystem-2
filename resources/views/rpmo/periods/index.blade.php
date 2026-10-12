@@ -372,7 +372,7 @@
 {{-- MODAL: Create Period                                            --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
 @if($canManageGlobal)
-<div id="createPeriodModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="createPeriodModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Create New Period</h3>
@@ -431,7 +431,7 @@
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Confirm Close Global                                     --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-<div id="closeGlobalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="closeGlobalModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Close Period Globally</h3>
@@ -459,7 +459,7 @@
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Confirm Close Domain                                     --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-<div id="closeDomainModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="closeDomainModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <h3 class="text-base font-bold text-gray-900">Close Domain Period</h3>
@@ -487,7 +487,7 @@
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Force Close                                              --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-<div id="forceCloseModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="forceCloseModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-red-200 bg-red-50">
             <div class="flex items-center gap-2">
@@ -519,7 +519,7 @@
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Audit Log                                                --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-<div id="auditLogModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="auditLogModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <div>
@@ -899,7 +899,7 @@ async function executeDeletePeriod() {
 {{-- MODAL: Edit Period Dates (RPMO / Admin)                        --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
 @if($canManageGlobal)
-<div id="editDatesModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="editDatesModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
             <div>
@@ -939,7 +939,7 @@ async function executeDeletePeriod() {
 {{-- ════════════════════════════════════════════════════════════════ --}}
 {{-- MODAL: Delete Period (RPMO / Admin)                            --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
-<div id="deletePeriodModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="deletePeriodModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl overflow-hidden">
         <div class="flex items-center justify-between px-6 py-4 border-b border-red-200 bg-red-50">
             <div class="flex items-center gap-2">
@@ -976,7 +976,7 @@ async function executeDeletePeriod() {
 {{-- MODAL: Exception Requests Queue (Head / RPMO / Admin)          --}}
 {{-- ════════════════════════════════════════════════════════════════ --}}
 @if($canManageDomains || $isRpmo || $isAdmin)
-<div id="exRequestsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+<div id="exRequestsModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
             <h3 class="text-base font-bold text-gray-900">

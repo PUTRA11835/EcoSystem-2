@@ -4,16 +4,21 @@ namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
 use App\Exports\CustomerMdExport;
+use App\Exports\LogShiftingExport;
 use App\Exports\MdRecapExport;
+use App\Exports\MdRecapSummaryExport;
 use App\Exports\ResolutionDaysExport;
 use App\Exports\TicketByModuleExport;
 use App\Exports\TimesheetReportExport;
 use App\Models\ConsultantMandays;
 use App\Models\ConsultantMandaysDetail;
 use App\Models\CustomerMandays;
+use App\Models\DeliveryProject;
+use App\Models\DeliverySupport;
 use App\Models\DeliverySupportActivity;
 use App\Models\ReportingPeriod;
 use App\Models\Ticket;
+use App\Models\TicketMessage;
 use App\Services\PeriodService;
 use App\Support\SessionUser;
 use Carbon\Carbon;
@@ -388,6 +393,48 @@ class ReportingController extends Controller
 
     // ── Web: MD Recap page ────────────────────────────────────────────────
 
+    /**
+     * Resolve a human-readable "Delivery" label per timesheet row for MD Recap.
+     * Priority: `delivery_projects_id` (already joined as delivery_project_name)
+     * → project name; else `ticket_id` → the Delivery Support linked to that
+     * ticket via delivery_support_activities; else "Unassigned".
+     *
+     * Done as a separate lookup rather than another JOIN so a ticket that ever
+     * ends up linked to more than one delivery_support_activities row can't
+     * multiply the timesheet rows (each timesheet must stay exactly one row).
+     */
+    private function attachDeliveryNames(\Illuminate\Support\Collection $rows): \Illuminate\Support\Collection
+    {
+        $ticketIds = $rows
+            ->filter(fn($r) => empty($r->delivery_project_name) && !empty($r->ticket_id))
+            ->pluck('ticket_id')
+            ->unique()
+            ->values();
+
+        $ticketToSupportName = [];
+        if ($ticketIds->isNotEmpty()) {
+            $activities = DeliverySupportActivity::whereIn('ticket_id', $ticketIds)
+                ->whereNotNull('delivery_support_id')
+                ->select('ticket_id', 'delivery_support_id')
+                ->get()
+                ->unique('ticket_id'); // one Delivery Support per ticket — first match wins
+
+            $supportNames = DeliverySupport::whereIn('id', $activities->pluck('delivery_support_id')->unique())
+                ->pluck('name', 'id');
+
+            foreach ($activities as $activity) {
+                $ticketToSupportName[$activity->ticket_id] = $supportNames[$activity->delivery_support_id] ?? null;
+            }
+        }
+
+        return $rows->map(function ($r) use ($ticketToSupportName) {
+            $r->delivery = $r->delivery_project_name
+                ?: ($ticketToSupportName[$r->ticket_id] ?? null)
+                ?: 'Unassigned';
+            return $r;
+        });
+    }
+
     public function mdRecapIndex()
     {
         $sessionUser = session('user');
@@ -418,6 +465,7 @@ class ReportingController extends Controller
             $query = DB::table('timesheets')
                 ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
                 ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
                 ->where('timesheets.status', 'approved')
                 ->whereNull('timesheets.deleted_at');
 
@@ -439,6 +487,8 @@ class ReportingController extends Controller
                 ->select(
                     'timesheets.id',
                     'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -447,12 +497,15 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
+            $rows = $this->attachDeliveryNames($rows);
+
             $data = $rows->map(fn($r) => [
-                'id'      => $r->id,
-                'name'    => trim($r->employee_name),
-                'date'    => $r->date,
-                'mode'    => $r->mode,
-                'mandays' => round((float) $r->mandays, 2),
+                'id'       => $r->id,
+                'name'     => trim($r->employee_name),
+                'date'     => $r->date,
+                'mode'     => $r->mode,
+                'mandays'  => round((float) $r->mandays, 2),
+                'delivery' => $r->delivery,
             ]);
 
             return response()->json(['success' => true, 'data' => $data]);
@@ -466,6 +519,103 @@ class ReportingController extends Controller
     // ── Web: MD Recap export ──────────────────────────────────────────────
 
     public function exportMdRecap(Request $request)
+    {
+        try {
+            $sessionUser   = session('user');
+            $currentRoleIds = array_map('intval', $sessionUser['role_ids'] ?? [$sessionUser['role']['id'] ?? 0]);
+            $allowed        = [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_HEAD->value];
+
+            if (empty(array_intersect($currentRoleIds, $allowed))) {
+                abort(403, 'Access denied. Only Admins and Head of Support can export the MD recap.');
+            }
+
+            $filterName  = trim($request->input('name', ''));
+            $filterMode  = trim($request->input('mode', ''));
+            $filterMonth = (int) $request->input('month', 0);
+            $filterYear  = (int) $request->input('year',  0);
+
+            $query = DB::table('timesheets')
+                ->join('employee',            'timesheets.employee_id', '=', 'employee.employee_id')
+                ->join('employee_basic_data', 'employee.employee_id',   '=', 'employee_basic_data.employee_id')
+                ->leftJoin('delivery_projects', 'timesheets.delivery_projects_id', '=', 'delivery_projects.id')
+                ->where('timesheets.status', 'approved')
+                ->whereNull('timesheets.deleted_at');
+
+            if ($filterMonth && $filterYear) {
+                $range = ReportingPeriod::dateRange($filterYear, $filterMonth);
+                $query->whereBetween('timesheets.date', [
+                    $range['start']->format('Y-m-d'),
+                    $range['end']->format('Y-m-d'),
+                ]);
+            } elseif ($filterMonth) {
+                $query->whereMonth('timesheets.date', $filterMonth);
+            } elseif ($filterYear) {
+                $query->whereYear('timesheets.date', $filterYear);
+            }
+            if ($filterName !== '') {
+                $query->whereRaw(
+                    "LOWER(TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,'')))) LIKE ?",
+                    ['%' . strtolower($filterName) . '%']
+                );
+            }
+            if ($filterMode !== '') {
+                $query->whereRaw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END = ?", [$filterMode]);
+            }
+
+            $rows = $query
+                ->select(
+                    'timesheets.date',
+                    'timesheets.ticket_id',
+                    'delivery_projects.name as delivery_project_name',
+                    DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
+                    DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
+                    DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
+                )
+                ->orderByRaw('employee_name')
+                ->orderBy('timesheets.date')
+                ->get();
+
+            $rows = $this->attachDeliveryNames($rows);
+
+            // Aggregate: same employee + same mode + same delivery → one merged row.
+            // A single employee can log mandays against different deliveries within
+            // the same period, so grouping by delivery too keeps each one on its
+            // own row instead of blending unrelated work into one total.
+            $exportRows = $rows
+                ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode . '||' . $r->delivery)
+                ->map(fn($group) => [
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'delivery' => $group->first()->delivery,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                ])
+                ->sortBy([['name', 'asc'], ['mode', 'asc'], ['delivery', 'asc']])
+                ->values();
+
+            $periodSuffix = ($filterMonth && $filterYear)
+                ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
+                : '_' . now()->format('Y-m-d');
+            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
+
+            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
+
+        } catch (\Exception $e) {
+            Log::error('exportMdRecap error');
+            abort(500, $e->getMessage());
+        }
+    }
+
+    // ── Web: MD Recap export (Summary — no Delivery breakdown) ─────────────
+
+    /**
+     * Same filters/access as exportMdRecap(), but grouped by employee + mode
+     * only (no Delivery column/join): one name with two modes stays two rows,
+     * one name with a single mode is merged into one row with the summed
+     * mandays. Added alongside exportMdRecap() as a separate endpoint/export
+     * class so the existing "with Delivery" export stays untouched.
+     */
+    public function exportMdRecapSummary(Request $request)
     {
         try {
             $sessionUser   = session('user');
@@ -510,7 +660,6 @@ class ReportingController extends Controller
 
             $rows = $query
                 ->select(
-                    'timesheets.date',
                     DB::raw("TRIM(CONCAT(COALESCE(employee_basic_data.first_name,''), ' ', COALESCE(employee_basic_data.last_name,''))) as employee_name"),
                     DB::raw("CASE WHEN LOWER(timesheets.presence) = 'onsite' THEN 'OnSite' ELSE 'Remote' END as mode"),
                     DB::raw('COALESCE(timesheets.md_consumed, timesheets.duration_minutes / 480.0, 0) as mandays')
@@ -519,14 +668,15 @@ class ReportingController extends Controller
                 ->orderBy('timesheets.date')
                 ->get();
 
-            // Aggregate: same employee + same mode → one merged row
+            // Aggregate: same employee + same mode → one merged row (no Delivery
+            // split). Different modes for the same person stay on separate rows.
             $exportRows = $rows
                 ->groupBy(fn($r) => trim($r->employee_name) . '||' . $r->mode)
                 ->map(fn($group) => [
-                    'name'    => trim($group->first()->employee_name),
-                    'mode'    => $group->first()->mode,
-                    'entries' => $group->count(),
-                    'mandays' => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
+                    'name'     => trim($group->first()->employee_name),
+                    'mode'     => $group->first()->mode,
+                    'entries'  => $group->count(),
+                    'mandays'  => round((float) $group->sum(fn($r) => (float) $r->mandays), 2),
                 ])
                 ->sortBy([['name', 'asc'], ['mode', 'asc']])
                 ->values();
@@ -534,12 +684,12 @@ class ReportingController extends Controller
             $periodSuffix = ($filterMonth && $filterYear)
                 ? '_' . $filterYear . '-' . str_pad($filterMonth, 2, '0', STR_PAD_LEFT)
                 : '_' . now()->format('Y-m-d');
-            $filename = 'MD_Recap_Export' . $periodSuffix . '.xlsx';
+            $filename = 'MD_Recap_Summary_Export' . $periodSuffix . '.xlsx';
 
-            return Excel::download(new MdRecapExport(collect($exportRows)), $filename);
+            return Excel::download(new MdRecapSummaryExport(collect($exportRows)), $filename);
 
         } catch (\Exception $e) {
-            Log::error('exportMdRecap error');
+            Log::error('exportMdRecapSummary error');
             abort(500, $e->getMessage());
         }
     }
@@ -721,7 +871,15 @@ class ReportingController extends Controller
             ->get()
             ->keyBy('ticket_id');
 
-        return $tickets->map(function (Ticket $ticket) use ($deliveryMap) {
+        // Latest version's proposed total per ticket (a ticket can have several
+        // draft/revision versions — only the newest one reflects the current proposal).
+        $mandaysMap = CustomerMandays::whereIn('ticket_id', $ticketIds)
+            ->orderByDesc('version')
+            ->get()
+            ->unique('ticket_id')
+            ->keyBy('ticket_id');
+
+        return $tickets->map(function (Ticket $ticket) use ($deliveryMap, $mandaysMap) {
             $status = $ticket->mandays_proposal_status ?: 'none';
 
             return [
@@ -737,9 +895,10 @@ class ReportingController extends Controller
                 'lead_name'     => $ticket->ticketLead
                     ? (trim(($ticket->ticketLead->basicData?->first_name ?? '') . ' ' . ($ticket->ticketLead->basicData?->last_name ?? '')) ?: null)
                     : null,
-                'md_status'       => $status,
-                'md_status_label' => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
-                'created_at'      => $ticket->created_at,
+                'md_status'         => $status,
+                'md_status_label'   => self::CUSTOMER_MD_STATUS_LABELS[$status] ?? $status,
+                'customer_mandays'  => ($mandays = $mandaysMap->get($ticket->ticket_id)?->total_mandays) !== null ? (float) $mandays : null,
+                'created_at'        => $ticket->created_at,
             ];
         })->values();
     }
@@ -948,25 +1107,23 @@ class ReportingController extends Controller
             // Filter opsional berdasarkan Account Executive (nama AE di project).
             $filterAe = trim((string) $request->input('ae', ''));
 
-            $terms = DB::table('delivery_project_payment_terms as pt')
-                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
-                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
-                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
-                ->select(
-                    'pt.*',
-                    'p.name as project_name',
-                    'p.io_number as io_number',
-                    'p.ae_name as ae_name',
-                    'p.revenue as project_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookTerms($filterAe);
 
-            $rows = [];
+            $rows    = [];
+            $undated = [];
             foreach ($terms as $t) {
                 $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
                 if (!$placementRaw) {
-                    continue; // tanpa tanggal → tidak bisa ditempatkan di kolom bulan
+                    // Tanpa tanggal → tidak bisa ditempatkan di kolom bulan. Dilaporkan
+                    // terpisah supaya user tahu TOP mana yang belum masuk outlook.
+                    $undated[] = [
+                        'project_id'   => (int) $t->delivery_projects_id,
+                        'project_name' => $t->project_name ?? '-',
+                        'term_number'  => (int) $t->term_number,
+                        'payment_term' => $t->payment_term,
+                        'amount'       => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->project_revenue),
+                    ];
+                    continue;
                 }
 
                 $key = Carbon::parse($placementRaw)->format('Y-m');
@@ -983,13 +1140,17 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    // Amount basis % = nilai turunan (revenue x % / 100), dihitung ulang di
+                    // sini supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0). Basis Contract
+                    // Line Item (fixed / % of line item) memakai nilai tersimpan, yang
+                    // selalu disinkronkan ke nilai line item (ProjectTopPlan).
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->project_revenue),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
-                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    'line_item_name'      => $t->line_item_name,
                     'requirements'        => $t->requirements,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
@@ -1018,10 +1179,16 @@ class ReportingController extends Controller
                 ->pluck('ae_name')
                 ->values();
 
+            usort($undated, function ($a, $b) {
+                $c = strcasecmp($a['project_name'], $b['project_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
             return response()->json([
                 'success'    => true,
                 'months'     => $months,
                 'rows'       => $rows,
+                'undated'    => $undated,
                 'ae_options' => $aeOptions,
             ]);
 
@@ -1052,13 +1219,15 @@ class ReportingController extends Controller
             }
 
             $validated = $request->validate([
-                'status'              => 'required|string|in:Open,Paid,Delay',
-                // Konsisten dengan TOP Plan di Delivery Info: Paid wajib punya tanggal.
+                'status'              => ['required', 'string', \Illuminate\Validation\Rule::in(\App\Models\DeliveryProjectPaymentTerm::STATUSES)],
+                // Konsisten dengan TOP Plan di Delivery Info: Paid wajib punya tanggal,
+                // Invoiced wajib punya Submit Invoice Date.
                 'paid_date'           => 'nullable|required_if:status,Paid|date',
-                'submit_invoice_date' => 'nullable|date',
+                'submit_invoice_date' => 'nullable|required_if:status,Invoiced|date',
                 'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
             ], [
-                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
+                'paid_date.required_if'           => 'Paid Date is required when Status is Paid.',
+                'submit_invoice_date.required_if' => 'Submit Invoice Date is required when Status is Invoiced.',
                 'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
             ]);
 
@@ -1136,19 +1305,7 @@ class ReportingController extends Controller
                 $guard++;
             }
 
-            $terms = DB::table('delivery_project_payment_terms as pt')
-                ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
-                ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
-                ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
-                ->select(
-                    'pt.*',
-                    'p.name as project_name',
-                    'p.io_number as io_number',
-                    'p.ae_name as ae_name',
-                    'p.revenue as project_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookTerms($filterAe);
 
             $rows = [];
             foreach ($terms as $t) {
@@ -1168,11 +1325,11 @@ class ReportingController extends Controller
                     'ae_name'             => $t->ae_name ?: '-',
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
-                    'payment_percentage'  => (float) $t->payment_percentage,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->project_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'line_item_name'      => $t->line_item_name ?: '',
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    // Sama dengan tampilan halaman — lihat collectionOutlook().
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->project_revenue),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
@@ -1194,6 +1351,26 @@ class ReportingController extends Controller
             Log::error('exportCollectionOutlook error: ' . $e->getMessage());
             abort(500, $e->getMessage());
         }
+    }
+
+    /** Sumber baris Collection Outlook (halaman & export) — semua TOP project + konteksnya. */
+    private function collectionOutlookTerms(string $filterAe): \Illuminate\Support\Collection
+    {
+        return DB::table('delivery_project_payment_terms as pt')
+            ->join('delivery_projects as p', 'pt.delivery_projects_id', '=', 'p.id')
+            ->leftJoin('customer_basic_data as cbd', 'p.client_id', '=', 'cbd.customer_id')
+            ->leftJoin('delivery_project_contract_line_items as li', 'pt.contract_line_item_id', '=', 'li.id')
+            ->when($filterAe !== '', fn($q) => $q->where('p.ae_name', $filterAe))
+            ->select(
+                'pt.*',
+                'p.name as project_name',
+                'p.io_number as io_number',
+                'p.ae_name as ae_name',
+                'p.revenue as project_revenue',
+                'li.name as line_item_name',
+                DB::raw("COALESCE(cbd.name_1, '') as client_name")
+            )
+            ->get();
     }
 
     // =========================================================================
@@ -1258,24 +1435,22 @@ class ReportingController extends Controller
             // Filter opsional berdasarkan Type support (analog filter AE di project).
             $filterType = trim((string) $request->input('type', ''));
 
-            $terms = DB::table('delivery_support_payment_terms as pt')
-                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
-                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
-                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
-                ->select(
-                    'pt.*',
-                    's.name as support_name',
-                    's.io_number as io_number',
-                    's.type as support_type',
-                    's.revenue as support_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookSupportTerms($filterType);
 
-            $rows = [];
+            $rows    = [];
+            $undated = [];
             foreach ($terms as $t) {
                 $placementRaw = $t->estimated_date ?: $t->paid_date ?: $t->submit_invoice_date;
                 if (!$placementRaw) {
+                    // Tanpa tanggal → tidak bisa ditempatkan di kolom bulan. Dilaporkan
+                    // terpisah supaya user tahu TOP mana yang belum masuk outlook.
+                    $undated[] = [
+                        'support_id'   => (int) $t->delivery_support_id,
+                        'support_name' => $t->support_name ?? '-',
+                        'term_number'  => (int) $t->term_number,
+                        'payment_term' => $t->payment_term,
+                        'amount'       => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
+                    ];
                     continue;
                 }
                 $key = Carbon::parse($placementRaw)->format('Y-m');
@@ -1292,13 +1467,17 @@ class ReportingController extends Controller
                     'term_id'             => (int) $t->id,
                     'term_number'         => (int) $t->term_number,
                     'month_key'           => $key,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    // Amount basis % = nilai turunan (revenue x % / 100), dihitung ulang di
+                    // sini supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
+                    // (term yang dibuat sebelum revenue diisi tersimpan 0). Basis Contract
+                    // Line Item (fixed / % of line item) memakai nilai tersimpan, yang
+                    // selalu disinkronkan ke nilai line item (SupportTopPlan).
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
                     'status'              => $t->status,
                     'payment_term'        => $t->payment_term,
-                    'payment_percentage'  => (float) $t->payment_percentage,
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    'line_item_name'      => $t->line_item_name,
                     'requirements'        => $t->requirements,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : null,
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : null,
@@ -1323,10 +1502,16 @@ class ReportingController extends Controller
                 ->pluck('type')
                 ->values();
 
+            usort($undated, function ($a, $b) {
+                $c = strcasecmp($a['support_name'], $b['support_name']);
+                return $c !== 0 ? $c : ($a['term_number'] <=> $b['term_number']);
+            });
+
             return response()->json([
                 'success'      => true,
                 'months'       => $months,
                 'rows'         => $rows,
+                'undated'      => $undated,
                 'type_options' => $typeOptions,
             ]);
 
@@ -1350,13 +1535,16 @@ class ReportingController extends Controller
             }
 
             $validated = $request->validate([
-                'status'              => 'required|string|in:Open,Paid,Delay',
+                'status'              => ['required', 'string', \Illuminate\Validation\Rule::in(\App\Models\DeliverySupportPaymentTerm::STATUSES)],
+                // Konsisten dengan TOP Plan di Financial Information: Paid wajib punya
+                // tanggal, Invoiced wajib punya Submit Invoice Date.
                 'paid_date'           => 'nullable|required_if:status,Paid|date',
-                'submit_invoice_date' => 'nullable|date',
+                'submit_invoice_date' => 'nullable|required_if:status,Invoiced|date',
                 'invoice_number'      => 'nullable|required_with:submit_invoice_date|string|max:255',
             ], [
-                'paid_date.required_if'        => 'Paid Date is required when Status is Paid.',
-                'invoice_number.required_with' => 'Invoice Number is required when Submit Invoice Date is filled.',
+                'paid_date.required_if'           => 'Paid Date is required when Status is Paid.',
+                'submit_invoice_date.required_if' => 'Submit Invoice Date is required when Status is Invoiced.',
+                'invoice_number.required_with'    => 'Invoice Number is required when Submit Invoice Date is filled.',
             ]);
 
             if ($validated['status'] !== 'Paid') {
@@ -1423,19 +1611,7 @@ class ReportingController extends Controller
                 $guard++;
             }
 
-            $terms = DB::table('delivery_support_payment_terms as pt')
-                ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
-                ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
-                ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
-                ->select(
-                    'pt.*',
-                    's.name as support_name',
-                    's.io_number as io_number',
-                    's.type as support_type',
-                    's.revenue as support_revenue',
-                    DB::raw("COALESCE(cbd.name_1, '') as client_name")
-                )
-                ->get();
+            $terms = $this->collectionOutlookSupportTerms($filterType);
 
             $rows = [];
             foreach ($terms as $t) {
@@ -1455,11 +1631,11 @@ class ReportingController extends Controller
                     'support_type'        => $t->support_type ?: '-',
                     'term_number'         => (int) $t->term_number,
                     'payment_term'        => $t->payment_term ?: '-',
-                    'payment_percentage'  => (float) $t->payment_percentage,
-                    // Amount = nilai turunan (revenue x % / 100). Dihitung ulang di sini
-                    // supaya laporan tidak ikut menampilkan nilai tersimpan yang basi
-                    // (term yang dibuat sebelum revenue diisi tersimpan 0).
-                    'amount'              => round(((float) $t->support_revenue) * ((float) $t->payment_percentage) / 100, 2),
+                    'line_item_name'      => $t->line_item_name ?: '',
+                    'payment_percentage'  => $t->basis === 'fixed' ? null : (float) $t->payment_percentage,
+                    'basis'               => $t->basis,
+                    // Sama dengan tampilan halaman — lihat collectionOutlookSupport().
+                    'amount'              => \App\Models\DeliveryProjectPaymentTerm::amountFor($t->basis, $t->payment_percentage, $t->amount, $t->support_revenue),
                     'status'              => $t->status,
                     'estimated_date'      => $t->estimated_date ? Carbon::parse($t->estimated_date)->format('d M Y') : '',
                     'submit_invoice_date' => $t->submit_invoice_date ? Carbon::parse($t->submit_invoice_date)->format('d M Y') : '',
@@ -1481,6 +1657,26 @@ class ReportingController extends Controller
             Log::error('exportCollectionOutlookSupport error: ' . $e->getMessage());
             abort(500, $e->getMessage());
         }
+    }
+
+    /** Sumber baris Collection Outlook Support (halaman & export) — semua TOP support + konteksnya. */
+    private function collectionOutlookSupportTerms(string $filterType): \Illuminate\Support\Collection
+    {
+        return DB::table('delivery_support_payment_terms as pt')
+            ->join('delivery_support as s', 'pt.delivery_support_id', '=', 's.id')
+            ->leftJoin('customer_basic_data as cbd', 's.client_id', '=', 'cbd.customer_id')
+            ->leftJoin('delivery_support_contract_line_items as li', 'pt.contract_line_item_id', '=', 'li.id')
+            ->when($filterType !== '', fn($q) => $q->where('s.type', $filterType))
+            ->select(
+                'pt.*',
+                's.name as support_name',
+                's.io_number as io_number',
+                's.type as support_type',
+                's.revenue as support_revenue',
+                'li.name as line_item_name',
+                DB::raw("COALESCE(cbd.name_1, '') as client_name")
+            )
+            ->get();
     }
 
     // ── Web: Ticketing Overview page ────────────────────────────────────────
@@ -1612,22 +1808,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $otherLabel, $noModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? $otherLabel;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $noModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all four categories are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -1697,22 +1896,25 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($months, 0);
             }
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_type', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $typeMap) {
-                    foreach ($tickets as $ticket) {
-                        $label = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$label) continue;
-                        $ym = $ticket->created_at->format('Y-m');
-                        if (isset($counts[$label][$ym])) {
-                            $counts[$label][$ym]++;
-                        }
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $label = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$label) continue;
+                $ym = $ticket->created_at->format('Y-m');
+                if (isset($counts[$label][$ym])) {
+                    $counts[$label][$ym]++;
+                }
+            }
 
             $monthLabels = array_map(fn ($ym) => Carbon::createFromFormat('Y-m', $ym)->format('M Y'), $months);
 
@@ -1788,24 +1990,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($seriesLabels, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$seriesLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $seriesLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$seriesLabel) continue;
 
-                        $counts[$label][$seriesLabel]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$label][$seriesLabel]++;
+            }
 
             // Modules with zero tickets across all three ticket_type values are hidden.
             $labels = array_values(array_filter($labels, fn ($label) => array_sum($counts[$label]) > 0));
@@ -1873,24 +2078,27 @@ class ReportingController extends Controller
                 $counts[$label] = array_fill_keys($columns, 0);
             }
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('ticket_type', array_keys($typeMap))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $typeMap, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
-                        if (!$rowLabel) continue;
+                ->get();
 
-                        $moduleName = $ticket->module_name;
-                        $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+            foreach ($ticketsForCount as $ticket) {
+                $rowLabel = $typeMap[$ticket->ticket_type] ?? null;
+                if (!$rowLabel) continue;
 
-                        $counts[$rowLabel][$column]++;
-                    }
-                });
+                $moduleName = $ticket->module_name;
+                $column     = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+
+                $counts[$rowLabel][$column]++;
+            }
 
             // Columns (modules) with zero tickets across all three rows are hidden.
             $columns = array_values(array_filter($columns, function ($column) use ($rowLabels, $counts) {
@@ -1954,19 +2162,22 @@ class ReportingController extends Controller
 
             $counts = array_fill_keys($labels, 0);
 
-            Ticket::with('moduleMaster')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::with('moduleMaster')
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'module', 'module_id', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $moduleNames, $allModuleLabel) {
-                    foreach ($tickets as $ticket) {
-                        $moduleName = $ticket->module_name;
-                        $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
-                        $counts[$label]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $moduleName = $ticket->module_name;
+                $label      = in_array($moduleName, $moduleNames, true) ? $moduleName : $allModuleLabel;
+                $counts[$label]++;
+            }
 
             // Modules with zero tickets are hidden entirely.
             $labels = array_values(array_filter($labels, fn ($label) => $counts[$label] > 0));
@@ -2085,19 +2296,22 @@ class ReportingController extends Controller
                 'Open'  => ['Non CR' => 0, 'Request CR' => 0],
             ];
 
-            Ticket::whereNull('deleted_at')
+            // Sudah dibatasi tanggal (wajib divalidasi di atas) + kolom sempit, jadi 1 query
+            // get() aman secara memori dan lebih murah dari chunk(500) yang tadinya jalan
+            // banyak query kecil untuk range yang sama.
+            $ticketsForCount = Ticket::whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->whereIn('status', array_merge($closeStatuses, $openStatuses))
                 ->whereBetween('created_at', [$from, $to])
                 ->when($request->filled('customer_id'), fn ($q) => $q->where('customer_id', $request->integer('customer_id')))
                 ->select('ticket_id', 'ticket_type', 'status', 'customer_id', 'created_at')
-                ->chunk(500, function ($tickets) use (&$counts, $closeStatuses) {
-                    foreach ($tickets as $ticket) {
-                        $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
-                        $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
-                        $counts[$series][$group]++;
-                    }
-                });
+                ->get();
+
+            foreach ($ticketsForCount as $ticket) {
+                $group  = $ticket->ticket_type === 'Change Request' ? 'Request CR' : 'Non CR';
+                $series = in_array($ticket->status, $closeStatuses, true) ? 'Close' : 'Open';
+                $counts[$series][$group]++;
+            }
 
             $series = [
                 'Close' => [$counts['Close']['Non CR'], $counts['Close']['Request CR']],
@@ -2393,7 +2607,16 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            // select() dibatasi ke kolom yang benar-benar dipakai di response bawah — tabel
+            // `ticket` punya puluhan kolom (SLA, mandays, confirmation, dst) yang kalau ikut
+            // ter-hydrate untuk SETIAP tiket (endpoint ini load seluruh tabel, tanpa filter
+            // tanggal/pagination) jadi biaya memori & waktu terbesar di endpoint ini.
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
@@ -2443,7 +2666,12 @@ class ReportingController extends Controller
                 abort(403, 'Access denied.');
             }
 
-            $tickets = Ticket::with(['ticketLead.basicData', 'moduleMaster'])
+            $tickets = Ticket::select(['ticket_id', 'ticket_number', 'description', 'status', 'module_id', 'module', 'ticket_lead_id', 'created_at'])
+                ->with([
+                    'ticketLead:employee_id',
+                    'ticketLead.basicData:employee_id,nick_name,first_name',
+                    'moduleMaster:id,name',
+                ])
                 ->whereNull('deleted_at')
                 ->whereNull('is_hidden')
                 ->orderByDesc('created_at')
@@ -2605,6 +2833,124 @@ class ReportingController extends Controller
         } catch (\Exception $e) {
             Log::error('logShiftingDetail error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => 'Failed to load SLA message detail. Please try again.'], 500);
+        }
+    }
+
+    // ── Log Shifting export — SLA notes flat, filtered by date(+optional hour) range ──
+    //
+    // "Tanggal" yang dipakai adalah created_at bubble chat itu sendiri (sama seperti
+    // logShiftingDetail), bukan tanggal tiket dibuat. Kalau time_from/time_to kosong,
+    // batasnya jadi awal/akhir hari penuh untuk tanggal tsb — jadi semua jam ikut.
+    private function logShiftingDateRange(Request $request): array
+    {
+        $dateFrom = $request->query('date_from');
+        $dateTo   = $request->query('date_to');
+        $timeFrom = $request->query('time_from');
+        $timeTo   = $request->query('time_to');
+
+        if (!$dateFrom || !$dateTo) {
+            throw new \InvalidArgumentException('Tanggal dari dan sampai wajib diisi.');
+        }
+
+        $from = Carbon::parse($dateFrom . ' ' . ($timeFrom ?: '00:00:00'));
+        $to   = $timeTo
+            ? Carbon::parse($dateTo . ' ' . $timeTo)
+            : Carbon::parse($dateTo)->endOfDay();
+
+        if ($from->gt($to)) {
+            throw new \InvalidArgumentException('Tanggal/jam "dari" tidak boleh setelah "sampai".');
+        }
+
+        return [$from, $to];
+    }
+
+    private function logShiftingNoteRows(Carbon $from, Carbon $to): \Illuminate\Support\Collection
+    {
+        $messages = TicketMessage::whereNotNull('sla_message')
+            ->where('sla_message', '!=', '')
+            ->whereBetween('created_at', [$from, $to])
+            ->with(['ticket:ticket_id,ticket_number,description', 'slaMessageBy.basicData'])
+            ->orderBy('created_at')
+            ->get();
+
+        return $messages->map(function (TicketMessage $msg) {
+            $byName = $msg->slaMessageBy
+                ? trim(($msg->slaMessageBy->basicData->first_name ?? '') . ' ' . ($msg->slaMessageBy->basicData->last_name ?? '')) ?: ($msg->slaMessageBy->eci ?? 'Unknown')
+                : null;
+
+            return [
+                'ticket_id'     => $msg->ticket->ticket_id ?? null,
+                'ticket_number' => $msg->ticket->ticket_number ?? '—',
+                'description'   => $msg->ticket->description ?? '—',
+                'bubble_date'   => $msg->created_at,
+                'sla_message'   => $msg->sla_message,
+                'pic'           => $byName,
+            ];
+        })->values();
+    }
+
+    // ── API: Log Shifting — flat SLA notes for the export/report table ─────
+    public function logShiftingNotes(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            return response()->json(['success' => true, 'data' => $rows]);
+
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        } catch (\Exception $e) {
+            Log::error('logShiftingNotes error: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => 'Failed to load log shifting notes. Please try again.'], 500);
+        }
+    }
+
+    // ── Web: Log Shifting — export flat SLA notes to Excel ─────────────────
+    public function exportLogShifting(Request $request)
+    {
+        try {
+            $sessionUser = SessionUser::fromSession(session('user'));
+            if (!$sessionUser) {
+                return redirect()->route('login');
+            }
+
+            $employee = \App\Models\Employee::find($sessionUser->id);
+            if (!$employee || !$employee->canAccessMenu('reporting.log-shifting')) {
+                abort(403);
+            }
+
+            [$from, $to] = $this->logShiftingDateRange($request);
+            $rows = $this->logShiftingNoteRows($from, $to);
+
+            $generatedBy = trim(($employee->basicData->first_name ?? '') . ' ' . ($employee->basicData->last_name ?? '')) ?: ($employee->eci ?? 'System');
+
+            $meta = [
+                'from'         => $from,
+                'to'           => $to,
+                'generated_by' => $generatedBy,
+                'generated_at' => now()->timezone('Asia/Jakarta'),
+            ];
+
+            $filename = 'Log_Shifting_Export_' . now()->timezone('Asia/Jakarta')->format('dmY_Hi') . '.xlsx';
+
+            return Excel::download(new LogShiftingExport($rows, $meta), $filename);
+
+        } catch (\InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('exportLogShifting error: ' . $e->getMessage());
+            abort(500, $e->getMessage());
         }
     }
 

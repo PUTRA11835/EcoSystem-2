@@ -70,6 +70,16 @@ class AuditLog extends Model
     public static function record(array $attributes): void
     {
         try {
+            // Every caller hand-writes description as a lowercase verb phrase
+            // ("added Employee: ...") to read naturally mid-sentence next to
+            // the Actor column - capitalize only the leading letter here so
+            // it also reads properly as the start of the Activity cell,
+            // without touching anything else in the string (e.g. a quoted
+            // user message in an AI-prompt log stays exactly as typed).
+            if (!empty($attributes['description']) && is_string($attributes['description'])) {
+                $attributes['description'] = ucfirst($attributes['description']);
+            }
+
             static::create($attributes);
         } catch (\Throwable $e) {
             Log::warning('AuditLog::record failed', [
@@ -81,7 +91,7 @@ class AuditLog extends Model
 
     /**
      * Fire-and-forget write for a controller action that mutates data via
-     * raw DB::table() query builder calls instead of the Eloquent model —
+     * raw DB::table() query builder calls instead of the Eloquent model -
      * so Eloquent lifecycle events (and therefore AuditObserver) never
      * fire, even when the underlying model is Auditable. Resolves the
      * actor from the session the same way AuditObserver does, so these
@@ -115,7 +125,7 @@ class AuditLog extends Model
         ]);
     }
 
-    /** Same session shape AuditObserver::actorContext() reads — [actorId, actorRoleId, actorName]. */
+    /** Same session shape AuditObserver::actorContext() reads - [actorId, actorRoleId, actorName]. */
     private static function currentActor(): array
     {
         try {
@@ -134,9 +144,9 @@ class AuditLog extends Model
     /**
      * Log what an employee typed into the AI Research / AI Assistant chat
      * box. Those conversations are intentionally never audited as Eloquent
-     * models — AiConversation/AiMessage only archive a completed turn's
+     * models - AiConversation/AiMessage only archive a completed turn's
      * text for the employee's own history (see their docblocks), and
-     * nothing about AI usage is otherwise visible to admins — so this is
+     * nothing about AI usage is otherwise visible to admins - so this is
      * the only record of a prompt, and it must be written for every real
      * submission, including ones whose reply later errors or times out.
      */

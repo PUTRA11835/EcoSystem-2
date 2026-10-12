@@ -49,18 +49,23 @@
                     <tr class="bg-gray-50 text-left">
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">#</th>
 
-                        {{-- EMPLOYEE: keyword search popover --}}
+                        {{-- EMPLOYEE: keyword search popover, sortable by name --}}
                         <th class="p-0 whitespace-nowrap">
-                            <button type="button" id="userFilterBtn" onclick="toggleHeaderFilter('userFilterPanel', this)"
-                                class="hdr-filter-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                <span class="text-xs font-semibold text-gray-600">Employee</span>
-                                <svg id="userFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
-                                </svg>
-                            </button>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('user_name')" class="flex items-center gap-1 px-2 py-3 pl-4 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Employee</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="user_name">&#9650;</span>
+                                </button>
+                                <button type="button" id="userFilterBtn" onclick="toggleHeaderFilter('userFilterPanel', this)"
+                                    class="hdr-filter-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                    <svg id="userFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                             <div id="userFilterPanel" class="hdr-filter-panel hidden bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:240px;">
                                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search</label>
-                                <input type="text" id="filterSearch" placeholder="Employee name…"
+                                <input type="text" id="filterSearch" placeholder="Employee name"
                                     class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400">
                                 <div class="flex justify-end mt-3">
                                     <button type="button" onclick="clearUserFilter()" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
@@ -68,30 +73,47 @@
                             </div>
                         </th>
 
-                        {{-- STATUS: single-select dropdown --}}
+                        {{-- STATUS: single-select dropdown, sortable --}}
                         <th class="p-0 whitespace-nowrap">
-                            <div class="custom-dd relative w-full" id="ddStatus" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3 text-left hover:bg-gray-100 transition-colors">
-                                    <span class="custom-dd-label text-xs font-semibold text-gray-600">Status</span>
-                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                            <div class="flex items-center">
+                                <button type="button" onclick="toggleSort('status')" class="flex items-center gap-1 px-2 py-3 pl-4 hover:bg-gray-100 transition-colors">
+                                    <span class="text-xs font-semibold text-gray-600">Status</span>
+                                    <span class="sort-icon text-[10px] text-gray-300" data-sort="status">&#9650;</span>
                                 </button>
-                                <input type="hidden" id="filterStatus" value="">
-                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="login">Login</button>
-                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                                <div class="custom-dd relative" id="ddStatus" data-fixed="true" data-onchange="applyFilters">
+                                    <button type="button" class="custom-dd-btn flex items-center px-2 py-3 hover:bg-gray-100 transition-colors">
+                                        <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <input type="hidden" id="filterStatus" value="">
+                                    <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5" style="min-width:160px;">
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="login">Login</button>
+                                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="logout">Logout</button>
+                                    </div>
                                 </div>
                             </div>
                         </th>
 
                         <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Device</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Time (WIB)</th>
-                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Last Login</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">IP Address</th>
+                        <th class="px-4 py-3 text-xs font-semibold text-gray-600 whitespace-nowrap">Location</th>
+                        <th class="p-0 whitespace-nowrap">
+                            <button type="button" onclick="toggleSort('time')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-semibold text-gray-600">Time (WIB)</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="time">&#9660;</span>
+                            </button>
+                        </th>
+                        <th class="p-0 whitespace-nowrap">
+                            <button type="button" onclick="toggleSort('last_login')" class="flex items-center gap-1 px-4 py-3 hover:bg-gray-100 transition-colors w-full text-left">
+                                <span class="text-xs font-semibold text-gray-600">Last Login</span>
+                                <span class="sort-icon text-[10px] text-gray-300" data-sort="last_login">&#9650;</span>
+                            </button>
+                        </th>
                     </tr>
                 </thead>
                 <tbody id="tableBody">
                     <tr>
-                        <td colspan="6" class="px-4 py-12 text-center text-sm text-gray-400">Loading…</td>
+                        <td colspan="8" class="px-4 py-12 text-center text-sm text-gray-400">Loading...</td>
                     </tr>
                 </tbody>
             </table>
@@ -112,37 +134,66 @@
 let currentPage    = 1;
 let currentPerPage = 25;
 let currentFilters = {};
+let currentSort    = { by: 'time', dir: 'desc' };
+
+// ─── Sorting ──────────────────────────────────────────────────────────────────
+function toggleSort(column) {
+    if (currentSort.by === column) {
+        currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        currentSort = { by: column, dir: 'asc' };
+    }
+    updateSortIndicators();
+    loadTable(1);
+}
+
+function updateSortIndicators() {
+    document.querySelectorAll('.sort-icon').forEach(el => {
+        if (el.dataset.sort === currentSort.by) {
+            el.innerHTML = currentSort.dir === 'asc' ? '&#9650;' : '&#9660;';
+            el.classList.remove('text-gray-300');
+            el.classList.add('text-red-600');
+        } else {
+            el.classList.remove('text-red-600');
+            el.classList.add('text-gray-300');
+        }
+    });
+}
 
 // ─── Load table ───────────────────────────────────────────────────────────────
 async function loadTable(page = 1) {
     currentPage = page;
 
-    const params = new URLSearchParams({ page, per_page: currentPerPage, ...currentFilters });
+    const params = new URLSearchParams({
+        page, per_page: currentPerPage,
+        sort_by: currentSort.by, sort_dir: currentSort.dir,
+        ...currentFilters,
+    });
 
     const tbody  = document.getElementById('tableBody');
     const infoEl = document.getElementById('tableInfo');
     const pagEl  = document.getElementById('paginationRow');
-    tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-12 text-center text-sm text-gray-400">Loading…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-gray-400">Loading...</td></tr>';
 
     try {
         const res  = await fetch(`/api/admin/login-logs?${params}`, { credentials: 'same-origin' });
         const data = await res.json();
 
         if (!data.success) {
-            tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-red-500">${data.message || 'Failed to load data'}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-6 text-center text-sm text-red-500">${data.message || 'Failed to load data'}</td></tr>`;
             return;
         }
 
         const { data: rows, meta } = data;
 
         if (!rows.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-12 text-center text-sm text-gray-400">No records found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-12 text-center text-sm text-gray-400">No records found</td></tr>';
             infoEl.textContent = '0 records';
             pagEl.innerHTML = '';
             return;
         }
 
-        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1}–${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
+        infoEl.textContent = `Showing ${((meta.current_page - 1) * meta.per_page) + 1} to ${Math.min(meta.current_page * meta.per_page, meta.total)} of ${meta.total.toLocaleString('id-ID')}`;
 
         tbody.innerHTML = rows.map((row, idx) => {
             const rowNum = ((meta.current_page - 1) * meta.per_page) + idx + 1;
@@ -156,7 +207,14 @@ async function loadTable(page = 1) {
                 <td class="px-4 py-3">
                     <div class="flex items-center gap-1.5">${deviceIconHtml(row.device_type)}<span class="text-xs text-gray-700 capitalize">${escHtml(row.device_type)}</span></div>
                     ${row.device_brand ? `<div class="text-xs text-gray-800 mt-0.5 font-medium">${escHtml(row.device_brand)}</div>` : ''}
-                    <div class="text-xs text-gray-400 mt-0.5">${escHtml(row.browser)} · ${escHtml(row.os)}</div>
+                    <div class="text-xs text-gray-400 mt-0.5">${escHtml(row.browser)} / ${escHtml(row.os)}</div>
+                </td>
+                <td class="px-4 py-3 text-xs font-mono text-gray-700">${escHtml(row.ip_address)}</td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center gap-1.5 text-xs text-gray-700">
+                        <svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>
+                        <span>${escHtml(row.location)}</span>
+                    </div>
                 </td>
                 <td class="px-4 py-3 text-xs text-gray-700 whitespace-nowrap">${escHtml(row.time)}</td>
                 <td class="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">${escHtml(row.last_login)}</td>
@@ -167,7 +225,7 @@ async function loadTable(page = 1) {
 
     } catch (e) {
         console.error('loadTable error:', e);
-        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-sm text-red-500">Error loading data</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="px-4 py-6 text-center text-sm text-red-500">Error loading data</td></tr>';
     }
 }
 
@@ -327,6 +385,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof initCustomDropdowns === 'function') initCustomDropdowns();
     const statusBtn = document.querySelector('#ddStatus .custom-dd-btn');
     if (statusBtn) statusBtn.addEventListener('click', closeHeaderFilters);
+    updateSortIndicators();
     loadTable(1);
 });
 </script>

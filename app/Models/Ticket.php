@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
+use App\Services\TicketDeliverableRequirementSync;
 
 class Ticket extends Model
 {
@@ -13,6 +14,19 @@ class Ticket extends Model
     use \App\Models\Concerns\HasOneDriveShareLink;
 
     protected static ?string $auditModule = 'Ticket';
+
+    /**
+     * Denormalized "last activity" cache columns bumped on nearly every
+     * incoming/outgoing ticket message - pure bookkeeping, not something an
+     * admin reviewing the audit trail needs to see (they cluttered the
+     * activity summary with second-precision timestamp diffs and multiplied
+     * row count without adding audit value).
+     */
+    protected static array $auditIgnore = [
+        'last_message_at',
+        'last_customer_reply_at',
+        'last_agent_reply_at',
+    ];
 
     protected $table = 'ticket';
     protected $primaryKey = 'ticket_id';
@@ -27,6 +41,16 @@ class Ticket extends Model
         static::creating(function (Ticket $ticket) {
             if (!$ticket->last_message_at) {
                 $ticket->last_message_at = $ticket->created_at ?? now();
+            }
+        });
+
+        // Re-snapshot the deliverable document checklist whenever the ticket
+        // gets its type for the first time or is reclassified — see
+        // TicketDeliverableRequirementSync. Deliberately NOT run on every
+        // save: only a type change should reset the checklist.
+        static::saved(function (Ticket $ticket) {
+            if ($ticket->wasRecentlyCreated || $ticket->wasChanged('ticket_type')) {
+                TicketDeliverableRequirementSync::sync($ticket);
             }
         });
     }
@@ -247,8 +271,10 @@ class Ticket extends Model
             return null;
         }
 
-        return str_pad((string) $this->customer_id, 3, '0', STR_PAD_LEFT)
-            . ' ' . strtoupper($this->customer->basicData->name_1);
+        return \App\Services\OneDriveService::sanitizeSegment(
+            str_pad((string) $this->customer_id, 3, '0', STR_PAD_LEFT)
+                . ' ' . strtoupper($this->customer->basicData->name_1)
+        );
     }
 
     // Relasi ke Employee (Ticket Lead)
@@ -497,6 +523,17 @@ class Ticket extends Model
     {
         return $this->hasMany(TicketMessage::class, 'ticket_id', 'ticket_id')
             ->orderBy('created_at', 'asc');
+    }
+
+    /**
+     * Snapshotted deliverable-document requirements for this ticket — see
+     * App\Services\TicketDeliverableRequirementSync and the `saved` hook in
+     * booted() below, which (re)populates this whenever ticket_type is set
+     * or changed.
+     */
+    public function deliverableRequirements()
+    {
+        return $this->hasMany(TicketDeliverableRequirement::class, 'ticket_id', 'ticket_id');
     }
 
     // Relasi ke Delivery Support melalui activities

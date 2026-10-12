@@ -134,6 +134,17 @@ class TicketMigrationController extends Controller
             'by'          => session('user.eci') ?? 'admin',
         ]);
 
+        \App\Models\AuditLog::recordAction(
+            module: 'Export',
+            auditableType: 'ticket_migration_export',
+            auditableId: 0,
+            event: 'exported',
+            recordLabel: $filename,
+            description: 'exported ticket migration ZIP (' . count($ticketsData) . ' tickets, ' . $attachmentCount . ' attachments)',
+            old: null,
+            new: ['row_count' => count($ticketsData), 'attachment_count' => $attachmentCount, 'filename' => $filename]
+        );
+
         return response()->download($tempPath, $filename, [
             'Content-Type' => 'application/zip',
         ])->deleteFileAfterSend(true);
@@ -368,6 +379,17 @@ class TicketMigrationController extends Controller
                 'by'            => session('user.eci') ?? 'admin',
             ]);
 
+            \App\Models\AuditLog::recordAction(
+                module: 'Import',
+                auditableType: 'ticket_migration_import',
+                auditableId: 0,
+                event: 'imported',
+                recordLabel: $request->file('file')->getClientOriginalName(),
+                description: "imported ticket migration ZIP ({$imported} new, {$updated} updated, {$skipped} skipped, {$msgAdded} messages, {$filesRestored} files, " . count($errors) . ' errors)',
+                old: null,
+                new: ['imported' => $imported, 'updated' => $updated, 'skipped' => $skipped, 'messages' => $msgAdded, 'files' => $filesRestored, 'error_count' => count($errors)],
+            );
+
             $summary = "Import selesai: {$imported} tiket baru, {$updated} diperbarui, {$skipped} dilewati, {$msgAdded} pesan, {$filesRestored} file";
             if (count($errors)) $summary .= ', ' . count($errors) . ' error';
 
@@ -560,6 +582,17 @@ class TicketMigrationController extends Controller
             'errors'   => count($errors),
             'by'       => session('user.eci') ?? 'admin',
         ]);
+
+        \App\Models\AuditLog::recordAction(
+            module: 'Import',
+            auditableType: 'ticket_migration_import',
+            auditableId: 0,
+            event: 'imported',
+            recordLabel: $request->file('file')->getClientOriginalName(),
+            description: "imported ticket data from external API ({$imported} new, {$updated} updated, {$skipped} skipped, {$msgAdded} messages, " . count($errors) . ' errors)',
+            old: null,
+            new: ['imported' => $imported, 'updated' => $updated, 'skipped' => $skipped, 'messages' => $msgAdded, 'error_count' => count($errors)],
+        );
 
         $summary = "Selesai: {$imported} tiket baru, {$updated} diperbarui, {$skipped} dilewati, {$msgAdded} pesan";
         if (count($errors)) $summary .= ', ' . count($errors) . ' error';

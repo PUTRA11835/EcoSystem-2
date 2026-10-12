@@ -66,7 +66,7 @@
         </div>
         <p class="text-xs text-gray-400 mt-0.5">
             {{ now()->isoFormat('dddd, D MMMM Y') }}
-            @if(!empty($user['position'])) &mdash; {{ $user['position'] }}@endif
+            @if(!empty($user['position'])) - {{ $user['position'] }}@endif
         </p>
     </div>
     <div class="hidden sm:flex items-center gap-3">
@@ -79,6 +79,97 @@
         @endif
         <span class="text-xs text-gray-400 font-mono" id="dashClock"></span>
     </div>
+</div>
+
+{{-- ── Superadmin System Health & Security Snapshot ────────────────────────────
+     Only ever populated by the controller for EC Administrator - gated on the
+     data being present rather than re-deriving the role check here, so this
+     block can never show for a role the controller didn't compute it for. --}}
+@if(isset($data['security_summary']))
+@php
+    $sec      = $data['security_summary'];
+    $sched    = $data['schedule_summary'];
+    $queue    = $data['queue_summary'];
+    $failedJobs = $data['failed_jobs_count'] ?? 0;
+
+    $secNeedsAttention   = $sec['open_critical'] > 0 || $sec['open_high'] > 0;
+    $schedNeedsAttention = $sched['issues'] > 0;
+    $queueNeedsAttention = $queue['unhealthy'] > 0;
+    $jobsNeedAttention   = $failedJobs > 0;
+
+    $anyIssue = $secNeedsAttention || $schedNeedsAttention || $queueNeedsAttention || $jobsNeedAttention;
+
+    // Same icon-circle-card shape as every KPI card below ($cardBase) - only
+    // the icon's own color shifts between neutral and attention-needed, so
+    // this reads as one more row of the same dashboard, not a separate widget.
+    $iconCls = fn (bool $bad) => $bad ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-gray-400';
+@endphp
+<div>
+    <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fas fa-shield-halved text-red-700"></i> Superadmin Control Panel
+        </p>
+        <span class="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full border {{ $anyIssue ? 'text-amber-700 bg-amber-50 border-amber-100' : 'text-emerald-700 bg-emerald-50 border-emerald-100' }}">
+            <span class="w-1.5 h-1.5 rounded-full {{ $anyIssue ? 'bg-amber-500' : 'bg-emerald-500' }}"></span>
+            {{ $anyIssue ? 'Needs attention' : 'All systems normal' }}
+        </span>
+    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+
+        <a href="{{ route('admin.security-center') }}" class="{{ $cardBase }} hover:border-red-300 hover:shadow-md">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-9 h-9 rounded-xl {{ $iconCls($secNeedsAttention) }} flex items-center justify-center transition">
+                    <i class="fas fa-triangle-exclamation text-sm"></i>
+                </div>
+                @if($sec['open_critical'] > 0)
+                <span class="text-[10px] font-bold text-red-700 bg-red-50 px-1.5 py-0.5 rounded">{{ $sec['open_critical'] }} critical</span>
+                @endif
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sec['open_total'] }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Open Security Events</p>
+        </a>
+
+        <a href="{{ route('admin.sessions') }}" class="{{ $cardBase }} hover:border-amber-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($sec['locked_accounts'] > 0) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-lock text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sec['locked_accounts'] }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Locked Accounts</p>
+        </a>
+
+        <a href="{{ route('admin.schedule-monitor') }}" class="{{ $cardBase }} hover:border-amber-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($schedNeedsAttention || $queueNeedsAttention) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-clock text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $sched['issues'] }}<span class="text-sm text-gray-400 font-normal">/{{ $sched['total'] }}</span></p>
+            <p class="text-xs text-gray-400 mt-0.5">Scheduled Tasks Need Attention</p>
+        </a>
+
+        <a href="{{ route('admin.failed-jobs') }}" class="{{ $cardBase }} hover:border-red-300 hover:shadow-md">
+            <div class="w-9 h-9 rounded-xl {{ $iconCls($jobsNeedAttention) }} flex items-center justify-center mb-3 transition">
+                <i class="fas fa-xmark text-sm"></i>
+            </div>
+            <p class="text-2xl font-bold text-gray-800">{{ $failedJobs }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">Failed Jobs</p>
+        </a>
+
+    </div>
+</div>
+@endif
+
+{{-- ── Command Center: pinned-menu shortcuts (see sidebar's pin button, dashboard.blade.php) ── --}}
+<div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-3">
+    <div class="flex items-center justify-between mb-2.5">
+        <div class="flex items-center gap-2">
+            <i class="fas fa-bolt text-red-700 text-sm"></i>
+            <h3 class="text-sm font-bold text-gray-800">Command Center</h3>
+        </div>
+        <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <button type="button" id="ccTabPinned" onclick="ccSwitchTab('pinned')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">Pinned</button>
+            <button type="button" id="ccTabAll" onclick="ccSwitchTab('all')" class="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors">All Menu</button>
+        </div>
+    </div>
+    <div id="ccGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;"></div>
 </div>
 
 {{-- ── Row 2: KPI Cards ──────────────────────────────────────────────────────── --}}
@@ -155,7 +246,7 @@
                 {{ $sla['compliance_rate'] }}%
             </p>
         @else
-            <p class="text-2xl font-bold text-gray-400">—</p>
+            <p class="text-2xl font-bold text-gray-400">-</p>
         @endif
         <p class="text-xs text-gray-400 mt-0.5">SLA Compliance</p>
     @if($can('sla.report'))</a>@else</div>@endif
@@ -204,8 +295,8 @@
                 <p class="text-sm font-semibold text-gray-800">Agent Workload</p>
                 <p class="text-xs text-gray-400 mt-0.5">Active tickets per agent</p>
             </div>
-            @if($can('master.employee'))
-            <a href="{{ route('master.employee.index') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">All →</a>
+            @if($can('ticket.consultant-workload'))
+            <a href="{{ route('ticket.consultant-workload') }}" class="text-xs font-semibold text-red-700 hover:text-red-800">All →</a>
             @endif
         </div>
         @if($teamLoad->isEmpty())
@@ -271,7 +362,7 @@
                         <span class="text-xs text-gray-500 truncate hidden sm:block">{{ Str::limit($t->description ?? '', 42) }}</span>
                     </div>
                     <p class="text-[10px] text-gray-400 mt-0.5">
-                        {{ $t->customer_name ?? '—' }} &middot; {{ $t->pic_name ?? 'Unassigned' }} &middot; {{ \Carbon\Carbon::parse($t->created_at)->diffForHumans() }}
+                        {{ $t->customer_name ?? '-' }} &middot; {{ $t->pic_name ?? 'Unassigned' }} &middot; {{ \Carbon\Carbon::parse($t->created_at)->diffForHumans() }}
                     </p>
                 </div>
                 <div class="flex items-center gap-1.5 flex-shrink-0">
@@ -326,27 +417,7 @@
             @endforeach
         </div>
 
-        @if($can('management'))
-        <div class="mt-4 pt-4 border-t border-gray-100">
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">System Health</p>
-            <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-green-500" id="dashDbDot"></span>
-                        <span class="text-xs text-gray-500">Database</span>
-                    </div>
-                    <span class="text-xs font-medium text-gray-500" id="dashDbTxt">Checking...</span>
-                </div>
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-gray-300" id="dashQueueDot"></span>
-                        <span class="text-xs text-gray-500">Queue</span>
-                    </div>
-                    <span class="text-xs font-medium text-gray-500" id="dashQueueTxt">Checking...</span>
-                </div>
-            </div>
-        </div>
-        @endif
+        {{-- System health has its own dedicated panel above (Superadmin Control Panel) - not duplicated here. --}}
     </div>
 
 </div>
@@ -397,21 +468,115 @@
     }
     updateClock();
     setInterval(updateClock, 1000);
+})();
+</script>
 
-    @if($can('management'))
-    fetch('/api/health', { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(d => {
-            const dbOk = d.checks?.database === 'ok';
-            document.getElementById('dashDbDot').className = 'w-2 h-2 rounded-full ' + (dbOk ? 'bg-green-500' : 'bg-red-500');
-            document.getElementById('dashDbTxt').textContent = dbOk ? 'Connected' : 'Error';
-            const failed  = d.checks?.queue_failed  ?? 0;
-            const pending = d.checks?.queue_pending ?? 0;
-            document.getElementById('dashQueueDot').className = 'w-2 h-2 rounded-full ' + (failed === 0 ? 'bg-green-500' : 'bg-orange-500');
-            document.getElementById('dashQueueTxt').textContent = pending + ' pending' + (failed ? ', ' + failed + ' failed' : '');
-        })
-        .catch(() => {});
-    @endif
+<script>
+// Command Center — reads the sidebar's already-rendered nav links (this page
+// and the sidebar share one document) rather than querying a backend menu
+// list, so it only ever shows exactly what this user's sidebar shows them.
+(function () {
+    var ccAllItems = [];
+    var ccCurrentTab = 'pinned';
+
+    function ccEsc(str) {
+        return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function ccCollectMenuItems() {
+        var scroll = document.getElementById('sidebarNavScroll');
+        if (!scroll) return [];
+        var items = [];
+
+        scroll.querySelectorAll('a.nav-link').forEach(function (link) {
+            var href = link.getAttribute('href');
+            if (!href || href === '#') return;
+
+            var textEl = link.querySelector('.nav-text');
+            var label = (textEl ? textEl.textContent : link.textContent).trim();
+            if (!label) return;
+
+            var iconEl = link.querySelector('.nav-icon i');
+            var icon = iconEl ? iconEl.className : 'fas fa-circle';
+
+            // Breadcrumb: walk up through every ancestor "...Dropdown" container
+            // and read its toggler button's own label (e.g. Reporting > Support).
+            var crumbs = [];
+            var el = link.parentElement;
+            while (el && el !== scroll) {
+                if (el.id && /Dropdown$/.test(el.id)) {
+                    var toggler = el.previousElementSibling;
+                    var tTextEl = toggler ? toggler.querySelector('.nav-text') : null;
+                    var tText = toggler ? (tTextEl ? tTextEl.textContent : toggler.textContent).trim() : '';
+                    if (tText) crumbs.unshift(tText);
+                }
+                el = el.parentElement;
+            }
+
+            items.push({ href: href, label: label, icon: icon, breadcrumb: crumbs.join(' → ') });
+        });
+
+        return items;
+    }
+
+    function ccRender() {
+        var grid = document.getElementById('ccGrid');
+        if (!grid) return;
+
+        var pinned = window.PINNED_MENUS || [];
+        var items = ccCurrentTab === 'pinned'
+            ? ccAllItems.filter(function (it) { return pinned.indexOf(it.href) !== -1; })
+            : ccAllItems;
+
+        document.getElementById('ccTabPinned').className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ' + (ccCurrentTab === 'pinned' ? 'bg-red-800 text-white' : 'text-gray-500 hover:text-gray-700');
+        document.getElementById('ccTabAll').className = 'px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ' + (ccCurrentTab === 'all' ? 'bg-red-800 text-white' : 'text-gray-500 hover:text-gray-700');
+
+        if (!items.length) {
+            grid.innerHTML = '<div class="col-span-full text-center text-xs text-gray-400 py-6">' + (
+                ccCurrentTab === 'pinned'
+                    ? 'No pinned menus yet. Hover any menu in the sidebar and click the <i class="fas fa-thumbtack"></i> icon to add it here.'
+                    : 'No accessible menu items.'
+            ) + '</div>';
+            return;
+        }
+
+        grid.innerHTML = items.map(function (it) {
+            var unpinBtn = ccCurrentTab === 'pinned'
+                ? '<button type="button" class="cc-unpin-btn flex items-center justify-center rounded-full text-gray-300 hover:text-red-600 hover:bg-red-50" style="position:absolute;top:4px;right:4px;width:16px;height:16px;font-size:10px;line-height:1;" data-href="' + ccEsc(it.href) + '" title="Unpin"><i class="fas fa-xmark"></i></button>'
+                : '';
+            return '<a href="' + ccEsc(it.href) + '" class="relative flex items-center rounded-lg border border-gray-200 hover:border-red-300 hover:shadow-sm transition-all" style="gap:10px;padding:8px 10px;">'
+                + '<div class="rounded-md bg-red-50 text-red-700 text-xs flex items-center justify-center flex-shrink-0" style="width:32px;height:32px;"><i class="' + ccEsc(it.icon) + '"></i></div>'
+                + '<div class="min-w-0 flex-1" style="padding-right:14px;">'
+                + '<p class="text-xs font-bold text-gray-800 truncate">' + ccEsc(it.label) + '</p>'
+                + (it.breadcrumb ? '<p class="text-[10px] text-gray-400 truncate">' + ccEsc(it.breadcrumb) + '</p>' : '')
+                + '</div>'
+                + unpinBtn
+                + '</a>';
+        }).join('');
+
+        grid.querySelectorAll('.cc-unpin-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (typeof window.toggleMenuPin === 'function') window.toggleMenuPin(btn.dataset.href, null);
+                ccRender();
+            });
+        });
+    }
+
+    window.ccSwitchTab = function (tab) {
+        ccCurrentTab = tab;
+        ccRender();
+    };
+
+    // Sidebar's toggleMenuPin() (dashboard.blade.php) calls this after every
+    // pin/unpin so this widget stays in sync without a page reload.
+    window.onPinnedMenusChanged = ccRender;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        ccAllItems = ccCollectMenuItems();
+        ccRender();
+    });
 })();
 </script>
 @endpush

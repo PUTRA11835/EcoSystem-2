@@ -8,6 +8,7 @@ use App\Services\ResourceTimelineService;
 use App\Support\SessionUser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ResourceTimelineController extends Controller
@@ -31,7 +32,7 @@ class ResourceTimelineController extends Controller
         ]);
     }
 
-    public function consultants()
+    public function customers()
     {
         $guard = $this->guard();
         if ($guard instanceof \Illuminate\Http\JsonResponse) {
@@ -40,7 +41,7 @@ class ResourceTimelineController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $this->service->consultantOptions(),
+            'data'    => $this->service->customerCodeOptions(),
         ]);
     }
 
@@ -56,10 +57,22 @@ class ResourceTimelineController extends Controller
             $year     = $request->integer('year', now()->year);
             $homeBase = $request->string('home_base')->toString() ?: null;
 
+            if ($request->query('view') === 'yearly') {
+                $grid = $this->service->buildYearGrid($year, $homeBase);
+
+                return response()->json([
+                    'success' => true,
+                    'view'    => 'yearly',
+                    'year'    => $year,
+                    'rows'    => $grid['rows'],
+                ]);
+            }
+
             $grid = $this->service->buildGrid($month, $year, $homeBase);
 
             return response()->json([
                 'success' => true,
+                'view'    => 'monthly',
                 'month'   => $month,
                 'year'    => $year,
                 'days'    => $grid['days'],
@@ -103,9 +116,12 @@ class ResourceTimelineController extends Controller
 
         try {
             $validated = $this->validateRange($request, [
-                'location'             => 'nullable|string|max:255',
+                // Location = customer code. Nilai lama (teks bebas) tetap boleh
+                // dihapus/di-edit lewat previous_location, tapi nilai baru harus customer code valid.
+                'location'             => ['nullable', 'string', 'max:255', Rule::exists('customer', 'customer_code')],
                 'previous_start_date'  => 'nullable|date',
                 'previous_end_date'    => 'nullable|date|after_or_equal:previous_start_date',
+                'previous_location'    => 'nullable|string|max:255',
             ]);
 
             $this->service->upsertRange(
@@ -114,7 +130,8 @@ class ResourceTimelineController extends Controller
                 $validated['end_date'],
                 $validated['location'] ?? null,
                 $validated['previous_start_date'] ?? null,
-                $validated['previous_end_date'] ?? null
+                $validated['previous_end_date'] ?? null,
+                $validated['previous_location'] ?? null
             );
 
             return response()->json(['success' => true, 'message' => 'Timeline saved.']);
@@ -138,12 +155,13 @@ class ResourceTimelineController extends Controller
         }
 
         try {
-            $validated = $this->validateRange($request);
+            $validated = $this->validateRange($request, ['location' => 'nullable|string|max:255']);
 
             $this->service->deleteRange(
                 $validated['employee_id'],
                 $validated['start_date'],
-                $validated['end_date']
+                $validated['end_date'],
+                $validated['location'] ?? null
             );
 
             return response()->json(['success' => true, 'message' => 'Timeline cleared.']);
@@ -169,7 +187,7 @@ class ResourceTimelineController extends Controller
                 function ($attribute, $value, $fail) {
                     $isConsultant = $this->service->consultantsQuery()->where('employee.employee_id', $value)->exists();
                     if (!$isConsultant) {
-                        $fail('Selected employee is not an SAP Consultant.');
+                        $fail('Selected employee is not an SAP Consultant, Salesforce Consultant or Project Management Officer.');
                     }
                 },
             ],

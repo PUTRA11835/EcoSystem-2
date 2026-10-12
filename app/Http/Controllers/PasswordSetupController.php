@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -75,6 +76,8 @@ class PasswordSetupController extends Controller
             ]);
         }
 
+        $isInitialSetup = empty($authUser->is_already_cp);
+
         DB::table('auth_users')->where('id', $authUser->id)->update([
             'password'            => Hash::make($request->password),
             'is_already_cp'       => true,
@@ -86,6 +89,19 @@ class PasswordSetupController extends Controller
         Log::info('PasswordSetupController: password berhasil diubah', [
             'auth_user_id' => $authUser->id,
         ]);
+
+        AuditLog::recordAction(
+            module: 'Security',
+            auditableType: 'AuthUser',
+            auditableId: $authUser->id,
+            event: 'updated',
+            recordLabel: $authUser->email ?: "Auth User #{$authUser->id}",
+            description: $isInitialSetup
+                ? 'completed initial password setup via emailed link'
+                : 'reset their password via the forgot-password emailed link',
+            old: null,
+            new: null,
+        );
 
         // Customers are redirected to Jarvies login, employees to EcoSystem login
         $isCustomer = ($authUser->user_type ?? '') === 'customer' || !empty($authUser->customer_id);
@@ -286,7 +302,7 @@ HTML;
             function () {
                 // Gunakan config() agar berfungsi saat config:cache di production
                 $tenantId = config('services.microsoft_graph.tenant_id');
-                $response = Http::asForm()->post(
+                $response = Http::asForm()->timeout(10)->post(
                     "https://login.microsoftonline.com/{$tenantId}/oauth2/v2.0/token",
                     [
                         'grant_type'    => 'client_credentials',

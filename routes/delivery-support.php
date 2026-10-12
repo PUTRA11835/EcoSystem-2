@@ -9,6 +9,7 @@ use App\Http\Controllers\Delivery\DeliverySupportStageController;
 use App\Http\Controllers\Delivery\DeliverySupportDataController;
 use App\Http\Controllers\Delivery\DeliverySupportReconsController;
 use App\Http\Controllers\DeliverySupportPaymentTermController;
+use App\Http\Controllers\DeliverySupportContractLineItemController;
 use App\Http\Controllers\DeliverySupportCostController;
 use App\Http\Middleware\CheckAuthToken;
 
@@ -37,6 +38,10 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
 
     // List all support items
     Route::get('/', [DeliverySupportController::class, 'index'])->name('index');
+
+    // Export daftar support ke Excel. Wajib sebelum `{support}` agar "export"
+    // tidak tertangkap sebagai ID. Izin sama dengan halaman list.
+    Route::get('/export', [DeliverySupportController::class, 'export'])->name('export')->middleware('menu:delivery.support');
 
     // Planning list (all supports with planning progress)
     Route::get('/planning', [DeliverySupportController::class, 'planningList'])->name('planning-list');
@@ -273,12 +278,21 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
         // TERM OF PAYMENT (TOP) PLAN — tampil di dalam section Financial
         // =====================================================================
         Route::get('/payment-terms',        [DeliverySupportPaymentTermController::class, 'index'])->name('paymentTerms.index')->middleware('menu:delivery-support.financial.view');
-        Route::put('/payment-terms/{term}', [DeliverySupportPaymentTermController::class, 'update'])->name('paymentTerms.update')->middleware('menu:delivery-support.financial.edit');
+        Route::middleware('menu:delivery-support.financial.edit')->group(function () {
+            Route::put('/payment-terms/{term}', [DeliverySupportPaymentTermController::class, 'update'])->name('paymentTerms.update');
+            // Mode penagihan TOP (% dari Revenue ↔ Contract Line Item) & ubah Contract Line Item
+            Route::post('/top-mode', [DeliverySupportPaymentTermController::class, 'updateMode'])->name('topMode.update');
+            Route::post('/contract-line-items/{lineItem}', [DeliverySupportContractLineItemController::class, 'update'])->name('contractLineItems.update');
+        });
 
         Route::middleware('menu:delivery-support.financial.manage')->group(function () {
             Route::post('/payment-terms',               [DeliverySupportPaymentTermController::class, 'store'])->name('paymentTerms.store');
             Route::delete('/payment-terms/{term}',      [DeliverySupportPaymentTermController::class, 'destroy'])->name('paymentTerms.destroy');
             Route::post('/payment-terms/{term}/delete', [DeliverySupportPaymentTermController::class, 'destroy'])->name('paymentTerms.destroy-post');
+            // Contract Line Item (mode TOP Line Item) — tambah/hapus & generate termin berulang
+            Route::post('/contract-line-items',                             [DeliverySupportContractLineItemController::class, 'store'])->name('contractLineItems.store');
+            Route::post('/contract-line-items/{lineItem}/delete',           [DeliverySupportContractLineItemController::class, 'destroy'])->name('contractLineItems.destroy');
+            Route::post('/contract-line-items/{lineItem}/generate-schedule', [DeliverySupportContractLineItemController::class, 'generateSchedule'])->name('contractLineItems.generateSchedule');
         });
 
         // =====================================================================

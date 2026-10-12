@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use App\Enums\RoleId;
 use App\Exports\EmployeeExport;
+use App\Http\Controllers\Concerns\RequiresStepUpAuth;
 use App\Models\AuditLog;
 use App\Models\Employee;
 use App\Models\EmployeeBasicData;
@@ -17,6 +18,8 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EmployeeController extends Controller
 {
+    use RequiresStepUpAuth;
+
     /**
      * Get current user's ECI
      */
@@ -879,6 +882,8 @@ class EmployeeController extends Controller
                 'created_on' => now(),
                 'block' => false,
                 'deletion_flag' => false,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
 
             Log::info('Employee basic data created', [
@@ -1070,8 +1075,12 @@ class EmployeeController extends Controller
         $existingBasicData = DB::table('employee_basic_data')->where('employee_id', $id)->first();
         $basicDataId = $existingBasicData?->basic_data_id;
 
+        // ECI is intentionally NOT editable through this general form anymore —
+        // it also doubles as the login username (auth_users.username), so it now
+        // only changes through the dedicated changeEci() flow below, which keeps
+        // both tables in sync and forces the affected employee to re-log in.
+        // Any `eci` sent here is ignored.
         $validator = Validator::make($request->all(), [
-            'eci' => 'required|max:50|unique:employee,eci,' . $id . ',employee_id',
             'first_name' => 'required|string|max:255',
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name,' . $basicDataId . ',basic_data_id',
             'gender' => 'nullable|in:Male,Female',
@@ -1112,12 +1121,8 @@ class EmployeeController extends Controller
                 ], 404);
             }
 
-            // Update employee
-            DB::table('employee')
-                ->where('employee_id', $id)
-                ->update([
-                    'eci' => $request->eci,
-                ]);
+            // NOTE: `employee.eci` is intentionally NOT touched here — see the
+            // comment above the validator. It only changes via changeEci().
 
             Log::info('Employee record updated');
 
@@ -1154,6 +1159,7 @@ class EmployeeController extends Controller
                         'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
+                        'updated_at' => now(),
                     ]
                 );
 
@@ -1400,6 +1406,132 @@ public function getRoles()
     }
 
     /**
+     * Change an employee's ECI (Employee ID) — deliberately separate from the
+     * general update() form because ECI doubles as the login username
+     * (auth_users.username, see AuthController::login). This keeps both tables
+     * in sync atomically, requires the ACTING ADMIN's own password as a
+     * re-auth step, and force-logs-out the affected employee's existing
+     * sessions so nothing is left pointing at a login ID that no longer
+     * matches what's shown in Master Employee.
+     */
+    public function changeEci(Request $request, $id)
+    {
+        $currentUserECI = $this->getCurrentUserECI();
+
+        Log::info('=== API: CHANGE EMPLOYEE ECI ===', [
+            'employee_id'    => $id,
+            'requested_eci'  => $request->new_eci,
+            'changed_by_eci' => $currentUserECI,
+        ]);
+
+        $validator = Validator::make($request->all(), [
+            'new_eci'        => 'required|string|max:50|unique:employee,eci,' . $id . ',employee_id|unique:auth_users,username',
+            'admin_password' => 'required|string',
+        ], [
+            'new_eci.required' => 'New Employee ID is required.',
+            'new_eci.unique'   => 'This Employee ID is already taken.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        // Re-auth: verify it's really the acting admin's own password, not the
+        // target employee's — session('user.id') is the ADMIN currently logged
+        // in and making this request (not $id, the employee being changed).
+        $actingAdminId   = session('user.id');
+        $actingAuthUser  = DB::table('auth_users')->where('employee_id', $actingAdminId)->first();
+
+        if (!$actingAuthUser || !Hash::check($request->admin_password, $actingAuthUser->password)) {
+            Log::warning('=== API: CHANGE ECI — WRONG ADMIN PASSWORD ===', [
+                'employee_id' => $id,
+                'admin_id'    => $actingAdminId,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Your password is incorrect.',
+                'errors'  => ['admin_password' => ['Your password is incorrect.']],
+            ], 422);
+        }
+
+        $targetAuthUser = DB::table('auth_users')->where('employee_id', $id)->first();
+
+        if (!$targetAuthUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Auth account for this employee not found',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $employee = Employee::find($id);
+
+            if (!$employee) {
+                DB::rollBack();
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Employee not found',
+                ], 404);
+            }
+
+            $oldEci = $employee->eci;
+
+            // Eloquent save (not DB::table()->update()) so the model's Auditable
+            // trait/observer captures the eci change in the audit log.
+            $employee->eci = $request->new_eci;
+            $employee->save();
+
+            DB::table('auth_users')
+                ->where('employee_id', $id)
+                ->update([
+                    'username'   => $request->new_eci,
+                    'updated_at' => now(),
+                ]);
+
+            // Force logout: drop the employee's existing database sessions and
+            // clear their remember-me token, mirroring AuthController::logout().
+            DB::table('sessions')->where('user_id', $targetAuthUser->id)->delete();
+            DB::table('auth_users')->where('id', $targetAuthUser->id)->update(['remember_token' => null]);
+
+            DB::commit();
+
+            Log::info('=== API: EMPLOYEE ECI CHANGED SUCCESSFULLY ===', [
+                'employee_id'    => $id,
+                'old_eci'        => $oldEci,
+                'new_eci'        => $request->new_eci,
+                'changed_by_eci' => $currentUserECI,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee ID changed successfully',
+                'data'    => ['eci' => $request->new_eci],
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('=== API: ERROR CHANGING ECI ===', [
+                'employee_id' => $id,
+                'error'       => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to change Employee ID',
+            ], 500);
+        }
+    }
+
+    /**
      * Sync employee roles — replaces all current roles with the given list (API)
      */
     public function changeRole(Request $request, $id)
@@ -1441,6 +1573,26 @@ public function getRoles()
 
             $roleIds = array_unique(array_map('intval', $request->role_ids));
 
+            // Snapshot old roles before the sync — this bypasses Eloquent
+            // (raw query builder delete+insert below), so AuditObserver never
+            // fires; log it explicitly for the Audit Log page and for the
+            // Security Center's privilege-escalation detection job.
+            $oldRoles = DB::table('employee_role_assignment as era')
+                ->join('employee_role as er', 'era.role_id', '=', 'er.id')
+                ->where('era.employee_id', $id)
+                ->select('er.id', 'er.name')
+                ->get();
+
+            // Granting EC Administrator that wasn't already held needs a
+            // fresh step-up 2FA code - the highest-risk action this
+            // controller can perform. Other role changes stay frictionless.
+            $grantingAdmin = in_array(RoleId::EC_ADMINISTRATOR->value, $roleIds, true)
+                && !$oldRoles->pluck('id')->contains(RoleId::EC_ADMINISTRATOR->value);
+
+            if ($grantingAdmin && ($stepUpFailure = $this->verifyStepUpOrFail($request))) {
+                return $stepUpFailure;
+            }
+
             // Sync pivot table (delete old, insert new)
             DB::table('employee_role_assignment')->where('employee_id', $id)->delete();
 
@@ -1456,6 +1608,17 @@ public function getRoles()
             Cache::forget("perm_slugs_{$id}");
 
             $roles = DB::table('employee_role')->whereIn('id', $roleIds)->select('id', 'name')->get();
+
+            \App\Models\AuditLog::recordAction(
+                module: 'Employee Role',
+                auditableType: \App\Models\Employee::class,
+                auditableId: $id,
+                event: 'updated',
+                recordLabel: $employee->name ?? ('Employee #' . $id),
+                description: 'changed roles for ' . ($employee->name ?? ('Employee #' . $id)),
+                old: ['role_ids' => $oldRoles->pluck('id')->values()->all(), 'role_names' => $oldRoles->pluck('name')->values()->all()],
+                new: ['role_ids' => array_values($roleIds), 'role_names' => $roles->pluck('name')->values()->all()]
+            );
 
             Log::info('=== API: EMPLOYEE ROLES SYNCED SUCCESSFULLY ===', [
                 'employee_id'    => $id,

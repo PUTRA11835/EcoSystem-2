@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class DeliveryProjectActivity extends Model
 {
-    use HasFactory;
+    use HasFactory, Concerns\TouchesProjectActivity;
 
     protected $table = 'delivery_project_activities';
 

@@ -33,6 +33,7 @@
             'customer_mandays_canceled'   => ['icon' => 'fa-times-circle',        'color' => 'orange', 'title' => 'Customer Mandays Proposal canceled'],
             'contract_end_reminder'       => ['icon' => 'fa-file-contract',       'color' => 'yellow', 'title' => 'Contract deadline reminder'],
             'top_invoice_reminder'        => ['icon' => 'fa-file-invoice-dollar', 'color' => 'blue',   'title' => 'Invoice submission due'],
+            'timesheet_reminder'          => ['icon' => 'fa-user-clock',          'color' => 'orange', 'title' => 'Timesheet reminder'],
             'customer_email_reply'        => ['icon' => 'fa-envelope',            'color' => 'green',  'title' => null], // title built dynamically from from_name
             'ticket_reply'                => ['icon' => 'fa-reply',               'color' => 'blue',   'title' => null],
             'ticket_internal_note'        => ['icon' => 'fa-sticky-note',         'color' => 'yellow', 'title' => null],
@@ -87,6 +88,8 @@
                                 {{ $notif->from_name ?? 'Someone' }} replied to a ticket
                             @elseif($notif->type === 'ticket_internal_note')
                                 {{ $notif->from_name ?? 'Someone' }} added an internal note
+                            @elseif($notif->type === 'note_reply')
+                                {{ $notif->from_name ?? 'Someone' }} replied to your message
                             @elseif($notif->type === 'ticket_member_added')
                                 {{ $notif->from_name ?? 'Someone' }} added you to a ticket
                             @elseif($notif->type === 'ticket_member_removed')

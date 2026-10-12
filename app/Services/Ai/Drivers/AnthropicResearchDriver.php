@@ -9,6 +9,7 @@ use Anthropic\Messages\TextBlockParam;
 use Anthropic\Messages\TextDelta;
 use Anthropic\Messages\WebFetchTool20260209;
 use Anthropic\Messages\WebSearchTool20260209;
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\ResearchDriver;
 use Closure;
 
@@ -85,6 +86,10 @@ class AnthropicResearchDriver implements ResearchDriver
             }
 
             $message = $accumulator->message();
+
+            // Satu baris per request (termasuk tiap resume 'pause_turn'): tiap
+            // resume mengirim ulang konteks dan ditagih sendiri.
+            AiUsageRecorder::recordAnthropic($model, 'research', $message->usage);
 
             // Objek SDK apa adanya — HANYA hidup di memori selama loop pause_turn
             // ini, tidak pernah keluar dari method ini. Untuk melanjutkan

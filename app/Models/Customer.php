@@ -884,7 +884,7 @@ class Customer extends Authenticatable
      */
     public static function getPaginated(int $perPage = 15, array $filters = [])
     {
-        $query = self::with(['basicData', 'parentCustomer.basicData'])->withCount('endCustomers');
+        $query = self::with(['basicData', 'parentCustomer.basicData', 'primaryAddress'])->withCount('endCustomers');
 
         // Apply filters
         if (!empty($filters['search'])) {

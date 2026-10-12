@@ -470,7 +470,7 @@ function editEvent() {
 }
 
 async function deleteEvent() {
-    if (!confirm('Are you sure you want to delete this event?')) return;
+    if (!(await showConfirm('Are you sure you want to delete this event?', 'Delete Event', 'danger', { okText: 'Delete' }))) return;
     
     try {
         const response = await fetch(`/api/events/${selectedEventId}`, {

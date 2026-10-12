@@ -307,7 +307,7 @@ class TicketSummaryContext
             ->where('ticket_id', $ticket->ticket_id)
             ->orderBy('upload_date')
             ->limit(self::MAX_DELIVERABLES)
-            ->get(['doc_type', 'body_text', 'file_name', 'status', 'upload_date']);
+            ->get(['doc_type', 'description', 'file_name', 'status', 'upload_date']);
 
         if ($docs->isEmpty()) {
             return '';
@@ -319,7 +319,7 @@ class TicketSummaryContext
                 . ' - status: ' . ($d->status ?: '-')
                 . ($d->upload_date ? ', ' . $d->upload_date : '');
 
-            $body = $this->clean((string) ($d->body_text ?? ''), self::MAX_DELIVERABLE_CHARS);
+            $body = $this->clean((string) ($d->description ?? ''), self::MAX_DELIVERABLE_CHARS);
 
             return $body ? $head . "\n  " . str_replace("\n", "\n  ", $body) : $head;
         })->implode("\n");

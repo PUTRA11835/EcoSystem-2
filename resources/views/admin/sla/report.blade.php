@@ -159,7 +159,7 @@
                         <input type="hidden" id="filterTypeOfService" value="">
                         <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:160px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All Type of Service</button>
-                            @foreach(['AMS','MO','ATS','CR','RISE','CLOUD','POSTPAID','Project','Internal'] as $tos)
+                            @foreach(['AMS','MO','ATS','CR','RISE','CLOUD','POSTPAID','Project','Internal','SR'] as $tos)
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $tos }}">{{ $tos }}</button>
                             @endforeach
                         </div>
@@ -238,7 +238,7 @@
                         <th class="text-left   px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:150px;">Issue</th>
                         <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:90px;">CUST PIC</th>
                         <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:100px;">FUNCTIONAL PIC</th>
-                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:75px;">Type of<br>Service<br><span class="text-[8px] font-normal normal-case">(MO / CR)</span></th>
+                        <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:75px;">Type of<br>Service<br><span class="text-[8px] font-normal normal-case">(MO / CR / SR)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:120px;">Type<br><span class="text-[8px] font-normal normal-case">(Incident/Error, Request/CR, Konsultasi)</span></th>
                         <th class="text-center px-2 py-2 font-semibold text-gray-400 uppercase tracking-wider grp-info" style="min-width:85px;">Status</th>
                         {{-- SLA Response --}}
@@ -1116,6 +1116,11 @@ document.addEventListener('keydown', function(e) {
 
 updateSortButtons();
 loadReport();
-setInterval(loadReport, 60000);
+// Skip refetch (dataset penuh tiap tick) selagi tab di-background, sinkron ulang
+// segera begitu tab aktif lagi.
+setInterval(() => { if (!document.hidden) loadReport(); }, 60000);
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) loadReport();
+});
 </script>
 @endsection

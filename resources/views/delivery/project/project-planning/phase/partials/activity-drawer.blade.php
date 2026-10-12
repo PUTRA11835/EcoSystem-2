@@ -5,7 +5,7 @@
 
 {{-- Backdrop --}}
 <div id="activityDrawerBackdrop"
-     class="hidden fixed inset-0 bg-black bg-opacity-30 z-40 transition-opacity duration-300"
+     class="hidden fixed inset-0 bg-black/30 z-40 transition-opacity duration-300"
      onclick="closeActivityDrawer()">
 </div>
 
@@ -214,14 +214,14 @@ window.closeActivityDrawer = function() {
     const backdrop = document.getElementById('activityDrawerBackdrop');
 
     drawer.classList.add('translate-x-full');
-    backdrop.classList.remove('bg-opacity-30');
-    backdrop.classList.add('bg-opacity-0');
+    backdrop.classList.remove('bg-black/30');
+    backdrop.classList.add('bg-black/0');
 
     setTimeout(function() {
         drawer.classList.remove('translate-x-0');
         backdrop.classList.add('hidden');
-        backdrop.classList.remove('bg-opacity-0');
-        backdrop.classList.add('bg-opacity-30');
+        backdrop.classList.remove('bg-black/0');
+        backdrop.classList.add('bg-black/30');
     }, 300);
 };
 

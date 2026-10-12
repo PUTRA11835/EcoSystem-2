@@ -104,7 +104,7 @@
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h3 class="text-sm sm:text-base font-semibold text-white">Support Progress Overview</h3>
             <div class="flex items-center space-x-2">
-                <div class="px-2 sm:px-3 py-1 bg-white bg-opacity-20 rounded-full">
+                <div class="px-2 sm:px-3 py-1 bg-white/20 rounded-full">
                     <span class="text-xs sm:text-sm font-bold text-white">{{ $overallProgress }}%</span>
                 </div>
                 <span class="text-xs text-indigo-100 hidden sm:inline">Overall Progress</span>
@@ -206,7 +206,7 @@
                         </div>
 
                         {{-- Progress Bar --}}
-                        <div class="w-full bg-white bg-opacity-50 rounded-full h-2 overflow-hidden">
+                        <div class="w-full bg-white/50 rounded-full h-2 overflow-hidden">
                             <div class="{{ $barColor }} h-2 rounded-full transition-all duration-500"
                                  style="width: {{ $phaseProgress }}%"></div>
                         </div>

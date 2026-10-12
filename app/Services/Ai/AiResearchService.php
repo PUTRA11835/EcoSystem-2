@@ -665,6 +665,10 @@ class AiResearchService
                 if ('' !== $userText || $attachmentCount > 0) {
                     $rows[] = [
                         'role' => 'user',
+                        // Atribusi "siapa yang tanya" cuma relevan di room
+                        // BERSAMA (ticket_id terisi) — di room privat sudah
+                        // pasti $employee, tidak perlu dicatat ulang.
+                        'sender_employee_id' => $conversation->ticket_id ? $employee->employee_id : null,
                         'content' => $userText,
                         'attachment_count' => $attachmentCount,
                     ];
@@ -684,17 +688,28 @@ class AiResearchService
     }
 
     /**
-     * Cari percakapan milik employee INI.
+     * Cari percakapan yang boleh diakses employee INI: milik dia sendiri
+     * (room privat), ATAU room BERSAMA satu tiket (ticket_id terisi — dibuat
+     * StagingTicketController::createSharedAiResearchRoom() saat approve,
+     * atau AiResearchController::openForTicket() kalau tiketnya di-approve
+     * sebelum room bersama ada). Otorisasi
+     * SUNGGUHAN (siapa boleh apa) sudah selesai di controller sebelum
+     * sampai sini (AiResearchController::assertCanAccessConversation()) —
+     * kondisi employee_id/ticket_id di sini murni supaya query MENEMUKAN
+     * baris yang tepat, bukan gerbang keamanan kedua.
      *
-     * conversationId datang dari browser, jadi ia tidak pernah dipakai sendirian:
-     * pemiliknya selalu ikut jadi syarat. Menebak UUID orang lain karena itu
-     * tidak menghasilkan apa-apa.
+     * Dua pola conversation_id (privat "ticket-{id}"/UUID vs bersama
+     * "ticket-team-{id}") tidak pernah tumpang tindih, jadi OR di bawah
+     * tidak bisa salah pilih baris.
      */
     private function findConversation(Employee $employee, string $conversationId): ?AiConversation
     {
-        return AiConversation::where('employee_id', $employee->employee_id)
-            ->where('assistant', AiConversation::ASSISTANT_RESEARCH)
+        return AiConversation::where('assistant', AiConversation::ASSISTANT_RESEARCH)
             ->where('conversation_id', $conversationId)
+            ->where(function ($query) use ($employee) {
+                $query->where('employee_id', $employee->employee_id)
+                    ->orWhereNotNull('ticket_id');
+            })
             ->first();
     }
     /**
@@ -792,12 +807,30 @@ class AiResearchService
         ]];
     }
 
+    /**
+     * Room BERSAMA (AiConversation.ticket_id terisi — lihat
+     * StagingTicketController::createSharedAiResearchRoom()) HARUS satu
+     * cache entry untuk SEMUA anggota tim, bukan per-employee — kalau tidak,
+     * tiap orang yang buka room "yang katanya sama" akan melihat cache
+     * konteks yang bercabang sendiri-sendiri walau baris DB-nya cuma satu.
+     * Dicek lewat query ringan (bukan parameter baru) supaya SEMUA pemanggil
+     * cacheKey() yang sudah ada (streamReply/contextState/
+     * attachmentBytesInContext/forgetContext) otomatis ikut benar tanpa
+     * perlu diubah satu-satu.
+     */
     private function cacheKey(Employee $employee, string $conversationId): string
     {
         $safeId = preg_replace('/[^a-zA-Z0-9\-]/', '', $conversationId);
         $safeId = $safeId ?: 'default';
 
-        return "ai_research:emp{$employee->employee_id}:{$safeId}";
+        $sharedId = AiConversation::where('conversation_id', $conversationId)
+            ->where('assistant', AiConversation::ASSISTANT_RESEARCH)
+            ->whereNotNull('ticket_id')
+            ->value('id');
+
+        return $sharedId
+            ? "ai_research:conv{$sharedId}"
+            : "ai_research:emp{$employee->employee_id}:{$safeId}";
     }
 
     private function systemPrompt(): string

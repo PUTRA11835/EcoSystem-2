@@ -155,6 +155,9 @@ class DeliveryProjectPlanningResetController extends Controller
         // model hooks that normally do this were bypassed above.
         $project->refresh()->updateFromPlanning();
 
+        // Penghapusan di atas lewat query builder (tanpa event) → catat manual.
+        $project->touchActivity();
+
         Log::warning('PlanningReset completed', [
             'project_id'   => $project->id,
             'project_name' => $project->name,

@@ -2,6 +2,7 @@
 
 namespace App\Services\Ai\Drivers;
 
+use App\Services\Ai\AiUsageRecorder;
 use App\Services\Ai\Drivers\Contracts\TicketAnalysisDriver;
 use App\Support\TicketClassification;
 use Closure;
@@ -82,6 +83,8 @@ class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
                     break;
 
                 case 'response.completed':
+                    AiUsageRecorder::recordOpenAi($model, 'ticket_analysis', $event->response->response->usage ?? null);
+
                     if ('' === trim($full)) {
                         throw new RuntimeException('GPT tidak mengembalikan teks analisa.');
                     }
@@ -90,7 +93,8 @@ class OpenAiTicketAnalysisDriver implements TicketAnalysisDriver
 
                 case 'response.incomplete':
                 case 'response.failed':
-                    $status = $event->response->response->status ?? $event->event;
+                    AiUsageRecorder::recordOpenAi($model, 'ticket_analysis', $event->response->response->usage ?? null);
+                    $status =$event->response->response->status ?? $event->event;
                     throw new RuntimeException("OpenAI ticket analysis did not complete (status: {$status}).");
 
                 case 'error':

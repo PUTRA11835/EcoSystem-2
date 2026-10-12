@@ -21,6 +21,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 <span id="employeeShowingText" class="text-xs text-gray-500"></span>
             </div>
             <div class="flex items-center gap-2.5">
+                @if($can('management.employee.dropdown-settings'))
+                <a href="{{ route('management.employee.dropdown-settings.index') }}" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
+                    <i class="fas fa-list-ul text-gray-500"></i>
+                    Manage Dropdown Data
+                </a>
+                @endif
                 <button onclick="exportEmployees()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-green-600">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -57,7 +63,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              class here would have) — see the comment on that rule. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 left-0 bg-gray-50" style="min-width:100px;">
                             <button type="button" id="empFilterBtn" onclick="toggleEmpFilter(event)"
-                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">ECI</span>
                                 <svg id="empFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
@@ -78,7 +84,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              for this cell comes from the nth-child(2) CSS rule (see note on ECI). --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50" style="min-width:200px;left:100px;">
                             <button type="button" id="fullNameFilterBtn" onclick="toggleFullNameFilter(event)"
-                                class="w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                 <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Full Name</span>
                                 <svg id="fullNameFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
@@ -100,7 +106,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              instead of being cut off / overlapping the row below it. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPosition" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Position</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -125,7 +131,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                  usual ">7 items" auto-detect threshold runs and would otherwise
                                  never add the search box at all. --}}
                             <div class="custom-dd relative w-full" id="ddFilterModules" data-multi="true" data-fixed="true" data-searchable="true" data-search-placeholder="Search module..." data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Module</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -143,7 +149,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- EMPLOYEE GROUP: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:130px;">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeGroup" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Group</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -162,7 +168,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- DIVISION: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterDivision" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Division</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -183,7 +189,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                              Position/Division rather than a bespoke free-text-only search. --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:220px;">
                             <div class="custom-dd relative w-full" id="ddFilterDepartment" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Department</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -202,7 +208,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- HOME BASE: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterHomeBase" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Home Base</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -219,7 +225,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- SINCE DATE: no filter --}}
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Since Date</th>
                         {{-- Remaining Employee Information columns (from the "Organizational Data" section
                              of the employee record) — everything except `block` and `deletion_flag` (those
                              only drive the Status column, moved to just before Actions below), and except
@@ -228,7 +234,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- PERSONNEL AREA: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelArea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Area</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -247,7 +253,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         {{-- PERSONNEL SUBAREA: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterPersonnelSubarea" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Personnel Subarea</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -263,11 +269,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Employee Subgroup</th>
                         {{-- EMPLOYEE TYPE: column filter dropdown (fixed set: Internal / External) --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
                             <div class="custom-dd relative w-full" id="ddFilterEmployeeType" data-multi="true" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Employee Type</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -282,15 +288,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Authorization Group</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Current Assignment</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Direct Supervision</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Manager</th>
                         {{-- STATUS: column filter dropdown (single-select) — moved to right before
                              Actions, per request. --}}
-                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10" style="min-width:170px;">
                             <div class="custom-dd relative w-full" id="ddFilterStatus" data-fixed="true" data-onchange="applyFilters">
-                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-4 py-3.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
                                     <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
                                     <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
                                 </button>
@@ -306,7 +312,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                             </div>
                         </th>
                         {{-- ACTIONS: no filter --}}
-                        <th class="text-center px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
                     </tr>
                 </thead>
                 {{-- `uppercase` here is CSS-only (text-transform) — display formatting, the
@@ -323,7 +329,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Create/Edit Employee dengan 3 Sections -->
-<div id="employeeModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="employeeModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         <!-- Modal Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
@@ -348,7 +354,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee <span class="text-red-600">*</span></label>
-                            <input type="text" id="eci" placeholder="e.g., ECI001" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                            <input type="text" id="eci" placeholder="e.g., ECI001" required class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 read-only:bg-gray-100 read-only:text-gray-500 read-only:cursor-not-allowed">
+                            {{-- ECI juga dipakai sebagai username login — begitu employee sudah dibuat, field
+                                 ini dikunci (readonly) di sini dan hanya bisa diubah lewat "Change Employee ID"
+                                 di menu aksi (⋮) baris karyawan, yang punya alur konfirmasi + re-auth khusus.
+                                 Lihat empMenuChangeEci()/changeEciModal di bawah. --}}
+                            <small id="eciReadonlyHint" class="hidden text-xs text-gray-400 mt-1">Locked — use "Change Employee ID" from the row menu to edit.</small>
                         </div>
 
                         <div class="flex flex-col">
@@ -536,6 +547,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     <div class="space-y-4">
                         <h4 class="text-base font-bold text-gray-900 mb-4 pb-2 border-b-2 border-gray-200">Organizational Data</h4>
 
+                        @if($dropdownFieldActive['personnel_area'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Personnel Area</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -552,7 +564,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['position'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Position</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -569,12 +583,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Current Assignment</label>
                             <input type="text" id="currentAssignment" placeholder="e.g., Project X" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                         </div>
 
+                        @if($dropdownFieldActive['employee_group'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Group</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -591,7 +607,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['employee_subgroup'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Employee Sub-Group</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -608,7 +626,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
+                        @if($dropdownFieldActive['division'] ?? true)
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Division</label>
                             <div class="custom-dd relative" data-fixed="true">
@@ -625,6 +645,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                                 </div>
                             </div>
                         </div>
+                        @endif
 
                         <div class="flex flex-col">
                             <label class="text-xs font-semibold text-gray-600 mb-1">Home Base</label>
@@ -658,7 +679,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Change Password -->
-<div id="changePasswordModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="changePasswordModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
             <div>
@@ -706,8 +727,68 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     </div>
 </div>
 
+<!-- Modal Change Employee ID (ECI) — separate from the general edit form because
+     ECI doubles as the login username (see AuthController::login, auth_users.username).
+     Requires: re-type the new ECI + the acting admin's own password, and force-logs-out
+     the affected employee's existing sessions once changed. -->
+<div id="changeEciModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Change Employee ID</h3>
+                <p id="ceEmployeeName" class="text-sm text-gray-500 mt-0.5"></p>
+            </div>
+            <button onclick="closeChangeEciModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="ceEmployeeId">
+            <div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+                <p class="text-xs text-amber-800">This ID is also the employee's <strong>login username</strong>. Changing it will sign them out of any active session — they'll need to log in again with the new ID.</p>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Current Employee ID</label>
+                <input type="text" id="ceCurrentEci" disabled class="px-3 py-2 border border-gray-200 rounded text-sm bg-gray-100 text-gray-500">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">New Employee ID <span class="text-red-600">*</span></label>
+                <input type="text" id="ceNewEci" placeholder="e.g., ECI002" oninput="onCeInputChange()" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Confirm New Employee ID <span class="text-red-600">*</span></label>
+                <input type="text" id="ceConfirmEci" placeholder="Re-enter the new ID exactly" oninput="onCeInputChange()" class="px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                <small id="ceMismatchHint" class="hidden text-xs text-red-600 mt-1">Doesn't match the new ID above.</small>
+            </div>
+            <div class="flex flex-col pt-2 border-t border-gray-100">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Your Password <span class="text-red-600">*</span></label>
+                <div class="relative">
+                    <input type="password" id="ceAdminPassword" placeholder="Confirm with your own password" oninput="onCeInputChange()" class="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-red-800 pr-10">
+                    <button type="button" onclick="toggleCpField('ceAdminPassword', 'ceEye1')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                        <svg id="ceEye1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        </svg>
+                    </button>
+                </div>
+                <small class="text-xs text-gray-400 mt-1">Confirms it's really you making this change — not the employee's password.</small>
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <button onclick="closeChangeEciModal()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
+            <button id="ceSubmitBtn" onclick="submitChangeEci()" disabled class="inline-flex items-center px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed">
+                Change Employee ID
+            </button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Change Role (multi-select via checkboxes) -->
-<div id="changeRoleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="changeRoleModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
         <!-- Header -->
         <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
@@ -760,7 +841,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 </div>
 
 <!-- Modal Konfirmasi Delete -->
-<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+<div id="confirmDeleteModal" class="hidden fixed inset-0 bg-black/50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
         <div class="p-6">
             <div class="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
@@ -1082,6 +1163,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             const fullName = [emp.first_name, emp.last_name].filter(n => n).join(' ') || '-';
             _empRowData.set(Number(emp.id), {
                 name    : fullName,
+                eci     : emp.eci || '',
                 roleIds : emp.roles ? emp.roles.map(r => Number(r.id)) : [],
             });
         });
@@ -1095,36 +1177,36 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
 
             return `
             <tr class="employee-row" onclick="navigateToDetail(${emp.id}, event)">
-                <td class="px-4 py-3.5 text-sm" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
-                <td class="px-4 py-3.5 text-sm text-gray-600" style="min-width:200px;">${fullName}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.position || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
-                <td class="px-4 py-3.5 text-sm">${renderEmployeeGroup(emp.employee_group)}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.division || '-'}</td>
+                <td class="px-3 py-2 text-xs" style="min-width:100px;"><strong class="font-semibold text-gray-900">${emp.eci || '-'}</strong></td>
+                <td class="px-3 py-2 text-xs text-gray-600" style="min-width:200px;">${fullName}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.position || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${(emp.modules && emp.modules.length) ? emp.modules.join(', ') : '-'}</td>
+                <td class="px-3 py-2 text-xs">${renderEmployeeGroup(emp.employee_group)}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.division || '-'}</td>
                 {{-- Kolom Department membaca eb.department. Sebelumnya keliru
                      merender employee_subgroup sehingga selalu tampil "-". --}}
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.department || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.home_base || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.since_date || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.department || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.home_base || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.since_date || '-'}</td>
                 {{-- Remaining Employee Information columns — everything from the employee
                      record except `block` and `deletion_flag` (those only drive the Status
                      column, moved below to sit right before Actions), and except
                      Title/Nick Name/Gender/Religion/Marital Status/Birth Date/Birth Place
                      (not needed in this table per request). --}}
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.personnel_area || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.personnel_subarea || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_subgroup || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.employee_type || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.authorization_group || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.current_assignment || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.direct_supervision || '-'}</td>
-                <td class="px-4 py-3.5 text-sm text-gray-600">${emp.manager || '-'}</td>
-                <td class="px-4 py-3.5 text-sm">
-                    <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.personnel_area || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.personnel_subarea || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.employee_subgroup || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.employee_type || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.authorization_group || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.current_assignment || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.direct_supervision || '-'}</td>
+                <td class="px-3 py-2 text-xs text-gray-600">${emp.manager || '-'}</td>
+                <td class="px-3 py-2 text-xs" style="min-width:170px;">
+                    <span class="inline-block whitespace-nowrap px-3 py-1 text-xs font-semibold rounded-full ${statusInfo.class}">
                         ${statusInfo.label}
                     </span>
                 </td>
-                <td class="px-4 py-3.5 text-sm">
+                <td class="px-3 py-2 text-xs">
                     ${canEmployeeAction ? `<div class="action-buttons" onclick="event.stopPropagation()">
                         <button onclick="openEmpMenu(event, ${emp.id})" class="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 transition-all">
                             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
@@ -1280,6 +1362,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         document.getElementById('employeeForm').reset();
         document.getElementById('employeeId').value = '';
 
+        // New employee — ECI is still being decided here, so keep it editable.
+        document.getElementById('eci').readOnly = false;
+        document.getElementById('eciReadonlyHint').classList.add('hidden');
+
         // Reset modal custom dropdowns
         if (typeof setCustomDropdownValue === 'function') {
             setCustomDropdownValue('title', '');
@@ -1336,7 +1422,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 currentEmployeeId = id;
                 
                 // SECTION 1: GENERAL DATA
+                // ECI is locked here once the employee exists — it's also the login
+                // username, so it only changes through the dedicated Change Employee
+                // ID flow (empMenuChangeEci), not this general edit form.
                 document.getElementById('eci').value = emp.eci || '';
+                document.getElementById('eci').readOnly = true;
+                document.getElementById('eciReadonlyHint').classList.remove('hidden');
                 document.getElementById('firstName').value = emp.first_name || '';
                 document.getElementById('lastName').value = emp.last_name || '';
                 document.getElementById('nickName').value = emp.nick_name || '';
@@ -1391,11 +1482,13 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     setCustomDropdownValue('division', emp.division || '');
                     setCustomDropdownValue('homeBase', emp.home_base || '');
                 } else {
-                    document.getElementById('personnelArea').value = emp.personnel_area || '';
-                    document.getElementById('position').value = emp.position || '';
-                    document.getElementById('employeeGroup').value = emp.employee_group || '';
-                    document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
-                    document.getElementById('division').value = emp.division || '';
+                    // Optional chaining — a field whose dropdown config is inactive
+                    // isn't rendered (see dropdownFieldActive), so its element is null.
+                    if (document.getElementById('personnelArea')) document.getElementById('personnelArea').value = emp.personnel_area || '';
+                    if (document.getElementById('position')) document.getElementById('position').value = emp.position || '';
+                    if (document.getElementById('employeeGroup')) document.getElementById('employeeGroup').value = emp.employee_group || '';
+                    if (document.getElementById('employeeSubgroup')) document.getElementById('employeeSubgroup').value = emp.employee_subgroup || '';
+                    if (document.getElementById('division')) document.getElementById('division').value = emp.division || '';
                     document.getElementById('homeBase').value = emp.home_base || '';
                 }
 
@@ -1459,12 +1552,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             cell_phone: document.getElementById('cellPhone').value,
             
             // SECTION 3: ORGANIZATIONAL DATA
-            personnel_area: document.getElementById('personnelArea').value,
-            position: document.getElementById('position').value,
+            // Optional chaining here on purpose — a field whose dropdown config is
+            // inactive (see DropdownConfig/dropdownFieldActive) isn't rendered at
+            // all, so document.getElementById() returns null for it.
+            personnel_area: document.getElementById('personnelArea')?.value || '',
+            position: document.getElementById('position')?.value || '',
             current_assignment: document.getElementById('currentAssignment').value,
-            employee_group: document.getElementById('employeeGroup').value,
-            employee_subgroup: document.getElementById('employeeSubgroup').value,
-            division: document.getElementById('division').value,
+            employee_group: document.getElementById('employeeGroup')?.value || '',
+            employee_subgroup: document.getElementById('employeeSubgroup')?.value || '',
+            division: document.getElementById('division')?.value || '',
             home_base: document.getElementById('homeBase').value,
         };
 
@@ -1826,6 +1922,78 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
+    // ── Change Employee ID (ECI) ────────────────────────────────────────────────
+    // Separate flow from the general edit form — see comment on #changeEciModal.
+    function openChangeEciModal(employeeId, employeeName, currentEci) {
+        document.getElementById('ceEmployeeId').value = employeeId;
+        document.getElementById('ceEmployeeName').textContent = employeeName;
+        document.getElementById('ceCurrentEci').value = currentEci || '';
+        document.getElementById('ceNewEci').value = '';
+        document.getElementById('ceConfirmEci').value = '';
+        document.getElementById('ceAdminPassword').value = '';
+        document.getElementById('ceMismatchHint').classList.add('hidden');
+        document.getElementById('ceSubmitBtn').disabled = true;
+        document.getElementById('changeEciModal').classList.remove('hidden');
+        document.getElementById('changeEciModal').classList.add('flex');
+        document.getElementById('ceNewEci').focus();
+    }
+
+    function closeChangeEciModal() {
+        document.getElementById('changeEciModal').classList.add('hidden');
+        document.getElementById('changeEciModal').classList.remove('flex');
+    }
+
+    // Enables Submit only once: new ID filled, confirm matches it exactly, and a
+    // password was entered — cheap client-side guard, backend re-validates all of it.
+    function onCeInputChange() {
+        const newEci     = document.getElementById('ceNewEci').value.trim();
+        const confirmEci = document.getElementById('ceConfirmEci').value.trim();
+        const password   = document.getElementById('ceAdminPassword').value;
+        const mismatch   = confirmEci !== '' && confirmEci !== newEci;
+
+        document.getElementById('ceMismatchHint').classList.toggle('hidden', !mismatch);
+        document.getElementById('ceSubmitBtn').disabled =
+            !newEci || !confirmEci || newEci !== confirmEci || !password;
+    }
+
+    async function submitChangeEci() {
+        const employeeId   = document.getElementById('ceEmployeeId').value;
+        const newEci       = document.getElementById('ceNewEci').value.trim();
+        const confirmEci   = document.getElementById('ceConfirmEci').value.trim();
+        const adminPassword = document.getElementById('ceAdminPassword').value;
+
+        if (!newEci || newEci !== confirmEci || !adminPassword) {
+            showNotification('Please fill in all fields correctly', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/employees/${employeeId}/change-eci`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ new_eci: newEci, admin_password: adminPassword }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showNotification('Employee ID changed successfully. The employee has been signed out.', 'success');
+                closeChangeEciModal();
+                fetchEmployees(getCurrentFilters(), currentPage);
+            } else {
+                showApiErrors(data, 'Failed to change Employee ID');
+            }
+        } catch (error) {
+            showNotification('An error occurred, please try again', 'error');
+        }
+    }
+
     // ── Change Role (multi) ────────────────────────────────────────────────────
     let allRoles = [];
 
@@ -1934,7 +2102,18 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             return;
         }
 
+        await submitChangeRoleRequest(employeeId, checked, null);
+    }
+
+    // Split out so a role sync that turns out to grant EC Administrator can be
+    // retried once with a step-up 2FA code, without the caller having to know
+    // in advance whether that gate applies (only the backend knows the
+    // employee's *current* roles at the moment of the request).
+    async function submitChangeRoleRequest(employeeId, roleIds, twoFactorCode) {
         try {
+            const body = { role_ids: roleIds };
+            if (twoFactorCode) body.two_factor_code = twoFactorCode;
+
             const response = await fetch(`/api/employees/${employeeId}/change-role`, {
                 method: 'PATCH',
                 headers: {
@@ -1944,7 +2123,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                 },
                 credentials: 'same-origin',
-                body: JSON.stringify({ role_ids: checked }),
+                body: JSON.stringify(body),
             });
 
             let data;
@@ -1960,9 +2139,17 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 showNotification(`Role updated successfully: ${names}`, 'success');
                 closeChangeRoleModal();
                 fetchEmployees();
-            } else {
-                showApiErrors(data, 'Failed to update role');
+                return;
             }
+
+            if (response.status === 428 && data.requires_step_up && !twoFactorCode) {
+                const code = await showPrompt('This grants Administrator access. Enter your 2FA code to confirm.', 'Verify Identity', { placeholder: '6-digit code or recovery code', maxLength: 20 });
+                if (code === null) return;
+                await submitChangeRoleRequest(employeeId, roleIds, code);
+                return;
+            }
+
+            showApiErrors(data, 'Failed to update role');
         } catch (error) {
             showNotification('Network error — please check your connection and try again', 'error');
         }
@@ -1979,6 +2166,9 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             }
             if (!document.getElementById('changePasswordModal').classList.contains('hidden')) {
                 closeChangePasswordModal();
+            }
+            if (!document.getElementById('changeEciModal').classList.contains('hidden')) {
+                closeChangeEciModal();
             }
             if (!document.getElementById('changeRoleModal').classList.contains('hidden')) {
                 closeChangeRoleModal();
@@ -2030,15 +2220,19 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             setCustomDropdownValue('filterStatus', restored.status);
         }
 
+        // Module filter options & employee list tidak saling bergantung, jadi
+        // jalankan paralel (bukan await berurutan) supaya tabel tidak menunggu
+        // /api/modules selesai dulu sebelum mulai fetch /api/employees.
+        const moduleFilterPromise = loadModuleFilterOptions();
+        fetchEmployees(getCurrentFilters(), currentPage);
+
         // Module: item panel-nya baru ada setelah fetch /api/modules selesai,
         // jadi visual checked-state-nya baru bisa di-sync ulang sesudah ini.
-        await loadModuleFilterOptions();
+        await moduleFilterPromise;
         if (restored && restored.modules) {
             const ddModules = document.getElementById('ddFilterModules');
             if (ddModules && typeof _syncMultiVisualState === 'function') _syncMultiVisualState(ddModules);
         }
-
-        fetchEmployees(getCurrentFilters(), currentPage);
 
         // Teleport menu ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
         const menu = document.getElementById('floatingEmpMenu');
@@ -2079,13 +2273,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
-    let _empMenuId = null, _empMenuName = null, _empMenuRoles = null;
+    let _empMenuId = null, _empMenuName = null, _empMenuEci = null, _empMenuRoles = null;
 
     function openEmpMenu(event, id) {
         event.stopPropagation();
-        const data    = _empRowData.get(Number(id)) ?? { name: '-', roleIds: [] };
+        const data    = _empRowData.get(Number(id)) ?? { name: '-', eci: '', roleIds: [] };
         _empMenuId    = id;
         _empMenuName  = data.name;
+        _empMenuEci   = data.eci;
         _empMenuRoles = data.roleIds;
         const menu = document.getElementById('floatingEmpMenu');
         const btn  = event.currentTarget;
@@ -2112,6 +2307,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         closeEmpMenu();
         openChangePasswordModal(_empMenuId, _empMenuName);
     }
+    function empMenuChangeEci() {
+        closeEmpMenu();
+        openChangeEciModal(_empMenuId, _empMenuName, _empMenuEci);
+    }
     function empMenuChangeRole() {
         closeEmpMenu();
         openChangeRoleModal(_empMenuId, _empMenuName, _empMenuRoles);
@@ -2132,6 +2331,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z"/>
         </svg>
         Change Password
+    </button>
+    <button onclick="empMenuChangeEci()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-amber-600">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+        </svg>
+        Change Employee ID
     </button>
     <button onclick="empMenuChangeRole()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-purple-500">

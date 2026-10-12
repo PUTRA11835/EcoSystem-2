@@ -10,6 +10,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * 'attachment_count' bukan pointer ke berkas: lampiran memang tidak diarsipkan,
  * angkanya hanya untuk menjelaskan transkrip lama ("ada 1 gambar di sini").
+ *
+ * 'sender_employee_id' cuma relevan untuk room BERSAMA (AiConversation dengan
+ * ticket_id terisi) — atribusi "siapa yang tanya" saat lebih dari satu
+ * employee menulis ke conversation yang sama. NULL untuk role 'assistant',
+ * untuk pesan seed sistem (hasil AI Analyzer yang di-seed otomatis saat
+ * approve), dan untuk semua pesan di room privat (pengirimnya sudah pasti
+ * pemilik conversation).
  */
 class AiMessage extends Model
 {
@@ -18,6 +25,7 @@ class AiMessage extends Model
     protected $fillable = [
         'ai_conversation_id',
         'role',
+        'sender_employee_id',
         'content',
         'sources',
         'attachment_count',
@@ -31,5 +39,10 @@ class AiMessage extends Model
     public function conversation(): BelongsTo
     {
         return $this->belongsTo(AiConversation::class, 'ai_conversation_id');
+    }
+
+    public function sender(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'sender_employee_id', 'employee_id');
     }
 }
