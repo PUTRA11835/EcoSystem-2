@@ -215,12 +215,14 @@
                 <div class="flex items-center gap-2">
                 {{-- Export mengikuti filter/sort yang sedang aktif di tabel:
                      id baris yang terlihat dikirim sebagai query `ids`. --}}
+                @if($can('delivery-support.export'))
                 <button type="button" onclick="supExportExcel(this)"
                         class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition duration-300 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
                     <i class="fas fa-file-excel text-green-600"></i>
                     <span class="hidden sm:inline">Export Excel</span>
                     <span class="sm:hidden">Export</span>
                 </button>
+                @endif
                 @if($can('delivery-support.add-new'))
                 <a href="{{ route('delivery.support.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm">
