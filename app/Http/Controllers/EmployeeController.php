@@ -916,7 +916,7 @@ class EmployeeController extends Controller
 
             $firstName = $row->first_name ?? '';
             $lastName  = $row->last_name  ?? '';
-            $initials  = strtoupper(substr($firstName, 0, 1) . substr($lastName, 0, 1)) ?: 'NA';
+            $initials  = \App\Support\Initials::make(trim("$firstName $lastName"), 'NA');
 
             if (!empty($row->deletion_flag)) {
                 $statusClass = 'bg-red-100 text-red-800';

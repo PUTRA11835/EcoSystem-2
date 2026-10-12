@@ -38,12 +38,12 @@
                     <h3 class="text-sm font-bold text-gray-900">Payroll module</h3>
                     <span class="inline-block px-2.5 py-0.5 text-xs font-semibold rounded-full {{ $enabled ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700' }}">{{ $enabled ? 'Switched on' : 'Switched off' }}</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-1 max-w-2xl">While off, payroll periods cannot be created, calculated or approved (Settings and Simulation still work). This is the safety switch for go-live; only people with the “Switch payroll on/off” permission see the button.
+                <p class="text-xs text-gray-500 mt-1 max-w-2xl">While off, payroll periods cannot be created, calculated or locked (Settings and Simulation still work). This is the safety switch for go-live; only people with the “Switch payroll on/off” permission see the button.
                     @if($enabledAt) Last changed {{ $enabledAt->format('d M Y H:i') }}{{ $enabledBy ? ' by ' . $enabledBy : '' }}. @endif</p>
             </div>
             @if($can('finance.payroll.activate'))
                 @if($enabled)
-                    <form method="POST" action="{{ route('finance.payroll.activation') }}" onsubmit="return confirm('Switch payroll off? Existing periods and payslips are kept.')">@csrf
+                    <form method="POST" action="{{ route('finance.payroll.activation') }}" data-confirm="Existing periods and payslips are kept, but nobody can create, calculate or lock periods until it is switched on again." data-confirm-title="Switch payroll off?" data-confirm-ok="Switch off" data-confirm-variant="danger">@csrf
                         <input type="hidden" name="state" value="off">
                         <button type="submit" class="px-4 py-2 text-sm font-semibold rounded-lg border border-red-300 text-red-700 hover:bg-red-50"><i class="fas fa-power-off mr-2"></i>Switch off</button>
                     </form>
@@ -179,6 +179,19 @@
             <div>{!! $sw('apply_no_npwp_surcharge', 'Add 20% to PPh 21 when the employee has no NPWP/NIK', 'Based on whether an NPWP number is on file in Master → Employee → Identification.') !!}</div>
         </div>
 
+        {{-- Payslip --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+            <h3 class="text-sm font-bold text-gray-900">Payslip</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">HR signer name</label><input type="text" name="hr_signer_name" maxlength="150" value="{{ old('hr_signer_name', $v('hr_signer_name')) }}" @disabled($dis) class="{{ $input }}"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">HR signer title</label><input type="text" name="hr_signer_title" maxlength="150" placeholder="HR Manager" value="{{ old('hr_signer_title', $v('hr_signer_title')) }}" @disabled($dis) class="{{ $input }}"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Finance signer name</label><input type="text" name="finance_signer_name" maxlength="150" value="{{ old('finance_signer_name', $v('finance_signer_name')) }}" @disabled($dis) class="{{ $input }}"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Finance signer title</label><input type="text" name="finance_signer_title" maxlength="150" placeholder="Finance Manager" value="{{ old('finance_signer_title', $v('finance_signer_title')) }}" @disabled($dis) class="{{ $input }}"></div>
+                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Default payslip language</label>
+                    <select name="slip_language" @disabled($dis) class="{{ $input }}"><option value="id" @selected($v('slip_language') !== 'en')>Indonesian</option><option value="en" @selected($v('slip_language') === 'en')>English</option></select>
+                    <p class="text-xs text-gray-500 mt-1">The language can still be chosen each time a payslip is opened.</p></div>
+            </div>
+        </div>
         @if($canEdit)
             <div><button type="submit" class="px-5 py-2.5 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-floppy-disk mr-2"></i>Save payroll settings</button></div>
         @else

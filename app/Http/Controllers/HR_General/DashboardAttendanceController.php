@@ -29,9 +29,6 @@ use Illuminate\Http\Request;
  */
 class DashboardAttendanceController extends Controller
 {
-    /** Berapa hari riwayat yang ditampilkan di kartu dashboard. */
-    private const HISTORY_DAYS = 7;
-
     public function widget(Request $request, AttendanceService $attendance)
     {
         $employeeId = (int) session('user.id');
@@ -75,17 +72,7 @@ class DashboardAttendanceController extends Controller
             'shift'   => $shift ? ['name' => $shift->name, 'time_range' => $shift->time_range] : null,
             'record'  => $this->recordPayload($record),
             'summary' => $attendance->monthlySummary($employeeId, (int) $now->format('Y'), (int) $now->format('n')),
-            'history' => $attendance->history($employeeId, self::HISTORY_DAYS)
-                ->map(fn (AttendanceRecord $r) => [
-                    'date'      => $r->attendance_date->translatedFormat('d F Y'),
-                    'day'       => $r->attendance_date->translatedFormat('l'),
-                    'check_in'  => $r->check_in_at?->format('H:i'),
-                    'check_out' => $r->check_out_at?->format('H:i'),
-                    'overtime'  => $r->overtime_minutes > 0 ? $this->duration($r->overtime_minutes) : null,
-                    'status'    => $r->day_status,
-                    'late'      => (int) $r->late_minutes,
-                ])
-                ->values(),
+            // Riwayat 7 hari dihapus dari dashboard (8 Okt) — kueri-nya ikut dibuang agar widget lebih ringan.
         ];
     }
 

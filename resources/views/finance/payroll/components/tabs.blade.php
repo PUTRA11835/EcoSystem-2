@@ -30,3 +30,18 @@
         <p><span class="font-semibold">Payroll is not switched on yet.</span> Settings and Simulation work, but periods cannot be created or calculated until someone with the “Switch payroll on/off” permission switches it on in <a href="{{ route('finance.payroll.settings') }}" class="underline font-semibold">Payroll → Settings</a>.</p>
     </div>
 @endif
+
+{{-- Konfirmasi memakai dialog sistem (showConfirm) — bukan confirm() bawaan browser. Form: data-confirm="pesan" [data-confirm-title] [data-confirm-ok] [data-confirm-variant=primary|danger]. --}}
+<script>
+(function () {
+    if (window.__ecConfirmForms) return; window.__ecConfirmForms = true;
+    document.addEventListener('submit', async function (e) {
+        var f = e.target;
+        if (!f || !f.matches || !f.matches('form[data-confirm]') || f.dataset.confirmed === '1') return;
+        e.preventDefault();
+        var ok = await window.showConfirm(f.dataset.confirm, f.dataset.confirmTitle || 'Please confirm', f.dataset.confirmVariant || 'primary',
+            { okText: f.dataset.confirmOk || 'Confirm', cancelText: 'Cancel' });
+        if (ok) { f.dataset.confirmed = '1'; f.submit(); }
+    }, true);
+})();
+</script>

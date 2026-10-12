@@ -58,6 +58,7 @@ class PayrollCalculator
         // ── 1. Komponen gaji ────────────────────────────────────────────────
         $rows = array_values(array_filter((array) $in['components'], fn ($r) => !array_key_exists('is_active', $r) || $r['is_active']));
         $hasBase = false;
+        $baseCover = [];   // [dari, sampai, hari kalender tercakup] tiap baris Gaji Pokok — untuk "hari dibayar"
         foreach ($rows as $r) {
             $from = max($start, (string) $r['effective_from']);
             $to   = empty($r['effective_to']) ? $end : min($end, (string) $r['effective_to']);
@@ -80,6 +81,7 @@ class PayrollCalculator
             $isDed  = $r['category'] === SalaryComponentRules::DEDUCTION;
             if ($r['category'] === SalaryComponentRules::BASE) {
                 $hasBase = true;
+                $baseCover[] = [$from, $to, $covered];
             }
             $items[] = [
                 'type' => $isDed ? self::T_DEDUCTION : self::T_EARNING, 'code' => $r['category'], 'name' => $label,
@@ -89,6 +91,22 @@ class PayrollCalculator
         }
         if (!$hasBase) {
             $warnings[] = 'No Base Salary covers this period.';
+        }
+
+        // Hari dibayar: dari baris Gaji Pokok yang paling banyak mencakup periode. Pembagi tetap → hari kerja ÷ pembagi
+        // (periode penuh = pembagi); kalender → hari kalender ÷ hari periode.
+        $paidDays = 0.0;
+        $basisDays = $fixed ? (float) $divisor : (float) $days;
+        if ($baseCover) {
+            usort($baseCover, fn ($a, $b) => $b[2] <=> $a[2]);
+            [$bf, $bt, $bc] = $baseCover[0];
+            if (!$prorate || $bc === $days) {
+                $paidDays = $basisDays;
+            } elseif ($usesWorkdays) {
+                $paidDays = (float) min($divisor, PayrollCalendar::countWithin($workdays, $bf, $bt));
+            } else {
+                $paidDays = (float) $bc;
+            }
         }
 
         // ── 2. Dasar upah (penuh sebulan): BPJS dan tarif lembur/denda ────────
@@ -265,6 +283,8 @@ class PayrollCalculator
                 'employer_cost' => round($earnings + $bpjs['totals']['employer'], 2),
                 'bpjs_wage' => $bpjsWage,
                 'rate_wage' => round($rateWage, 2),
+                'paid_days' => round($paidDays, 2),
+                'basis_days' => round($basisDays, 2),
                 'hourly_rate' => round($hourly, 2),
             ],
             'bpjs' => $bpjs,

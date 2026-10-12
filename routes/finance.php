@@ -34,7 +34,7 @@ Route::prefix('finance')
                 Route::get('/', [PayrollController::class, 'index'])->name('periods');
                 Route::post('/', [PayrollController::class, 'store'])->name('periods.store')->middleware($can('create'));
 
-                Route::whereNumber(['period', 'slip', 'adjustment'])->group(function () use ($can) {
+                Route::whereNumber(['period', 'slip', 'adjustment', 'employee'])->group(function () use ($can) {
                     Route::get('/{period}', [PayrollController::class, 'show'])->name('periods.show');
                     Route::get('/{period}/export', [PayrollController::class, 'export'])->name('periods.export');
                     Route::get('/{period}/slips/{slip}', [PayrollController::class, 'slip'])->name('slips.show');
@@ -45,9 +45,11 @@ Route::prefix('finance')
                     Route::post('/{period}/adjustments/{adjustment}/delete', [PayrollController::class, 'deleteAdjustment'])->name('adjustments.destroy')->middleware($can('edit'));
                     Route::post('/{period}/delete', [PayrollController::class, 'destroy'])->name('periods.destroy')->middleware($can('delete'));
 
-                    Route::post('/{period}/approve', [PayrollController::class, 'approve'])->name('periods.approve')->middleware('menu:finance.payroll.approve');
-                    Route::post('/{period}/reopen', [PayrollController::class, 'reopen'])->name('periods.reopen')->middleware('menu:finance.payroll.approve');
-                    Route::post('/{period}/pay', [PayrollController::class, 'pay'])->name('periods.pay')->middleware('menu:finance.payroll.pay');
+                    Route::get('/{period}/export-excel', [PayrollController::class, 'exportExcel'])->name('periods.export-excel');
+                    Route::get('/{period}/slips/{slip}/detail', [PayrollController::class, 'slipDetail'])->name('slips.detail');
+                    Route::post('/{period}/employees/{employee}/recalculate', [PayrollController::class, 'recalculateEmployee'])->name('periods.employee.recalculate')->middleware($can('edit'));
+                    Route::post('/{period}/slips/generate', [PayrollController::class, 'generateSlips'])->name('periods.generate-slips')->middleware('menu:finance.payroll.slip');
+                    Route::post('/{period}/slips/publish', [PayrollController::class, 'publish'])->name('periods.publish')->middleware('menu:finance.payroll.slip');
                     Route::post('/{period}/lock', [PayrollController::class, 'lock'])->name('periods.lock')->middleware('menu:finance.payroll.lock');
                 });
             });
@@ -112,3 +114,9 @@ Route::prefix('finance')
             });
         });
     });
+
+// ESS → Paystub: slip gaji milik sendiri yang sudah dipublikasikan. Tanpa slug menu — kepemilikan diperiksa di controller.
+Route::prefix('general/my-paystub')->name('general.my-paystub.')->middleware(CheckAuthToken::class)->group(function () {
+    Route::get('/', [\App\Http\Controllers\Finance\MyPaystubController::class, 'index'])->name('index');
+    Route::get('/{slip}/pdf', [\App\Http\Controllers\Finance\MyPaystubController::class, 'pdf'])->whereNumber('slip')->name('pdf');
+});

@@ -37,7 +37,7 @@
 
             <div>
                 <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Employee <span class="normal-case font-normal text-gray-400">(optional)</span></label>
-                <select name="employee_id" id="f_employee_id" class="{{ $input }}"><option value="">— Manual input only —</option>
+                <select name="employee_id" id="f_employee_id" data-searchable="true" data-search-placeholder="Search name or employee ID…" class="{{ $input }}"><option value="">— Manual input only —</option>
                     @foreach($employees as $e)<option value="{{ $e->employee_id }}" @selected((int) ($in['employee_id'] ?? 0) === (int) $e->employee_id)>{{ trim($e->first_name . ' ' . $e->last_name) }} ({{ $e->eci }}){{ $e->payroll_activated ? '' : ' — payroll off' }}</option>@endforeach
                 </select>
                 <p class="text-[11px] text-gray-400 mt-1">Choosing an employee fills basic salary, fixed allowance, PTKP, NPWP, BPJS flags and attendance from the master data. You can still change every value.</p>

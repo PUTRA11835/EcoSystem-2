@@ -237,17 +237,23 @@ class PayrollCalculatorTest extends TestCase
         $this->assertNotEmpty(R::validate(['name' => 'X', 'period_start' => '2026-01-01', 'period_end' => '2026-12-31', 'pay_date' => '2026-12-31'], []));
     }
 
+    public function test_jendela_absensi_dan_cutoff(): void
+    {
+        $w = R::attendanceWindow(['period_start' => '2026-10-01', 'period_end' => '2026-10-31', 'attendance_start' => '2026-09-26', 'attendance_end' => '2026-10-25', 'cutoff_date' => '2026-10-20']);
+        $this->assertSame(['2026-09-26', '2026-10-25', '2026-10-20', '2026-10-20'], [$w['start'], $w['end'], $w['trusted_end'], $w['cutoff']]);
+        $d = R::attendanceWindow(['period_start' => '2026-10-01', 'period_end' => '2026-10-31']);
+        $this->assertSame(['2026-10-01', '2026-10-31', '2026-10-31', null], [$d['start'], $d['end'], $d['trusted_end'], $d['cutoff']]);
+        $this->assertNotEmpty(R::validate(['name' => 'x', 'period_start' => '2026-10-01', 'period_end' => '2026-10-31', 'pay_date' => '2026-10-31', 'cutoff_date' => '2026-11-15'], []));
+    }
+
     public function test_alur_status(): void
     {
-        $this->assertTrue(R::canTransition('open', 'approved'));
-        $this->assertTrue(R::canTransition('approved', 'open'));
-        $this->assertTrue(R::canTransition('approved', 'paid'));
-        $this->assertTrue(R::canTransition('paid', 'locked'));
-        $this->assertFalse(R::canTransition('open', 'paid'));
-        $this->assertFalse(R::canTransition('paid', 'open'));
+        // Alur ESH: hanya open → locked.
+        $this->assertTrue(R::canTransition('open', 'locked'));
         $this->assertFalse(R::canTransition('locked', 'open'));
+        $this->assertFalse(R::canTransition('open', 'paid'));
         $this->assertTrue(R::isEditable('open'));
-        $this->assertFalse(R::isEditable('approved'));
+        $this->assertFalse(R::isEditable('locked'));
         $this->assertTrue(R::isFinalTaxPeriod('2026-12-31'));
         $this->assertFalse(R::isFinalTaxPeriod('2026-11-30'));
         $this->assertSame(31, R::daysInPeriod('2026-10-01', '2026-10-31'));

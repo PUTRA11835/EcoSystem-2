@@ -34,7 +34,7 @@ class PayrollSettingsController extends Controller
         $row = PayrollSetting::current();
 
         return view('finance.payroll.settings', [
-            'settings' => $this->engine->settings(),
+            'settings' => $this->engine->settings() + $row->only(['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title', 'slip_language']),
             'canEdit' => (bool) $me?->hasMenuPermission('finance.payroll.settings', 'can_edit'),
             'enabled' => (bool) $row->module_enabled,
             'enabledAt' => $row->enabled_at,
@@ -55,7 +55,14 @@ class PayrollSettingsController extends Controller
             'proration_basis' => (string) $request->input('proration_basis'),
             'fixed_divisor' => (int) $request->input('fixed_divisor'),
             'attendance_effective_from' => trim((string) $request->input('attendance_effective_from')) === '' ? null : trim((string) $request->input('attendance_effective_from')),
+            'slip_language' => (string) $request->input('slip_language', 'id'),
         ];
+        foreach (['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title'] as $k) {
+            $v = trim((string) $request->input($k));
+            if (mb_strlen($v) > 150) { $errors[] = 'Signer name and title are limited to 150 characters.'; }
+            $in[$k] = $v === '' ? null : $v;
+        }
+        if (!in_array($in['slip_language'], ['id', 'en'], true)) { $errors[] = 'Choose Indonesian or English for the payslip.'; }
         if (!in_array($in['work_days_per_week'], [5, 6], true)) { $errors[] = 'Weekly work schedule must be 5 or 6 days.'; }
         if ($in['overtime_work_days'] !== null && !in_array($in['overtime_work_days'], [5, 6], true)) { $errors[] = 'Overtime workweek basis must follow payroll, or be 5 or 6 days.'; }
         if ($in['final_tax_month'] < 1 || $in['final_tax_month'] > 12) { $errors[] = 'The final tax month must be between 1 and 12.'; }
@@ -100,8 +107,8 @@ class PayrollSettingsController extends Controller
         if ($on && !$request->boolean('confirm')) {
             return redirect()->route('finance.payroll.settings')->withErrors(['Tick the confirmation box before switching payroll on.']);
         }
-        if (!$on && DB::table('payroll_periods')->whereIn('status', ['approved', 'paid'])->exists()) {
-            return redirect()->route('finance.payroll.settings')->withErrors(['Payroll cannot be switched off while a period is Approved or Paid. Lock or reopen it first.']);
+        if (!$on && DB::table('payroll_periods')->where('status', 'open')->whereNotNull('calculated_at')->exists()) {
+            return redirect()->route('finance.payroll.settings')->withErrors(['Payroll cannot be switched off while a calculated period is still open. Lock it first.']);
         }
 
         $actor = session('user.id') ? (int) session('user.id') : null;

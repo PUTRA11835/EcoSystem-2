@@ -98,7 +98,9 @@ class EmployeeSalaryComponent extends Model
             'is_mandatory'   => $this->kind === OfferComponent::KIND_BASE,
             'is_active'      => (bool) $this->is_active,
             'taxable'        => (bool) $this->taxable,
-            'bpjs_base'      => (bool) $this->bpjs_base,
+            // Dasar upah BPJS = gaji pokok + tunjangan TETAP. Tunjangan tidak tetap (Other Income / variable) tidak pernah
+            // ikut, berapa pun nilai kolomnya — kotak Salary Components tidak punya pilihan ini dan kolom bawaannya true.
+            'bpjs_base'      => (bool) $this->bpjs_base && in_array($this->kind, [OfferComponent::KIND_BASE, OfferComponent::KIND_FIXED], true),
         ];
     }
 

@@ -64,7 +64,7 @@ class EssSettingsController extends Controller
         ],
         'paystub' => [
             'name'  => 'Paystub',
-            'route' => null,
+            'route' => 'general.my-paystub.index',
             'icon'  => 'fas fa-file-invoice-dollar',
         ],
         // Nama tampilan diselaraskan menjadi "Reimbursement" (26 Agu 2026) agar

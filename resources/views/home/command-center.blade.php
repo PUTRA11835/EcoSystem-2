@@ -91,7 +91,7 @@
         }
     }
 @endphp
-<div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden" id="commandCenter">
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" id="commandCenter">
     <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 gap-3 flex-wrap">
         <div class="flex items-center gap-2">
             <div class="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center">
@@ -152,9 +152,13 @@
     <div class="p-5">
         <div id="ccPanelPinned" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
         <div id="ccPanelAll" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
-        <p id="ccEmptyPinned" class="hidden text-center text-sm text-gray-400 py-6">
-            No pinned menu yet — hover a menu in the sidebar and click the pin icon to add one.
-        </p>
+        <div id="ccEmptyPinned" class="hidden flex flex-col items-center gap-2 py-2 text-center">
+            <span class="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100"><i class="fas fa-thumbtack text-gray-400"></i></span>
+            <p class="text-sm font-medium text-gray-700">No favorites yet</p>
+            <p class="max-w-md text-xs text-gray-500">Pin the menus you use every day: hover a menu in the sidebar and click its pin icon. They will appear here for one-click access.</p>
+            <button type="button" onclick="document.querySelector('#commandCenter [data-cc-tab=all]').click()"
+                class="mt-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50">Browse all menus</button>
+        </div>
     </div>
 </div>
 
@@ -244,7 +248,7 @@
     function card(item) {
         var a = document.createElement('a');
         a.href = item.path;
-        a.className = 'relative flex items-start gap-3 p-3.5 rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all group bg-white';
+        a.className = 'relative flex items-center gap-3 p-3.5 rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-sm transition-all group bg-white';
 
         var iconWrap = document.createElement('div');
         iconWrap.className = 'w-9 h-9 rounded-lg bg-indigo-50 group-hover:bg-indigo-100 flex items-center justify-center shrink-0 transition';
