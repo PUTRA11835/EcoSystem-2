@@ -40,8 +40,8 @@ Route::prefix('delivery/support')->middleware(CheckAuthToken::class)->name('deli
     Route::get('/', [DeliverySupportController::class, 'index'])->name('index');
 
     // Export daftar support ke Excel. Wajib sebelum `{support}` agar "export"
-    // tidak tertangkap sebagai ID. Izin sama dengan halaman list.
-    Route::get('/export', [DeliverySupportController::class, 'export'])->name('export')->middleware('menu:delivery.support');
+    // tidak tertangkap sebagai ID. Izin function-nya sendiri (default: EC Admin).
+    Route::get('/export', [DeliverySupportController::class, 'export'])->name('export')->middleware('menu:delivery-support.export');
 
     // Planning list (all supports with planning progress)
     Route::get('/planning', [DeliverySupportController::class, 'planningList'])->name('planning-list');
