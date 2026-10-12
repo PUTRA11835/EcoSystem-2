@@ -286,7 +286,7 @@
                                 </span>
                                 @if($approval->acted_at)
                                     <span class="block text-xs text-gray-400 mt-0.5">
-                                        {{ $approval->acted_at->format('d.m.Y') }}
+                                        {{ $approval->acted_at->format('d M Y') }}
                                     </span>
                                 @endif
                             </div>
@@ -319,7 +319,7 @@
                             @foreach($report->items as $item)
                             <tr>
                                 <td class="px-3 py-2 text-gray-500">{{ $item->line_no }}</td>
-                                <td class="px-3 py-2 whitespace-nowrap">{{ $item->expense_date->format('d.m.Y') }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ $item->expense_date->format('d M Y') }}</td>
                                 <td class="px-3 py-2">
                                     {{ $item->description }}
                                     @if($item->receipt_no)

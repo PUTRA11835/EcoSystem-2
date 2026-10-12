@@ -1,7 +1,5 @@
-<!-- Apply / Submit Leave & Permit Modal -->
 <div id="modalApplyLeavePermit" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl sm:max-w-3xl max-h-[90vh] overflow-y-auto transform transition-all">
-        <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between primary-gradient text-white sticky top-0 z-10">
             <div class="flex items-center gap-2.5">
                 <i class="fas fa-paper-plane text-lg"></i>
@@ -12,7 +10,6 @@
             </button>
         </div>
 
-        <!-- Form Body -->
         <form id="formApplyLeavePermit" onsubmit="handleApplySubmit(event)" class="p-6 space-y-5" enctype="multipart/form-data">
             <input type="hidden" id="applyAppId" value="">
 
@@ -24,7 +21,6 @@
                     <span class="text-[10px] text-red-400 normal-case font-normal ml-1">(search by name or Employee ID)</span>
                 </label>
 
-                <!-- Hidden value holder -->
                 <input type="hidden" id="applyEmployeeId">
 
                 <!-- The toggle button (mirrors Bootstrap's data-bs-toggle="dropdown" pattern) -->
@@ -60,9 +56,7 @@
                             </div>
                         </li>
 
-                        <!-- Filtered options list -->
                         <div id="empDropdownItems" class="overflow-y-auto flex-1 py-1">
-                            <!-- Populated by JS -->
                         </div>
                         <li id="empDropdownEmpty" class="px-4 py-3 text-xs text-gray-400 text-center hidden list-none">
                             <i class="fas fa-search-minus mr-1"></i> No employees found.
@@ -70,7 +64,6 @@
                     </ul>
                 </div>
 
-                <!-- Selected employee confirmation badge -->
                 <div id="empSelectedBadge" class="hidden items-center gap-2 bg-white border border-green-200 rounded-lg px-3 py-1.5 text-xs">
                     <i class="fas fa-check-circle text-green-500 flex-shrink-0"></i>
                     <span id="empSelectedName" class="font-semibold text-gray-800 flex-1"></span>
@@ -79,7 +72,6 @@
             </div>
             @endif
 
-            <!-- Leave / Permit Type -->
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
                     Leave / Permit Type <span class="text-red-500">*</span>
@@ -122,7 +114,6 @@
                 </select>
             </div>
 
-            <!-- Date Range Selectors -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
@@ -138,13 +129,11 @@
                 </div>
             </div>
 
-            <!-- Total Days Preview Badge -->
             <div id="daysCountBadge" class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs hidden">
                 <span class="font-semibold text-gray-600">Calculated Business Days:</span>
                 <span class="font-bold primary-text text-sm" id="daysCountValue">0 days</span>
             </div>
 
-            <!-- Quota Exceeded Warning Banner -->
             <div id="applyQuotaWarningBanner" class="p-3.5 rounded-xl border border-red-200 bg-red-50 text-red-800 text-xs hidden items-center gap-2.5">
                 <i class="fas fa-exclamation-triangle text-red-600 text-base flex-shrink-0"></i>
                 <div>
@@ -153,7 +142,6 @@
                 </div>
             </div>
 
-            <!-- Reason / Purpose -->
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
                     Reason / Purpose <span class="text-red-500">*</span>
@@ -161,7 +149,6 @@
                 <textarea id="applyReason" rows="3" required placeholder="State your detailed reason..." class="w-full text-xs sm:text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"></textarea>
             </div>
 
-            <!-- File Attachment -->
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
                     Attachment <span id="attachmentRequiredAsterisk" class="text-red-500 hidden">* (Required for Doctor Note / Event)</span>
@@ -170,7 +157,6 @@
                 <p class="text-[11px] text-gray-500 mt-1">Accepted formats: PDF, JPG, PNG, DOC (<strong>Max 1MB</strong>). Required for doctor's note or medical events.</p>
             </div>
 
-            <!-- Footer Buttons -->
             <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                 <button type="button" onclick="closeApplyModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
                     Cancel

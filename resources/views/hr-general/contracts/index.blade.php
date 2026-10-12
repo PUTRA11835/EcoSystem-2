@@ -9,11 +9,11 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'contracts.list'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.contracts.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
 
-    {{-- Summary --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         @foreach([
             ['Employees', $summary['employees'], 'users', 'primary-text'],

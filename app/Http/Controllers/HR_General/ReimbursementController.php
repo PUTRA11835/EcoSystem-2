@@ -8,6 +8,7 @@ use App\Models\Reimbursement\ReimbursementRequest;
 use App\Models\Reimbursement\ReimbursementSetting;
 use App\Services\Reimbursement\ReimbursementService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Pengelolaan reimbursement (sisi HR / GA / penyetuju).
@@ -177,6 +178,8 @@ class ReimbursementController extends Controller
             'branches'  => $reimbursement->branchOptions(),
             'steps'     => $reimbursement->activeSteps(),
             'employees' => $this->employeeOptions(),
+            'directors' => $reimbursement->directorOptions(),
+            'currencies' => ReimbursementRequest::CURRENCIES,
             'action'    => route('general.reimbursement.store'),
             'backRoute' => route('general.reimbursement.index'),
 
@@ -226,6 +229,8 @@ class ReimbursementController extends Controller
             'branches'  => $reimbursement->branchOptions(),
             'steps'     => $reimbursement->activeSteps(),
             'employees' => $this->employeeOptions(),
+            'directors' => collect(),
+            'currencies' => ReimbursementRequest::CURRENCIES,
             'action'    => route('general.reimbursement.update', $reimbursementRequest),
             'backRoute' => route('general.reimbursement.show', $reimbursementRequest),
             'minDate'   => null,
@@ -367,10 +372,17 @@ class ReimbursementController extends Controller
 
         if ($needsEmployee) {
             $rules['employee_id'] = ['required', 'integer', 'exists:employee,employee_id'];
+            $rules['currency']    = ['required', 'string', Rule::in(ReimbursementRequest::CURRENCIES)];
+
+            if ($settings->directorIds() !== []) {
+                $rules['approver_id'] = ['required', 'integer', Rule::in($settings->directorIds())];
+            }
         }
 
         return $request->validate($rules, [
             'employee_id.required'         => 'Choose which employee this reimbursement belongs to.',
+            'approver_id.required'         => 'Choose the director who will approve this reimbursement.',
+            'approver_id.in'               => 'The chosen approver is not one of the available directors.',
             'items.required'               => 'Add at least one reimbursement item.',
             'items.*.description.required' => 'Every item needs a description.',
             'items.*.branch_id.required'   => 'Every item needs a branch.',
@@ -393,7 +405,7 @@ class ReimbursementController extends Controller
     protected function baseQuery(array $filters)
     {
         return ReimbursementRequest::query()
-            ->with(['employee.basicData', 'approvals.actor.basicData', 'approvals.role', 'items'])
+            ->with(['employee.basicData', 'approver.basicData', 'approvals.actor.basicData', 'approvals.role', 'items'])
             ->when($filters['status'] === 'open',
                 fn ($q) => $q->whereIn('status', ReimbursementRequest::OPEN_STATUSES))
             ->when(!in_array($filters['status'], ['open', 'all', 'deleted'], true),

@@ -72,7 +72,7 @@
             </div>
             <div class="flex items-center gap-3" data-live-region="toolbar">
                 @if($can('general.onboarding.lock') && ($readyCount ?? 0) > 0)
-                    <button type="button" onclick="lockAllReady()" class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900 whitespace-nowrap">
+                    <button type="button" onclick="lockAllReady()" class="px-3 py-1.5 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90 whitespace-nowrap">
                         <i class="fas fa-lock mr-1"></i> Lock all ready ({{ $readyCount }})
                     </button>
                 @endif

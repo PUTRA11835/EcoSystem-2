@@ -323,7 +323,6 @@
         @csrf
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden space-y-6">
 
-            {{-- Period & General Notes --}}
             <div class="p-6 border-b border-gray-100 space-y-4">
                 <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
                     <i class="fas fa-calendar-alt text-amber-500"></i> Evaluation Period &amp; General Notes
@@ -353,7 +352,6 @@
                 </div>
             </div>
 
-            {{-- Indicator Scoring Table --}}
             <div class="p-6 space-y-4">
                 <div class="flex items-center justify-between">
                     <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
@@ -469,7 +467,6 @@
                     </table>
                 </div>
 
-                {{-- Bottom Summary Bar (Screenshot 4 & 5) --}}
                 <div class="p-4 bg-gray-50 rounded-xl border border-gray-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-gray-700">Total Weight:</span>
@@ -495,7 +492,6 @@
             </div>
             @endif
 
-            {{-- Action Footer Buttons --}}
             @if(!$isReadOnly)
             <div class="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <a href="{{ $backUrl }}"
@@ -549,7 +545,6 @@
     </div>
 </div>
 
-{{-- Request Revision Modal --}}
 <div id="reviseModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
         <h3 class="text-base font-bold text-gray-900">Request Revision</h3>
@@ -568,7 +563,6 @@
     </div>
 </div>
 
-{{-- Approve Modal --}}
 <div id="approveModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
         <h3 class="text-base font-bold text-gray-900">Approve Evaluation</h3>

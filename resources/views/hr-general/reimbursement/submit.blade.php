@@ -39,7 +39,7 @@
           class="bg-white rounded-xl p-6 shadow-sm space-y-6">
         @csrf
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
             <div>
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Document No.</label>
                 <input type="text" value="Generated on submit" disabled
@@ -56,6 +56,19 @@
                        @if($maxDate) max="{{ $maxDate }}" @endif
                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
                 @error('request_date')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Currency <span class="text-red-600">*</span>
+                </label>
+                <select name="currency" id="reimbursementCurrency" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    @foreach($currencies as $code)
+                        <option value="{{ $code }}" @selected(old('currency', 'IDR') === $code)>{{ $code }}</option>
+                    @endforeach
+                </select>
+                @error('currency')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
             </div>
 
             <div>
@@ -100,6 +113,33 @@
         </div>
 
         @include('hr-general.reimbursement._item_rows', ['existingItems' => null])
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Requester</label>
+                <input type="text" disabled value="{{ $signatoryRequester ?? (session('user.name') ?? 'You') }}"
+                       class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
+            </div>
+
+            @if($directors->isNotEmpty())
+            <div>
+                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Approver <span class="text-red-600">*</span>
+                </label>
+                <select name="approver_id" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                    <option value="">— choose a director —</option>
+                    @foreach($directors as $director)
+                        <option value="{{ $director['id'] }}" @selected((string) old('approver_id') === (string) $director['id'])>
+                            {{ $director['label'] }}
+                        </option>
+                    @endforeach
+                </select>
+                <p class="text-xs text-gray-400 mt-1">The director who gives the final approval.</p>
+                @error('approver_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+            </div>
+            @endif
+        </div>
 
         {{-- Aturan yang sedang berlaku. Ditampilkan apa adanya supaya pengguna
              tidak menebak-nebak batas yang tak terlihat. --}}

@@ -109,11 +109,27 @@ class ReimbursementRequestApproval extends Model
                 => $this->role?->name ?? 'Role #' . $this->approver_role_id,
 
             ReimbursementApprovalStep::TYPE_EMPLOYEE
-                => count($this->approver_employee_ids ?? []) . ' selected employee(s)',
+                => $this->employeeLabel(),
 
             ReimbursementApprovalStep::TYPE_DIRECT_MANAGER => 'Direct manager (not available yet)',
 
             default => $this->approver_type,
         };
+    }
+
+    /** Satu orang disebut namanya; beberapa orang diringkas jumlahnya. */
+    private function employeeLabel(): string
+    {
+        $ids = array_map('intval', $this->approver_employee_ids ?? []);
+
+        if (count($ids) === 1) {
+            $approver = $this->request?->approver;
+
+            if ($approver && (int) $approver->employee_id === $ids[0]) {
+                return $approver->basicData?->nick_name ?? $approver->eci;
+            }
+        }
+
+        return count($ids) . ' selected employee(s)';
     }
 }

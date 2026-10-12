@@ -51,7 +51,6 @@
                 </p>
             </div>
 
-            {{-- Controls flush right on desktop --}}
             <div class="flex flex-wrap items-center justify-start md:justify-end gap-2.5 w-full md:w-auto">
                 {{-- Month picker form (auto-submits on change) --}}
                 <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" class="flex items-center gap-2">
@@ -60,13 +59,11 @@
                         onchange="this.form.submit()">
                 </form>
 
-                {{-- Active employees badge --}}
                 <span class="inline-flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-700 text-xs font-semibold rounded-xl border border-gray-200/60">
                     <i class="fas fa-users text-gray-500 text-xs"></i>
                     {{ $totalEmployees }} active employees
                 </span>
 
-                {{-- Export CSV --}}
                 @if($can('general.kpi-evaluation.export'))
                 <a href="{{ route('general.kpi-evaluation.export', ['period' => $periodMonth]) }}"
                    class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold rounded-xl hover:bg-emerald-100 transition-all">
@@ -100,7 +97,6 @@
     {{-- ── Charts Row ───────────────────────────────────────────────────────── --}}
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
 
-        {{-- Score trend chart (wider) --}}
         <div class="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -122,7 +118,6 @@
             </div>
         </div>
 
-        {{-- Score by department (bar) --}}
         <div class="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <h3 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
                 <i class="fas fa-user-tie text-blue-400"></i>
@@ -136,7 +131,6 @@
 
     {{-- ── Evaluation List Table ────────────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {{-- Clean & Brief Header --}}
         <div class="p-5 border-b border-gray-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div class="flex flex-wrap items-center gap-2">
                 <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -171,7 +165,6 @@
             “Who is this template for?” audience. Edit a template to change who's covered; an employee can hold more than one.
         </p>
 
-        {{-- Hidden Form for Table Header Filters --}}
         <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" id="tableFilterForm" class="hidden">
             <input type="hidden" name="period" value="{{ $periodMonth }}">
             <input type="hidden" name="per_page" id="perPageInput" value="{{ $perPage ?? 10 }}">
@@ -193,12 +186,10 @@
             <table class="w-full text-sm">
                 <thead class="bg-gray-50/90 border-b border-gray-100 select-none">
                     <tr>
-                        {{-- No --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-12">
                             No
                         </th>
 
-                        {{-- 1. Employee --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-50">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Employee</span>
@@ -209,7 +200,6 @@
                                     @if(!empty($search))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
-                            {{-- Floating Search Popover --}}
                             <div id="employeeFilterBox" class="header-filter-popover hidden w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case" onclick="event.stopPropagation()">
                                 <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Employee</span>
@@ -230,7 +220,6 @@
                             </div>
                         </th>
 
-                        {{-- 2. Position --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Position</span>
@@ -241,7 +230,6 @@
                                     @if(!empty($positionFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
-                            {{-- Floating Position Popover --}}
                             <div id="positionFilterBox" class="header-filter-popover hidden w-56 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case font-normal" onclick="event.stopPropagation()">
                                 <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Position</span>
@@ -266,7 +254,6 @@
                             </div>
                         </th>
 
-                        {{-- 3. Supervisor --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Supervisor</span>
@@ -277,7 +264,6 @@
                                     @if(!empty($supervisorId))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
-                            {{-- Floating Supervisor Search Popover --}}
                             <div id="supervisorFilterBox" class="header-filter-popover hidden w-64 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden normal-case" onclick="event.stopPropagation()">
                                 <div class="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
                                     <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Filter · Supervisor</span>
@@ -298,7 +284,6 @@
                             </div>
                         </th>
 
-                        {{-- 4. Template --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-40">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Template</span>
@@ -356,27 +341,22 @@
                             </div>
                         </th>
 
-                        {{-- 5. Self Score --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                             Self Score
                         </th>
 
-                        {{-- 6. SPV Score --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                             SPV Score
                         </th>
 
-                        {{-- 7. Peer Score --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                             Peer Score
                         </th>
 
-                        {{-- 8. Upward Score --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">
                             Upward Score
                         </th>
 
-                        {{-- 9. Status --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider min-w-35">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span>Status</span>
@@ -387,7 +367,6 @@
                                     @if(!empty($statusFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
-                            {{-- Floating Status Popover --}}
                             @php
                                 $statusOptions = [
                                     ''             => 'All Status',
@@ -419,7 +398,6 @@
                             </div>
                         </th>
 
-                        {{-- 10. Action --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-28">
                             <span>Action</span>
                         </th>
@@ -610,7 +588,6 @@
         <div class="px-5 py-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
             {{-- Left: Pagination Navigation & Results Counter --}}
             <div class="flex items-center gap-1.5 flex-wrap">
-                {{-- Previous Page Button --}}
                 @if($activeEmployees->onFirstPage())
                     <span class="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 flex items-center justify-center text-xs cursor-not-allowed shadow-none">
                         <i class="fas fa-chevron-left text-[10px]"></i>
@@ -622,7 +599,6 @@
                     </a>
                 @endif
 
-                {{-- Page Numbers --}}
                 @php
                     $current = $activeEmployees->currentPage();
                     $last = $activeEmployees->lastPage();
@@ -671,7 +647,6 @@
                     </a>
                 @endif
 
-                {{-- Next Page Button --}}
                 @if($activeEmployees->hasMorePages())
                     <a href="{{ $activeEmployees->nextPageUrl() }}"
                        class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 flex items-center justify-center text-xs shadow-sm transition-all">
@@ -683,13 +658,11 @@
                     </span>
                 @endif
 
-                {{-- Showing Results Counter --}}
                 <span class="text-xs text-gray-500 ml-3 font-normal whitespace-nowrap">
                     Showing {{ $activeEmployees->firstItem() ?? 0 }} to {{ $activeEmployees->lastItem() ?? 0 }} of {{ $activeEmployees->total() }} results
                 </span>
             </div>
 
-            {{-- Right: Rows per page selector --}}
             <div class="flex items-center gap-2">
                 <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
                 <div class="relative">

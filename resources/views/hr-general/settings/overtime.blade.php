@@ -42,7 +42,6 @@
             </p>
         </div>
 
-        {{-- Aturan tanggal --}}
         <div>
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Dates</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -85,7 +84,6 @@
             </div>
         </div>
 
-        {{-- Aturan durasi --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Duration</h3>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
@@ -124,7 +122,6 @@
             </div>
         </div>
 
-        {{-- Persetujuan --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Approval</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -179,7 +176,6 @@
             @endif
         </div>
 
-        {{-- Perbandingan & alasan --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Comparison &amp; Reason</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">

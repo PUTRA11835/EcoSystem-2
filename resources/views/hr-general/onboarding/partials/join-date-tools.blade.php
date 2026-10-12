@@ -57,7 +57,6 @@
     <p class="text-[11px] text-gray-500 mt-2">Dates may not be before {{ \Carbon\Carbon::parse(\App\Services\Onboarding\JoinDateRules::MIN_DATE)->format('d M Y') }} or more than {{ \App\Services\Onboarding\JoinDateRules::MAX_AHEAD_DAYS }} days ahead. Every change is recorded in the employee history and the audit log.</p>
 </div>
 
-{{-- Dialog impor --}}
 <div id="jdModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-40" aria-hidden="true">
     <div role="dialog" aria-modal="true" aria-labelledby="jdModalTitle" class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col">
         <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -127,7 +126,11 @@
     remindBtn.addEventListener('click', async () => {
         const ids = $$('.jd-sel:checked', root).map((c) => parseInt(c.value, 10));
         if (!ids.length) { return; }
-        if (!confirm('Send a reminder to ' + ids.length + ' employee(s)? Each person is reminded at most once every 7 days.')) { return; }
+        const ask = 'Send a reminder to ' + ids.length + ' employee(s)? Each person is reminded at most once every 7 days.';
+        const ok = window.showConfirm
+            ? await window.showConfirm(ask, 'Send Reminders', 'primary', { okText: 'Send', cancelText: 'Cancel' })
+            : confirm(ask);
+        if (!ok) { return; }
         remindBtn.disabled = true;
         const r = await post(root.dataset.remind, { employee_ids: ids });
         notify((r.json && r.json.message) || (r.ok ? 'Done.' : 'Could not send reminders.'), r.ok ? 'success' : 'error');

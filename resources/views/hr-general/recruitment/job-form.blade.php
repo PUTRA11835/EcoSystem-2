@@ -45,7 +45,6 @@
         @csrf
         <fieldset @disabled(!$editable) class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
 
-            <!-- Posting -->
             <div class="{{ $card }} xl:col-span-2">
                 <div class="{{ $cardHead }}">
                     <h3 class="text-sm font-bold text-gray-800">Posting</h3>
@@ -174,7 +173,6 @@
             </div>
 
             <div class="space-y-5">
-                <!-- Internal information -->
                 <div class="{{ $card }}">
                     <div class="{{ $cardHead }}">
                         <h3 class="text-sm font-bold text-gray-800">Internal Information</h3>
@@ -207,7 +205,6 @@
                     </div>
                 </div>
 
-                <!-- Career website -->
                 <div class="{{ $card }}">
                     <div class="{{ $cardHead }}">
                         <h3 class="text-sm font-bold text-gray-800">Career Website</h3>

@@ -1627,6 +1627,7 @@
                     <div class="flex items-center gap-2 sm:gap-4 flex-shrink-0">
                         <!-- Search Bar -->
                         @yield('page-actions')
+                        @stack('page-actions-extra')
                         <!-- Notification Bell -->
                         <div class="flex items-center gap-2">
                             <button id="soundToggleBtn" onclick="toggleNotifSound()" title="Disable notification sound"

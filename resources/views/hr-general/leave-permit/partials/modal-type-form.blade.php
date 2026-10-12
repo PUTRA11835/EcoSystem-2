@@ -1,7 +1,6 @@
 <!-- Master Leave Type Form Modal (HR & Admin CRUD) -->
 <div id="modalMasterTypeForm" class="fixed inset-0 z-50 hidden overflow-y-auto bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl sm:max-w-2xl overflow-hidden transform transition-all">
-        <!-- Header -->
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between primary-gradient text-white">
             <div class="flex items-center gap-2.5">
                 <i class="fas fa-layer-group text-lg"></i>
@@ -12,7 +11,6 @@
             </button>
         </div>
 
-        <!-- Form Body -->
         <form id="formMasterType" onsubmit="handleTypeFormSubmit(event)" class="p-6 space-y-4">
             <input type="hidden" id="typeFormId" value="">
 
@@ -76,7 +74,6 @@
                 <textarea id="typeFormDescription" rows="2" placeholder="Policy explanation..." class="w-full text-xs sm:text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500"></textarea>
             </div>
 
-            <!-- Footer Actions -->
             <div class="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                 <button type="button" onclick="closeTypeFormModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors">
                     Cancel

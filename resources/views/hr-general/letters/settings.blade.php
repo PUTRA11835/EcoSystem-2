@@ -34,37 +34,57 @@
             default                                                          => 'numbering',
         };
     }
+    // The Excel menu in the header follows the open step: only the table that step edits.
+    $stepDatasets = [
+        'numbering' => ['letters.codes'],
+        'types'     => ['letters.templates'],
+        'requests'  => ['letters.request-types'],
+    ];
     $offering = \App\Models\Letterhead::TYPE_OFFERING_LETTER;
     // The employment contract is written and numbered in HR & General → Contract, not here; it is listed so a letterhead can be tied to it.
     $contract = \App\Models\Letterhead::TYPE_EMPLOYMENT_CONTRACT;
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => $stepDatasets[$section] ?? []])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
 
-    {{-- ── The flow ─────────────────────────────────────────────────────── --}}
-    <nav class="bg-white rounded-xl border border-gray-200 shadow-sm p-2 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2" aria-label="Settings steps">
-        @foreach($steps as $key => [$stepTitle, $stepHint, $stepIcon])
-            <button type="button" data-step="{{ $key }}" onclick="showSettingsStep('{{ $key }}')"
-                class="settings-step relative flex items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors {{ $section === $key ? 'bg-indigo-50 ring-1 ring-indigo-200' : 'hover:bg-gray-50' }}">
-                <span class="step-number w-7 h-7 shrink-0 rounded-full flex items-center justify-center text-xs font-bold {{ $section === $key ? 'primary-gradient text-white' : 'bg-gray-100 text-gray-500' }}">{{ $loop->iteration }}</span>
-                <span class="min-w-0">
-                    <span class="block text-xs font-bold text-gray-800"><i class="fas fa-{{ $stepIcon }} text-[10px] text-gray-400 mr-1"></i>{{ $stepTitle }}</span>
-                    <span class="block text-[10px] text-gray-500 leading-snug">{{ $stepHint }}</span>
-                </span>
-                @unless($loop->last)
-                    <i class="fas fa-chevron-right hidden xl:block absolute -right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-300"></i>
-                @endunless
-            </button>
-        @endforeach
-    </nav>
+    {{-- ── Settings: step list on the left, the open step on the right ───────── --}}
+    <style>
+        .ls-step { display:flex; align-items:flex-start; gap:.65rem; padding:.55rem .65rem; border-radius:.6rem; color:#374151; transition:background .15s; }
+        .ls-step:hover { background:#f3f4f6; }
+        .ls-step.is-on { background:rgba(var(--primary-rgb, 79,70,229), .10); color:var(--primary-color, #4f46e5); }
+        .ls-step:focus-visible { outline:2px solid var(--primary-color, #4f46e5); outline-offset:2px; }
+        .ls-step .ls-icon { width:2rem; height:2rem; flex:none; display:flex; align-items:center; justify-content:center; border-radius:.5rem; background:#f3f4f6; color:#6b7280; font-size:.8rem; }
+        .ls-step.is-on .ls-icon { background:var(--primary-color, #4f46e5); color:#fff; }
+    </style>
 
+    <div class="grid grid-cols-1 lg:grid-cols-[17rem_minmax(0,1fr)] gap-4 items-start">
+        <aside class="bg-white rounded-xl border border-gray-200 shadow-sm p-2 lg:sticky lg:top-20" aria-label="Settings">
+            <p class="px-2 pt-1 pb-2 text-[11px] font-semibold tracking-wider text-gray-400 uppercase">Settings</p>
+            <nav class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-0.5" aria-label="Settings sections">
+                @foreach($steps as $key => [$stepTitle, $stepHint, $stepIcon])
+                    <a href="{{ request()->fullUrlWithQuery(['section' => $key]) }}" data-step="{{ $key }}"
+                        onclick="event.preventDefault(); showSettingsStep('{{ $key }}')"
+                        class="ls-step {{ $section === $key ? 'is-on' : '' }}" @if($section === $key) aria-current="page" @endif>
+                        <span class="ls-icon"><i class="fas fa-{{ $stepIcon }}"></i></span>
+                        <span class="min-w-0">
+                            <span class="block text-[13px] font-bold leading-tight">{{ $stepTitle }}</span>
+                            <span class="block text-[11px] font-normal text-gray-500 leading-snug mt-0.5">{{ $stepHint }}</span>
+                        </span>
+                    </a>
+                @endforeach
+            </nav>
+        </aside>
+
+        <div class="min-w-0 space-y-6">
     {{-- ── ① Numbering & codes ──────────────────────────────────────────── --}}
-    <section data-panel="numbering" class="{{ $section === 'numbering' ? '' : 'hidden' }}">
-        <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-            <form action="{{ route('general.letters.settings.numbering.update') }}" method="POST" class="xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+    @if($section === 'numbering')
+    <section data-panel="numbering">
+        <div class="grid grid-cols-1 2xl:grid-cols-5 gap-6 items-start">
+            <form action="{{ route('general.letters.settings.numbering.update') }}" method="POST" class="2xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
                 @csrf
                 <div class="px-5 py-4 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Number Format</h3>
@@ -151,12 +171,12 @@
                 @endif
             </form>
 
-            <div class="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="2xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div class="px-5 py-4 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Letter Codes</h3>
                     <p class="text-[11px] text-gray-400 mt-0.5">
                         What <code>{code}</code> prints — e.g. EC/09/<strong>OF</strong>/IN/21018/2026. Which letter uses which code is set in
-                        <button type="button" onclick="showSettingsStep('types')" class="font-semibold" style="color: var(--primary-color);">② Letter Types</button>.
+                        <button type="button" onclick="showSettingsStep('types')" class="font-semibold primary-text">② Letter Types</button>.
                         A code already on letters can be switched off, not deleted or renamed.
                     </p>
                 </div>
@@ -191,11 +211,12 @@
                 @endif
             </div>
         </div>
-        @include('hr-general.letters.components.next-step', ['next' => 'types', 'nextLabel' => '② Letter Types — pick the code and language of each letter'])
     </section>
+    @endif
 
     {{-- ── ② Letter types ───────────────────────────────────────────────── --}}
-    <section data-panel="types" class="{{ $section === 'types' ? '' : 'hidden' }}">
+    @if($section === 'types')
+    <section data-panel="types">
         <form action="{{ route('general.letters.settings.templates.update') }}" method="POST" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             @csrf
             <div class="px-5 py-4 border-b border-gray-100">
@@ -286,13 +307,14 @@
                 </div>
             @endif
         </form>
-        @include('hr-general.letters.components.next-step', ['next' => 'signers', 'nextLabel' => '③ Signers — who can be picked to sign a letter'])
     </section>
+    @endif
 
     {{-- ── ③ Signers ────────────────────────────────────────────────────── --}}
-    <section data-panel="signers" class="{{ $section === 'signers' ? '' : 'hidden' }}">
-        <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
-            <div class="xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+    @if($section === 'signers')
+    <section data-panel="signers">
+        <div class="grid grid-cols-1 2xl:grid-cols-5 gap-6 items-start">
+            <div class="2xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div class="px-5 py-4 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Who Can Sign</h3>
                     <p class="text-[11px] text-gray-400 mt-0.5">
@@ -394,7 +416,7 @@
                 @endif
             </div>
 
-            <div class="xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div class="2xl:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div class="px-5 py-4 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Can Sign Now</h3>
                     <p class="text-[11px] text-gray-400 mt-0.5">What Create Letter offers: role, then the people of it. A role with nobody active in it is left out.</p>
@@ -418,11 +440,12 @@
                 </div>
             </div>
         </div>
-        @include('hr-general.letters.components.next-step', ['next' => 'letterheads', 'nextLabel' => '④ Letterheads — the page each letter is printed on'])
     </section>
+    @endif
 
     {{-- ── ④ Letterheads ────────────────────────────────────────────────── --}}
-    <section data-panel="letterheads" class="{{ $section === 'letterheads' ? '' : 'hidden' }}">
+    @if($section === 'letterheads')
+    <section data-panel="letterheads">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
@@ -495,11 +518,12 @@
                 @endforelse
             </div>
         </div>
-        @include('hr-general.letters.components.next-step', ['next' => 'requests', 'nextLabel' => '⑤ Employee Requests — what employees can ask for'])
     </section>
+    @endif
 
     {{-- ── ⑤ Employee requests ──────────────────────────────────────────── --}}
-    <section data-panel="requests" class="{{ $section === 'requests' ? '' : 'hidden' }}">
+    @if($section === 'requests')
+    <section data-panel="requests">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
@@ -568,6 +592,9 @@
             @endif
         </div>
     </section>
+    @endif
+        </div>
+    </div>
 </div>
 
 {{-- Delete forms live outside the rows: forms cannot be nested. --}}
@@ -654,27 +681,14 @@
         // ── Steps: one at a time, kept in the address so saving comes back to the same step ──
         // Leaving a step with unsaved changes asks first (unsaved-guard); { force: true } skips that.
         window.showSettingsStep = async function (step, options = {}) {
-            const current = document.querySelector('[data-panel]:not(.hidden)');
+            const current = document.querySelector('[data-panel]');
             if (!options.force && current && current.dataset.panel !== step && window.UnsavedGuard
                 && !(await window.UnsavedGuard.confirmLeave(current, 'Go to another step'))) {
                 return;
             }
-            document.querySelectorAll('[data-panel]').forEach(panel => panel.classList.toggle('hidden', panel.dataset.panel !== step));
-            document.querySelectorAll('.settings-step').forEach(button => {
-                const active = button.dataset.step === step;
-                button.classList.toggle('bg-indigo-50', active);
-                button.classList.toggle('ring-1', active);
-                button.classList.toggle('ring-indigo-200', active);
-                const number = button.querySelector('.step-number');
-                number.classList.toggle('primary-gradient', active);
-                number.classList.toggle('text-white', active);
-                number.classList.toggle('bg-gray-100', !active);
-                number.classList.toggle('text-gray-500', !active);
-            });
             const url = new URL(window.location.href);
             url.searchParams.set('section', step);
-            history.replaceState(null, '', url);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.location.href = url.toString();
         };
 
         // ── Signers: role first, then "everyone" or one of the people holding it ──
@@ -700,11 +714,20 @@
         const two = n => String(n).padStart(2, '0');
         const roman = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
         const next = { outgoing: @json($nextSequence), incoming: @json($nextIncoming) };
+        // Only the open step is on the page, so the format inputs may be absent: fall back to what is saved.
+        const saved = {
+            format: { outgoing: @json($settings->outgoing_number_format), incoming: @json($settings->incoming_agenda_format) },
+            digits: { outgoing: @json($settings->outgoing_number_digits), incoming: @json($settings->incoming_agenda_digits) },
+            lang: {{ Js::from(collect($languages)->keys()->mapWithKeys(fn ($c) => [$c => $settings->languageCode($c)])) }},
+        };
 
         function build(kind, code, lang) {
-            const format = document.querySelector(`[data-format="${kind}"]`).value;
-            const digits = Number(document.querySelector(`[data-digits="${kind}"]`).value) || 1;
-            const langCode = (document.querySelector(`[data-lang-code="${lang}"]`)?.value || '').toUpperCase();
+            const formatInput = document.querySelector(`[data-format="${kind}"]`);
+            const digitsInput = document.querySelector(`[data-digits="${kind}"]`);
+            const langInput = document.querySelector(`[data-lang-code="${lang}"]`);
+            const format = formatInput ? formatInput.value : saved.format[kind];
+            const digits = Number(digitsInput ? digitsInput.value : saved.digits[kind]) || 1;
+            const langCode = (langInput ? langInput.value : (saved.lang[lang] || '')).toUpperCase();
             const tokens = {
                 '{seq}': String(next[kind]).padStart(Math.min(Math.max(digits, 1), 6), '0'),
                 '{code}': code, '{lang}': langCode,
@@ -715,8 +738,10 @@
         }
 
         function refreshNumbers() {
-            document.querySelector('[data-preview="outgoing"]').textContent = build('outgoing', 'OF', 'id');
-            document.querySelector('[data-preview="incoming"]').textContent = build('incoming', '', 'id');
+            const outgoingPreview = document.querySelector('[data-preview="outgoing"]');
+            const incomingPreview = document.querySelector('[data-preview="incoming"]');
+            if (outgoingPreview) outgoingPreview.textContent = build('outgoing', 'OF', 'id');
+            if (incomingPreview) incomingPreview.textContent = build('incoming', '', 'id');
             document.querySelectorAll('[data-type-row]').forEach(row => {
                 const target = row.querySelector('[data-type-preview]');
                 if (!target) return;

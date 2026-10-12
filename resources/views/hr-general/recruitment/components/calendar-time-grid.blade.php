@@ -29,7 +29,6 @@
 <div class="border border-gray-200 rounded-lg bg-white overflow-hidden">
     <div class="overflow-x-auto">
         <div style="min-width: {{ $days->count() > 1 ? 760 : 300 }}px;">
-            {{-- Day headers --}}
             <div class="grid border-b border-gray-200" style="grid-template-columns: {{ $columns }};">
                 <div></div>
                 @foreach($days as $day)
@@ -41,7 +40,6 @@
                 @endforeach
             </div>
 
-            {{-- Hours --}}
             <div class="overflow-y-auto" style="max-height: {{ $height }}px;" data-time-grid-scroll="{{ $scrollMinutes / 60 * $hourHeight }}">
                 <div class="grid" style="grid-template-columns: {{ $columns }}; height: {{ 24 * $hourHeight }}px;">
                     <div class="relative">

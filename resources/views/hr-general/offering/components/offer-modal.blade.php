@@ -126,7 +126,7 @@
                 <div class="border-t border-gray-100 pt-4">
                     <div class="flex items-center justify-between gap-3 mb-3">
                         <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider">Compensation</h4>
-                        <button type="button" id="olUseDefaults" onclick="useOfferDefaults()" class="text-xs font-semibold" style="color: var(--primary-color);">
+                        <button type="button" id="olUseDefaults" onclick="useOfferDefaults()" class="text-xs font-semibold primary-text">
                             <i class="fas fa-rotate-left text-[10px]"></i> Use defaults
                         </button>
                     </div>

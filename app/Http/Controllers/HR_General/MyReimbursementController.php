@@ -7,6 +7,7 @@ use App\Models\Reimbursement\ReimbursementRequest;
 use App\Models\Reimbursement\ReimbursementSetting;
 use App\Services\Reimbursement\ReimbursementService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Pengajuan reimbursement mandiri (ESS).
@@ -47,6 +48,8 @@ class MyReimbursementController extends Controller
             'settings' => $settings,
             'branches' => $reimbursement->branchOptions(),
             'steps'    => $reimbursement->activeSteps(),
+            'directors' => $reimbursement->directorOptions(),
+            'currencies' => ReimbursementRequest::CURRENCIES,
             'minDate'  => $settings->hasBackdateLimit()
                 ? $today->copy()->subDays($settings->max_backdate_days)->toDateString()
                 : null,
@@ -126,7 +129,12 @@ class MyReimbursementController extends Controller
         $rules = $reimbursement->itemRules($settings, $request->all()) + [
             'request_date' => ['required', 'date'],
             'title'        => ['required', 'string', 'min:' . $minTitle, 'max:200'],
+            'currency'     => ['required', 'string', Rule::in(ReimbursementRequest::CURRENCIES)],
         ];
+
+        if ($settings->directorIds() !== []) {
+            $rules['approver_id'] = ['required', 'integer', Rule::in($settings->directorIds())];
+        }
 
         $rules['supporting_url'] = array_filter([
             $settings->require_supporting_url ? 'required' : 'nullable',
@@ -136,6 +144,8 @@ class MyReimbursementController extends Controller
         ]);
 
         return $request->validate($rules, [
+            'approver_id.required'             => 'Choose the director who will approve this reimbursement.',
+            'approver_id.in'                   => 'The chosen approver is not one of the available directors.',
             'items.required'                   => 'Add at least one reimbursement item.',
             'items.*.description.required'     => 'Every item needs a description.',
             'items.*.branch_id.required'       => 'Every item needs a branch.',

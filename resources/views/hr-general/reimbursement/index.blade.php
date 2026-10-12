@@ -36,10 +36,6 @@
 
 <div class="space-y-5">
 
-    {{-- Kartu ringkasan. Kartu "Approved Amount" sengaja TIDAK ada: aplikasi
-         acuan tidak menampilkannya, dan total nominal seluruh dokumen yang
-         disetujui bukan angka yang dibaca sambil lalu — ia dibaca dari Monthly
-         Export, dengan periode yang jelas. --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         @foreach([
             ['label' => 'Waiting for You', 'value' => $counts['mine'],     'class' => 'text-red-800'],
@@ -63,7 +59,6 @@
             </p>
         </div>
 
-        {{-- Filter --}}
         <form method="GET" action="{{ route('general.reimbursement.index') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -149,7 +144,7 @@
                         </td>
 
                         <td class="px-4 py-3 whitespace-nowrap text-gray-900">
-                            {{ $request->request_date->format('Y.m.d') }}
+                            {{ $request->request_date->format('d M Y') }}
                         </td>
 
                         <td class="px-4 py-3">
@@ -180,9 +175,6 @@
                         </td>
 
                         <td class="px-4 py-3">
-                            {{-- "Pending" di rekap, "Waiting" di detail — mengikuti
-                                 aplikasi acuan (jawaban R11). Dua penulisan untuk
-                                 SATU keadaan, bukan dua keadaan berbeda. --}}
                             <div class="font-semibold {{ $request->status === 'approved' ? 'text-green-700' : ($request->status === 'rejected' ? 'text-red-700' : 'text-blue-700') }}">
                                 {{ $request->statusLabel('Pending') }}
                             </div>
@@ -190,7 +182,7 @@
                                 @if($request->isOpen())
                                     Current step: {{ $request->currentStepName() ?? '—' }}
                                 @elseif($request->completed_at)
-                                    {{ ucfirst($request->status) }}: {{ $request->completed_at->format('d.m.Y') }}
+                                    {{ ucfirst($request->status) }}: {{ $request->completed_at->format('d M Y') }}
                                 @endif
                             </div>
                             @if($isDeleted && $request->delete_reason)
@@ -198,20 +190,12 @@
                             @endif
                         </td>
 
-                        {{-- Jejak waktu baris. `updated_at` berubah setiap dokumen
-                             disetujui, diedit, atau dihapus — jadi ia menjawab
-                             "terakhir disentuh kapan", bukan sekadar kapan dibuat. --}}
                         <td class="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
-                            <div>Created : {{ $request->created_at?->format('d.m.Y') ?? '—' }}</div>
-                            <div>Update&nbsp; : {{ $request->updated_at?->format('d.m.Y') ?? '—' }}</div>
+                            <div>Created : {{ $request->created_at?->format('d M Y') ?? '—' }}</div>
+                            <div>Update&nbsp; : {{ $request->updated_at?->format('d M Y') ?? '—' }}</div>
                         </td>
 
                         <td class="px-4 py-3">
-                            {{-- Urutan: baca -> ubah -> keluarkan -> putuskan -> buang.
-                                 Delete sengaja di ujung: pada aplikasi acuan ia berada
-                                 di antara "buka tautan" dan "approve", dan tiga ikon
-                                 berdempetan yang salah satunya menghapus dokumen
-                                 keuangan mengundang salah klik. --}}
                             <div class="flex items-center justify-center gap-0.5 flex-wrap">
                                 <a href="{{ route('general.reimbursement.show', $request) }}" title="View details"
                                    class="px-1.5 py-1.5 text-blue-700 hover:bg-blue-50 rounded transition-all">
@@ -289,8 +273,7 @@
 
 @push('scripts')
 <script>
-    // Persetujuan cepat dari daftar. Penolakan sengaja TIDAK disediakan di sini:
-    // ia menuntut alasan tertulis, dan itu milik halaman detail.
+    // Penolakan tidak tersedia di sini: ia menuntut alasan tertulis (halaman detail).
     document.querySelectorAll('.js-quick-approve').forEach(function (form) {
         form.addEventListener('submit', async function (event) {
             if (form.dataset.confirmed === 'yes') return;

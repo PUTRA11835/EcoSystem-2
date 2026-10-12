@@ -4,6 +4,7 @@
 @section('page-subtitle', 'Recruitment performance to date and this week\'s interview calendar.')
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => ['recruitment.recap', 'recruitment.candidates', 'recruitment.jobs']])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')
@@ -21,7 +22,6 @@
         @endif
     </div>
 
-    <!-- Metrics -->
     @php
         $tiles = [
             [
@@ -61,7 +61,6 @@
         @endforeach
     </div>
 
-    <!-- This week's calendar -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -71,7 +70,7 @@
                 </p>
             </div>
             @if($can('general.recruitment.schedule'))
-                <a href="{{ route('general.recruitment.schedule.index', ['view' => 'week']) }}" class="text-xs font-semibold" style="color: var(--primary-color);">
+                <a href="{{ route('general.recruitment.schedule.index', ['view' => 'week']) }}" class="text-xs font-semibold primary-text">
                     Other weeks — open the full calendar <i class="fas fa-arrow-right text-[10px]"></i>
                 </a>
             @endif
@@ -151,7 +150,6 @@
         </div>
     </div>
 
-    <!-- Charts -->
     @php
         $chartCards = [
             'status'   => ['title' => 'Selection Status',     'subtitle' => 'Candidates at each stage of the pipeline', 'column' => 'Status'],

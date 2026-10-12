@@ -3,7 +3,6 @@
     class="fixed inset-0 z-50 hidden overflow-y-auto bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center p-4">
     <div
         class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl sm:max-w-3xl max-h-[90vh] overflow-y-auto transform transition-all">
-        <!-- Header -->
         <div
             class="px-6 py-4 border-b border-gray-100 flex items-center justify-between primary-gradient text-white sticky top-0 z-10">
             <div class="flex items-center gap-2.5">
@@ -15,11 +14,9 @@
             </button>
         </div>
 
-        <!-- Details & Review Actions -->
         <div class="p-6 space-y-5">
             <input type="hidden" id="reviewAppId" value="">
 
-            <!-- Info Summary Box -->
             <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3 text-xs">
                 <div class="flex justify-between items-center pb-3 border-b border-gray-200">
                     <div>
@@ -67,7 +64,6 @@
             </div>
 
             @if(isset($isHR) && $isHR)
-                <!-- Notes Input Area for Actions (HR Only) -->
                 <div id="reviewNoteWrapper" class="space-y-1.5">
                     <label class="block text-xs font-semibold text-gray-700 uppercase tracking-wider">HR Notes / Feedback
                         <span id="reviewNoteRequired" class="text-red-500 hidden">*</span></label>
@@ -77,12 +73,10 @@
                 </div>
             @endif
 
-            <!-- Audit Logs History Timeline -->
             <div class="pt-2">
                 <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Application Activity Log</h4>
                 <div id="reviewLogTimeline"
                     class="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-3.5 bg-gray-50 text-[11px]">
-                    <!-- Logs populated via JS -->
                 </div>
             </div>
 

@@ -21,7 +21,6 @@
     @include('hr-general.inventory.components.tabs')
 
     <div class="grid grid-cols-1 lg:grid-cols-4 gap-5 items-start">
-        {{-- Which dropdown --}}
         <nav class="bg-white rounded-xl border border-gray-200 shadow-sm p-3 space-y-4 lg:sticky lg:top-4" aria-label="Dropdown lists">
             @foreach($groups as $group => $items)
                 <div>
@@ -38,7 +37,6 @@
             @endforeach
         </nav>
 
-        {{-- The list --}}
         <div class="lg:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div class="min-w-0">

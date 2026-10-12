@@ -7,7 +7,6 @@
 @section('content')
 <div class="space-y-5">
 
-    {{-- Ringkasan shift --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -41,7 +40,6 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-        {{-- Karyawan yang sudah ditugaskan --}}
         <div class="bg-white rounded-xl p-6 shadow-sm">
             <h3 class="text-lg font-bold text-gray-900 mb-1">Assigned Employees</h3>
             <p class="text-sm text-gray-500 mb-4">Releasing an employee ends the assignment; past attendance records are unaffected.</p>
@@ -93,7 +91,6 @@
             </div>
         </div>
 
-        {{-- Tambah penugasan --}}
         <div class="bg-white rounded-xl p-6 shadow-sm">
             <h3 class="text-lg font-bold text-gray-900 mb-1">Add Employees</h3>
             <p class="text-sm text-gray-500 mb-4">

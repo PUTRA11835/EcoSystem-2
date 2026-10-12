@@ -224,6 +224,8 @@ class ReimbursementSettingController extends Controller
             'accounting_signer_employee_id' => ['nullable', 'integer', 'exists:employee,employee_id'],
             'cashier_signer_employee_id'    => ['nullable', 'integer', 'exists:employee,employee_id'],
             'approver_signer_employee_id'   => ['nullable', 'integer', 'exists:employee,employee_id'],
+            'director_employee_ids'         => ['nullable', 'array'],
+            'director_employee_ids.*'       => ['integer', 'exists:employee,employee_id'],
         ], [
             'max_backdate_days.between'      => 'The backdate window must be between 0 (unlimited) and 3650 days.',
             'max_items_per_request.between'  => 'The item limit must be between 0 (unlimited) and 255.',
@@ -233,6 +235,9 @@ class ReimbursementSettingController extends Controller
 
         // Checkbox yang tidak dicentang TIDAK dikirim browser sama sekali, jadi
         // nilainya harus ditetapkan di sini — bukan diambil dari $validated.
+        $validated['director_employee_ids']        = array_values(array_unique(
+            array_map('intval', $validated['director_employee_ids'] ?? [])
+        ));
         $validated['use_branch_name_in_header']    = $request->boolean('use_branch_name_in_header');
         $validated['allow_future_date']            = $request->boolean('allow_future_date');
         $validated['require_supporting_url']       = $request->boolean('require_supporting_url');

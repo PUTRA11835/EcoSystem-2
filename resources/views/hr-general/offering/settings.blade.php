@@ -128,7 +128,6 @@
         @endif
     </form>
 
-    <!-- Compensation components -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-bold text-gray-800">Compensation Components</h3>
@@ -258,7 +257,7 @@
                 plain paper — no letterhead is ticked for Offering Letter yet
             @endif
             @if($can('general.letter-templates'))
-                (<a href="{{ route('general.letters.settings.index') }}" class="font-semibold" style="color: var(--primary-color);">Letter Templates</a>).
+                (<a href="{{ route('general.letters.settings.index') }}" class="font-semibold primary-text">Letter Templates</a>).
             @else
                 (set in HR &amp; General → Letter Templates).
             @endif

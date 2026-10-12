@@ -13,6 +13,7 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => ['inventory.recap', 'inventory.assets', 'inventory.items']])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.inventory.components.tabs')
 
@@ -36,7 +37,6 @@
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5 items-start">
         <div class="xl:col-span-2 space-y-5">
-            {{-- Inventory by category --}}
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Inventory by category</h3>
@@ -66,7 +66,6 @@
                 </div>
             </div>
 
-            {{-- Assets by category --}}
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Assets by category</h3>
@@ -97,7 +96,6 @@
         </div>
 
         <div class="space-y-5">
-            {{-- Needs attention --}}
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-gray-100">
                     <h3 class="text-sm font-bold text-gray-800">Needs attention</h3>
@@ -118,7 +116,6 @@
                 </ul>
             </div>
 
-            {{-- Asset status --}}
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div class="px-5 py-3.5 border-b border-gray-100"><h3 class="text-sm font-bold text-gray-800">Assets by status</h3></div>
                 <ul class="px-5 py-3 space-y-3 text-xs">

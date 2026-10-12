@@ -42,7 +42,6 @@
             </p>
         </div>
 
-        {{-- Identitas dokumen cetak --}}
         <div>
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Printed Document</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -69,7 +68,6 @@
             </div>
         </div>
 
-        {{-- Aturan tanggal --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Dates</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -112,7 +110,6 @@
             </div>
         </div>
 
-        {{-- Item & nominal --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Items &amp; Amounts</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -175,7 +172,6 @@
             </div>
         </div>
 
-        {{-- Kelengkapan bukti --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Evidence &amp; Completeness</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -225,7 +221,6 @@
             </div>
         </div>
 
-        {{-- Persetujuan --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Approval</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -287,7 +282,27 @@
             @endif
         </div>
 
-        {{-- Penanda tangan --}}
+        <div class="pt-2">
+            <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Selectable Directors</h3>
+            <p class="text-xs text-gray-500 mb-3">
+                Requesters choose one of these directors as the approver of their document; the choice becomes the
+                last approval step. Leave all unchecked to keep the workflow above as-is.
+            </p>
+
+            @php $selectedDirectors = old('director_employee_ids', $settings->directorIds()); @endphp
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                @foreach($employees as $employee)
+                <label class="flex items-center gap-2 text-sm text-gray-700">
+                    <input type="checkbox" name="director_employee_ids[]" value="{{ $employee->employee_id }}"
+                           @checked(in_array((int) $employee->employee_id, array_map('intval', $selectedDirectors), true))
+                           class="rounded border-gray-300 text-red-800 focus:ring-red-800">
+                    {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                </label>
+                @endforeach
+            </div>
+            @error('director_employee_ids.*')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
+        </div>
+
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Document Signatures</h3>
             <p class="text-xs text-gray-500 mb-3">

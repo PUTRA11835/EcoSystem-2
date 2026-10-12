@@ -23,7 +23,6 @@
 
     @include('hr-general.attendance.hub-tabs-attendance')
 
-    {{-- Header + aksi --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b-2 border-gray-100">
             <div>
@@ -41,7 +40,6 @@
             </div>
         </div>
 
-        {{-- Filter --}}
         <form method="GET" action="{{ route('general.attendance.monthly') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -74,7 +72,6 @@
         </form>
     </div>
 
-    {{-- Kartu statistik --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         @foreach([
             ['label' => 'Total Employees', 'value' => $stats['employees'],        'hint' => 'shown on this page'],
@@ -90,7 +87,6 @@
         @endforeach
     </div>
 
-    {{-- Matriks --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
 
         {{-- Navigasi bulan; filter lain dipertahankan lewat query string --}}
@@ -176,7 +172,6 @@
         <div class="mt-4">{{ $employees->links() }}</div>
         @endif
 
-        {{-- Legenda --}}
         <div class="mt-5 flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-2 text-xs text-gray-500">
             <span class="flex items-center gap-1.5">
                 <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px]"><i class="fas fa-check"></i></span>
