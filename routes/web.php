@@ -410,6 +410,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // Plan Cost routes
     Route::middleware('menu:delivery-project.plan-cost.view')->group(function () {
         Route::get('/projects/{project}/costs',                                  [DeliveryProjectCostController::class, 'index'])->name('projects.costs.index');
+        Route::get('/projects/{project}/costs/export',                           [DeliveryProjectCostController::class, 'export'])->name('projects.costs.export');
         Route::get('/projects/{project}/costs/{cost}/items',                     [DeliveryProjectCostController::class, 'indexItems'])->name('projects.costs.items.index');
     });
     Route::middleware(['menu:delivery-project.plan-cost.edit', 'project.editable'])->group(function () {
