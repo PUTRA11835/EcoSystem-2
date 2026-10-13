@@ -5,7 +5,6 @@
 
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
-    <!-- Header Section -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl primary-gradient flex items-center justify-center shadow-sm text-white">
@@ -18,7 +17,6 @@
         </div>
 
         <div class="flex items-center gap-2">
-            <!-- Year Selector Filter -->
             <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm text-xs">
                 <i class="fas fa-calendar-alt text-gray-400"></i>
                 <span class="font-semibold text-gray-600">Year:</span>
@@ -30,7 +28,6 @@
                 </select>
             </div>
 
-            <!-- Apply Button -->
             <button onclick="openApplyModal()" class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
                 <i class="fas fa-plus text-xs"></i>
                 <span>Apply Leave / Permit</span>
@@ -38,7 +35,6 @@
         </div>
     </div>
 
-    <!-- Stats Cards Overview -->
     <div id="quotaOverviewCards" class="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow transition-all">
             <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total Quota Allocated</p>
@@ -58,7 +54,6 @@
         </div>
     </div>
 
-    <!-- Quota Summary per Type Table -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
             <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -87,7 +82,6 @@
         </div>
     </div>
 
-    <!-- History Log & Applications Table -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
@@ -126,7 +120,6 @@
     </div>
 </div>
 
-<!-- Modal Partial Views -->
 @include('hr-general.leave-permit.partials.modal-apply')
 @include('hr-general.leave-permit.partials.modal-review')
 

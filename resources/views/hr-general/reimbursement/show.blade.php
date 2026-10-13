@@ -154,7 +154,6 @@
         </div>
         @endif
 
-        {{-- Jejak persetujuan --}}
         <div class="bg-white rounded-xl p-6 shadow-sm">
             <h2 class="text-lg font-bold text-gray-900 mb-4 pb-3 border-b border-gray-100">Approval Trail</h2>
 
@@ -232,7 +231,7 @@
                         <td class="px-4 py-3 text-gray-700">{{ $item->description }}</td>
                         <td class="px-4 py-3 text-gray-600 text-xs">{{ $item->receiptDateLabel() }}</td>
                         <td class="px-4 py-3 text-right font-medium text-gray-900 whitespace-nowrap">
-                            {{ number_format((float) $item->amount, 0, ',', '.') }}
+                            {{ number_format((float) $item->amount, $request->currency === 'IDR' ? 0 : 2, ',', '.') }}
                         </td>
                     </tr>
                     @endforeach
@@ -241,14 +240,13 @@
                     <tr>
                         <td colspan="4" class="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide">Grand Total</td>
                         <td class="px-4 py-3 text-right text-lg font-bold text-red-800 whitespace-nowrap">
-                            {{ number_format((float) $request->total_amount, 0, ',', '.') }}
+                            {{ $request->currency !== 'IDR' ? $request->currency . ' ' : '' }}{{ number_format((float) $request->total_amount, $request->currency === 'IDR' ? 0 : 2, ',', '.') }}
                         </td>
                     </tr>
                 </tfoot>
             </table>
         </div>
 
-        {{-- Blok tanda tangan yang akan tercetak --}}
         <div class="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
             @foreach([
                 'Requester'   => $signatories['requester'],

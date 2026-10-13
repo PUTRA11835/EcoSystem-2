@@ -31,7 +31,6 @@
     @include('hr-general.recruitment.components.hub-tabs')
     @include('hr-general.recruitment.components.form-errors')
 
-    <!-- Calendar -->
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-bold text-gray-800">Calendar</h3>
@@ -120,7 +119,6 @@
         <form id="testConnectionForm" action="{{ route('general.recruitment.settings.test-connection') }}" method="POST" class="hidden">@csrf</form>
     </div>
 
-    <!-- Dropdown lists -->
     @php
         $rowInput = 'w-full border border-gray-200 rounded-md px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200';
         $documentType = \App\Models\Recruitment\RecruitmentOption::TYPE_DOCUMENT_TYPE;

@@ -60,7 +60,6 @@
             </dl>
         </div>
 
-        {{-- Kunci profil (H3.11; HC-D29) --}}
         @php
             $lockedAt = $row['locked_at'] ?? null;
             $canLock = $can('general.onboarding.lock');
@@ -86,7 +85,7 @@
             </p>
             @if(!$lockedAt && $canLock)
                 <button type="button" id="lockBtn" onclick="lockProfile()" @disabled($row['status'] !== 'complete')
-                        class="mt-3 w-full px-3 py-2 text-xs font-semibold rounded-lg bg-red-800 text-white hover:bg-red-900 disabled:opacity-40 disabled:cursor-not-allowed">
+                        class="mt-3 w-full px-3 py-2 text-xs font-semibold rounded-lg primary-gradient text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed">
                     <i class="fas fa-lock mr-1"></i> Verify &amp; Lock
                 </button>
             @endif
@@ -132,7 +131,6 @@
                 <tbody>
                     @foreach($row['groups'] as $key => $g)
                         @continue($g['total'] === 0)
-                        {{-- Baris judul kelompok --}}
                         <tr class="bg-gray-50">
                             <td colspan="4" class="px-5 py-2">
                                 <span class="text-xs font-bold text-gray-700 uppercase tracking-wide">{{ $g['label'] }}</span>

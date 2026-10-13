@@ -4,6 +4,7 @@
 @section('page-title', 'KPI Evaluation')
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'kpi.templates'])
 @php
     $user = session('user');
     $canCreate = $canCreate ?? ($canManage ?? false);
@@ -58,7 +59,6 @@
         </div>
     </div>
 
-    {{-- ── Summary --}}
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100 text-center">
             <div class="text-3xl font-bold text-gray-900">{{ $templates->count() }}</div>
@@ -104,7 +104,6 @@
             </button>
         </div>
 
-        {{-- filter state (client-side) --}}
         <input type="hidden" id="fSearch" value="">
         <input type="hidden" id="fType" value="">
         <input type="hidden" id="fPeriod" value="">
@@ -117,7 +116,6 @@
                     <tr>
                         <th class="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider w-10">No</th>
 
-                        {{-- Template + search --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-65">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Template</span>
@@ -138,7 +136,6 @@
                             </div>
                         </th>
 
-                        {{-- Type --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-32.5">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Type</span>
@@ -158,7 +155,6 @@
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Indicators</th>
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-24">Weight</th>
 
-                        {{-- Period --}}
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-30">
                             <div class="flex items-center justify-between gap-1.5">
                                 <span>Period</span>
@@ -174,7 +170,6 @@
                             </div>
                         </th>
 
-                        {{-- Status --}}
                         <th class="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider relative min-w-30">
                             <div class="flex items-center justify-center gap-1.5">
                                 <span>Status</span>

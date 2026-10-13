@@ -62,9 +62,9 @@
         <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
             <h4 class="text-sm font-bold text-gray-800" data-agenda-title></h4>
             <div class="flex items-center gap-3 text-xs font-semibold">
-                <a href="#" data-agenda-day-link style="color: var(--primary-color);">Open day</a>
+                <a href="#" data-agenda-day-link class="primary-text">Open day</a>
                 @if($allowCreate)
-                    <button type="button" data-agenda-add style="color: var(--primary-color);"><i class="fas fa-plus text-[10px]"></i> New</button>
+                    <button type="button" data-agenda-add class="primary-text"><i class="fas fa-plus text-[10px]"></i> New</button>
                 @endif
             </div>
         </div>

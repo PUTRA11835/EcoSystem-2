@@ -184,7 +184,6 @@
                 </span>
             </div>
 
-            {{-- Table --}}
             <div class="px-6">
                 <div class="overflow-x-auto border border-gray-100 rounded-xl">
                     {{-- Fixed 50 / 50 split: NO + INDIKATOR KPI = 50%, BOBOT + REALISASI + RATING = 50% --}}
@@ -280,7 +279,6 @@
                     </table>
                 </div>
 
-                {{-- Total Summary --}}
                 <div class="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200/80 flex items-center justify-between text-xs">
                     <span class="font-bold text-gray-700">Total Weight: 100.00%</span>
                     <div class="flex items-center gap-2">
@@ -290,7 +288,6 @@
                 </div>
             </div>
 
-            {{-- Footer --}}
             <div class="p-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                 <p class="text-xs text-gray-400">
                     <i class="fas fa-lock mr-1"></i>

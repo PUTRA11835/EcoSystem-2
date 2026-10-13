@@ -26,7 +26,7 @@ class ReimbursementSetting extends Model
         'allow_self_approval', 'self_approval_fallback_role_id',
         'allow_approver_adjust_amount', 'locked_period_policy',
         'accounting_signer_employee_id', 'cashier_signer_employee_id',
-        'approver_signer_employee_id',
+        'approver_signer_employee_id', 'director_employee_ids',
         'updated_by',
     ];
 
@@ -42,6 +42,7 @@ class ReimbursementSetting extends Model
         'require_receipt_no'             => 'boolean',
         'allow_self_approval'            => 'boolean',
         'allow_approver_adjust_amount'   => 'boolean',
+        'director_employee_ids'          => 'array',
     ];
 
     // ── Kebijakan periode terkunci ──────────────────────────────────────────
@@ -128,6 +129,12 @@ class ReimbursementSetting extends Model
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /** @return array<int> */
+    public function directorIds(): array
+    {
+        return array_values(array_unique(array_map('intval', $this->director_employee_ids ?? [])));
+    }
 
     /** Nilai 0 berarti "tanpa batas", bukan "nol". Konsisten dengan Overtime. */
     public function hasBackdateLimit(): bool

@@ -23,7 +23,7 @@ class ReimbursementRequest extends Model
     protected $table = 'reimbursement_requests';
 
     protected $fillable = [
-        'request_no', 'employee_id', 'created_by',
+        'request_no', 'employee_id', 'created_by', 'approver_id',
         'request_date', 'title', 'supporting_url',
         'charged_branch_id', 'charged_to_label',
         'currency', 'total_amount', 'item_count',
@@ -77,6 +77,13 @@ class ReimbursementRequest extends Model
         self::STATUS_SUBMITTED,
         self::STATUS_IN_REVIEW,
     ];
+
+    // ── Mata uang ───────────────────────────────────────────────────────────
+
+    public const DEFAULT_CURRENCY = 'IDR';
+
+    /** Mata uang yang dapat dipilih pada form. Menambah satu kode cukup di sini. */
+    public const CURRENCIES = ['IDR', 'USD', 'SGD', 'EUR', 'MYR', 'AUD', 'JPY'];
 
     // ── Label pembebanan ────────────────────────────────────────────────────
 
@@ -158,6 +165,12 @@ class ReimbursementRequest extends Model
     public function employee()
     {
         return $this->belongsTo(Employee::class, 'employee_id', 'employee_id');
+    }
+
+    /** Direktur yang dipilih pemohon untuk menyetujui dokumen ini. */
+    public function approver()
+    {
+        return $this->belongsTo(Employee::class, 'approver_id', 'employee_id');
     }
 
     /** Terisi hanya bila admin membuat dokumen ini atas nama karyawan. */
@@ -273,7 +286,17 @@ class ReimbursementRequest extends Model
     public function approverLabel(): string
     {
         if ($this->isOpen()) {
-            return $this->currentApproval()?->approverLabel() ?? '—';
+            $current = $this->currentApproval();
+
+            // Langkah direktur menyebut satu orang: tampilkan namanya, bukan
+            // "1 selected employee(s)".
+            if ($current && $this->approver_id
+                && in_array($this->approver_id, array_map('intval', $current->approver_employee_ids ?? []), true)) {
+
+                return $this->approver?->basicData?->nick_name ?? $current->approverLabel();
+            }
+
+            return $current?->approverLabel() ?? '—';
         }
 
         $lastActed = $this->approvals
@@ -286,10 +309,21 @@ class ReimbursementRequest extends Model
             ?? '—';
     }
 
-    /** "Rp 300.000" — dipakai di seluruh tampilan supaya formatnya tidak bercabang. */
+    /** "Rp 300.000" / "USD 1.250,50" — satu format di seluruh tampilan. */
     public function totalLabel(): string
     {
-        return self::formatRupiah($this->total_amount);
+        return self::formatMoney($this->total_amount, $this->currency);
+    }
+
+    public static function formatMoney($amount, ?string $currency = null): string
+    {
+        $currency = $currency ?: self::DEFAULT_CURRENCY;
+
+        if ($currency === self::DEFAULT_CURRENCY) {
+            return self::formatRupiah($amount);
+        }
+
+        return $currency . ' ' . number_format((float) $amount, 2, ',', '.');
     }
 
     public static function formatRupiah($amount): string

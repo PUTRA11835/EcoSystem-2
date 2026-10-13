@@ -20,7 +20,6 @@
         </td>
         <td class="px-4 py-3 text-xs text-gray-600 align-top">{{ $bd?->position ?? '—' }}</td>
 
-        {{-- Project --}}
         <td class="px-4 py-3 align-top">
             @if($projs->isEmpty())
                 <span class="text-xs text-gray-300">—</span>

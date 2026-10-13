@@ -169,7 +169,7 @@
                         'active'  => Request::is('general/my-kpi*'),
                         'visible' => !empty($essConfig['my_kpis']),
                     ],
-                    // Gerbang GANDA seperti sebelumnya: sakelar ESS DAN slug izin.
+
                     'ai_assistant' => [
                         'label'   => 'AI Assistant',
                         'icon'    => 'fas fa-robot',
@@ -494,20 +494,6 @@
                 @endif
             @endforeach
 @php $sb['external'] = ob_get_clean(); @endphp
-@php ob_start(); @endphp
-            @if($can('financial'))
-                <!-- FINANCIAL -->
-                <div class="mb-2">
-                    <a href="{{ route('financial') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('financial') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-coins"></i>
-                        </span>
-                        <span class="nav-text font-medium">Financial</span>
-                    </a>
-                </div>
-            @endif
-@php $sb['financial'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
             @if($can('finance.pph21.settings') || $can('finance.pph21.report'))

@@ -21,7 +21,6 @@
 
     @include('hr-general.overtime.hub-tabs-overtime')
 
-    {{-- Kartu ringkasan --}}
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         @foreach([
             ['label' => 'Waiting for You', 'value' => $counts['mine'],     'class' => 'text-red-800'],
@@ -58,7 +57,6 @@
             </p>
         </div>
 
-        {{-- Filter --}}
         <form method="GET" action="{{ route('general.overtime.index') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">

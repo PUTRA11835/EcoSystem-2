@@ -553,7 +553,6 @@
     @if($showUpwardTab)
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="upward">
 
-        {{-- Fill-in: rate my own supervisor --}}
         @if($upwardPending->count() > 0)
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm space-y-3">
             <h3 class="text-sm font-bold text-amber-800 flex items-center gap-2">

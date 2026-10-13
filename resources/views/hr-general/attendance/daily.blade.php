@@ -22,7 +22,6 @@
 
     @include('hr-general.attendance.hub-tabs-attendance')
 
-    {{-- Header + aksi --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b-2 border-gray-100">
             <div>
@@ -42,7 +41,6 @@
             </div>
         </div>
 
-        {{-- Filter --}}
         <form method="GET" action="{{ route('general.attendance.daily') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
@@ -92,7 +90,6 @@
         </form>
     </div>
 
-    {{-- Kartu ringkasan --}}
     <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         @foreach([
             ['label' => 'Recorded',      'value' => $summary['recorded'], 'class' => 'text-gray-900'],
@@ -109,7 +106,6 @@
         @endforeach
     </div>
 
-    {{-- Tabel --}}
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="border border-gray-200 rounded-lg overflow-x-auto">
             <table class="w-full text-sm">

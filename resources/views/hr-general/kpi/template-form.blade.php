@@ -220,7 +220,6 @@
                     <div id="tgtList" class="bg-gray-50/40 max-h-72 overflow-y-auto p-1.5 space-y-0.5"></div>
                 </div>
 
-                {{-- Right: chosen criteria --}}
                 <div>
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-xs font-semibold text-gray-700">Selected <span id="tgtCount" class="text-gray-400 font-normal"></span></span>
@@ -234,7 +233,6 @@
                 </div>
             </div>
 
-            {{-- Hidden inputs (populated by JS) --}}
             <div id="tgtInputs"></div>
         </div>
 
@@ -401,7 +399,6 @@
                 <span id="weightWarningText"></span>
             </div>
 
-            {{-- Column headers --}}
             <div class="hidden sm:grid grid-cols-12 gap-2 px-1 pb-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 <div class="col-span-1 text-center">No</div>
                 <div class="col-span-3">Indicator name / question</div>

@@ -16,6 +16,7 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'letters.register'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
@@ -28,7 +29,6 @@
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div class="flex flex-col sm:flex-row sm:items-center gap-3">
-                {{-- One register, three views of it. --}}
                 <div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5" role="tablist">
                     @foreach($directionTabs as $value => $tabLabel)
                         <a href="{{ route('general.letters.register.index', array_filter([...request()->except(['direction', 'page']), 'direction' => $value])) }}"

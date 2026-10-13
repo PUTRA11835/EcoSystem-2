@@ -5,13 +5,13 @@
 @section('page-subtitle', 'Branch master data and the geofence points used to validate attendance')
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'attendance.branches'])
 <div class="space-y-5">
 
 @include('hr-general.attendance.hub-tabs-attendance')
 
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
-    {{-- Header --}}
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Branches</h2>
@@ -27,7 +27,6 @@
         @endif
     </div>
 
-    {{-- Filter --}}
     <form method="GET" action="{{ route('general.attendance.branches.index') }}"
           class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
@@ -59,7 +58,6 @@
         </div>
     </form>
 
-    {{-- Tabel --}}
     <div class="border border-gray-200 rounded-lg overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b border-gray-200">
@@ -147,7 +145,6 @@
     </div>
     @endif
 
-    {{-- Keterangan --}}
     <div class="mt-5 flex items-start gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-3">
         <i class="fas fa-info-circle text-blue-400 mt-0.5"></i>
         <div>

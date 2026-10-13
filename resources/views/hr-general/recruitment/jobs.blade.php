@@ -15,6 +15,7 @@
 @endphp
 
 @section('content')
+@include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.jobs'])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')

@@ -10,6 +10,7 @@
     const template   = document.getElementById('itemRowTemplate');
     const addButton  = document.getElementById('addItemRow');
     const totalCell  = document.getElementById('itemsTotal');
+    const currencyEl = document.getElementById('reimbursementCurrency');
     const maxItems   = {{ (int) $settings->max_items_per_request }};   // 0 = tanpa batas
 
     if (!tbody || !template) return;
@@ -20,8 +21,27 @@
         return 'r' + Math.random().toString(36).slice(2, 10);
     }
 
-    function formatRupiah(value) {
-        return 'Rp ' + Math.round(value).toLocaleString('id-ID');
+    function currentCurrency() {
+        return currencyEl && currencyEl.value ? currencyEl.value : 'IDR';
+    }
+
+    function formatMoney(value) {
+        const code = currentCurrency();
+
+        if (code === 'IDR') {
+            return 'Rp ' + Math.round(value).toLocaleString('id-ID');
+        }
+
+        return code + ' ' + value.toLocaleString('id-ID', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
+    }
+
+    function syncCurrencyLabels() {
+        document.querySelectorAll('.js-currency-code').forEach(function (el) {
+            el.textContent = currentCurrency();
+        });
     }
 
     function recalcTotal() {
@@ -37,7 +57,7 @@
             }
         });
 
-        totalCell.textContent = formatRupiah(total);
+        totalCell.textContent = formatMoney(total);
     }
 
     function renumber() {
@@ -96,6 +116,14 @@
 
     if (addButton) addButton.addEventListener('click', addRow);
 
+    if (currencyEl) {
+        currencyEl.addEventListener('change', function () {
+            syncCurrencyLabels();
+            recalcTotal();
+        });
+    }
+
+    syncCurrencyLabels();
     renumber();
     recalcTotal();
 })();

@@ -23,7 +23,6 @@
 @endphp
 <div class="space-y-3" data-interview-fields>
 
-    {{-- Interviewers --}}
     <div>
         <div class="flex items-center justify-between mb-1">
             <span class="{{ $label }} mb-0">Interviewers</span>

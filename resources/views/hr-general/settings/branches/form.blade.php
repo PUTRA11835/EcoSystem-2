@@ -21,7 +21,6 @@
       class="space-y-5">
     @csrf
 
-    {{-- Ringkasan galat validasi --}}
     @if($errors->any())
     <div class="bg-red-50 border border-red-200 rounded-xl p-4">
         <div class="flex items-start gap-2">
@@ -159,7 +158,6 @@
         </div>
     </div>
 
-    {{-- Peta --}}
     <div class="bg-white rounded-xl p-6 shadow-sm" id="mapCard">
         <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div>

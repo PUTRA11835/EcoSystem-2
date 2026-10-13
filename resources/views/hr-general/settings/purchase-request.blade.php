@@ -43,7 +43,6 @@
             </p>
         </div>
 
-        {{-- Identitas dokumen cetak --}}
         <div>
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Printed Document</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -72,7 +71,6 @@
             </div>
         </div>
 
-        {{-- Aturan tanggal --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Dates</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -141,7 +139,6 @@
             </div>
         </div>
 
-        {{-- Item, satuan, kuantitas --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Items &amp; Quantities</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -210,7 +207,6 @@
             </div>
         </div>
 
-        {{-- Pembebanan biaya --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Cost Centers</h3>
             <p class="text-xs text-gray-500 mb-3">
@@ -256,7 +252,6 @@
             </div>
         </div>
 
-        {{-- Persetujuan & pembatalan --}}
         <div class="pt-2">
             <h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Approval &amp; Cancellation</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-5">

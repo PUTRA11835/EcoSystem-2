@@ -223,7 +223,7 @@
                         </td>
 
                         <td class="px-4 py-3 whitespace-nowrap">
-                            {{ $request->request_date->format('d.m.Y') }}
+                            {{ $request->request_date->format('d M Y') }}
                             @if($request->dateRangeLabel())
                                 <span class="block text-xs text-gray-400">{{ $request->dateRangeLabel() }}</span>
                             @endif
@@ -262,7 +262,7 @@
                                 </span>
                             @elseif($request->completed_at)
                                 <span class="block text-xs text-gray-400 mt-0.5">
-                                    {{ $request->statusLabel('Pending') }}: {{ $request->completed_at->format('d.m.Y') }}
+                                    {{ $request->statusLabel('Pending') }}: {{ $request->completed_at->format('d M Y') }}
                                 </span>
                             @endif
                         </td>

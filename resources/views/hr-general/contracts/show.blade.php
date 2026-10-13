@@ -33,7 +33,6 @@
     @include('hr-general.contracts.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
 
-    {{-- Header --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
             <h2 class="text-lg font-bold text-gray-800">{{ $employee->name }}</h2>
@@ -47,7 +46,6 @@
         </div>
     </div>
 
-    {{-- Contract Readiness --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="px-5 py-4 flex items-start justify-between gap-3">
             <div>
@@ -83,7 +81,6 @@
         </div>
     </div>
 
-    {{-- Salary reference --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div class="px-5 py-4 border-b border-gray-100">
             <h3 class="text-sm font-bold text-gray-800">Salary Component Reference</h3>
@@ -114,7 +111,6 @@
         @endif
     </div>
 
-    {{-- History --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
@@ -180,7 +176,6 @@
     </div>
 </div>
 
-{{-- Add / Edit contract --}}
 @if($canCreate || $canEdit)
 <div id="contractModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 items-center justify-center p-4" style="display: none;">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">

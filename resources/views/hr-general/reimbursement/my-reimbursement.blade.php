@@ -163,7 +163,7 @@
                                             <td class="px-3 py-2 text-gray-600">{{ $item->receipt_no ?? '—' }}</td>
                                             <td class="px-3 py-2 text-gray-600">{{ $item->receiptDateLabel() }}</td>
                                             <td class="px-3 py-2 text-right font-medium text-gray-900">
-                                                {{ ReimbursementRequest::formatRupiah($item->amount) }}
+                                                {{ ReimbursementRequest::formatMoney($item->amount, $item->currency) }}
                                             </td>
                                         </tr>
                                         @endforeach

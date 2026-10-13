@@ -54,7 +54,6 @@
                     </div>
                 @endif
 
-                {{-- Existing candidate --}}
                 @if($allowInterview)
                     <div data-mode-block="existing" data-block-off class="hidden">
                         <label for="cmCandidateId" class="{{ $label }}">Candidate <span class="text-red-500">*</span></label>
@@ -73,7 +72,7 @@
                             <div class="flex items-center justify-between gap-2 mb-1.5">
                                 <span class="font-semibold text-gray-700"><i class="fas fa-id-card mr-1 text-gray-400"></i> Saved candidate data</span>
                                 @if($can('general.recruitment.candidates'))
-                                    <a id="cmCandidateLink" href="#" target="_blank" rel="noopener" class="font-semibold" style="color: var(--primary-color);">
+                                    <a id="cmCandidateLink" href="#" target="_blank" rel="noopener" class="font-semibold primary-text">
                                         Open candidate <i class="fas fa-arrow-up-right-from-square text-[9px]"></i>
                                     </a>
                                 @endif
@@ -83,7 +82,6 @@
                     </div>
                 @endif
 
-                {{-- New candidate --}}
                 @if($allowNew)
                     <div data-mode-block="new" data-block-off class="hidden space-y-3">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -147,7 +145,7 @@
                         <div>
                             <div class="flex items-center justify-between mb-1">
                                 <span class="{{ $label }} mb-0">Documents</span>
-                                <button type="button" onclick="addDocumentRow('cmDocuments')" class="text-xs font-semibold" style="color: var(--primary-color);">
+                                <button type="button" onclick="addDocumentRow('cmDocuments')" class="text-xs font-semibold primary-text">
                                     <i class="fas fa-plus text-[10px]"></i> Add document
                                 </button>
                             </div>
@@ -183,7 +181,6 @@
                     </div>
                 @endif
 
-                {{-- Interview --}}
                 @if($allowInterview)
                     <div data-interview-block data-block-off class="hidden border-t border-gray-100 pt-4">
                         <h4 class="text-xs font-bold text-gray-800 uppercase tracking-wider mb-3">Interview Schedule</h4>
