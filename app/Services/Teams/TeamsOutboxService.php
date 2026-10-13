@@ -28,8 +28,10 @@ use Illuminate\Support\Facades\URL;
  */
 class TeamsOutboxService
 {
-    public function __construct(private readonly PowerAutomateService $powerAutomate)
-    {
+    public function __construct(
+        private readonly PowerAutomateService $powerAutomate,
+        private readonly TeamsFileService $files,
+    ) {
     }
 
     public function isEnabled(): bool
@@ -292,13 +294,120 @@ class TeamsOutboxService
 
         $links = $this->attachmentLinks($message);
 
-        return $this->wrap(
+        $payload = $this->wrap(
             $text,
             $message,
             $chat,
             $this->attachmentHtml($links),
             $this->attachmentText($links)
         );
+
+        if ($block = $this->nativeFileBlock($text, $links)) {
+            $payload['teams_files'] = $block;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Bahan untuk mengirim berkas sebagai kartu asli Teams, atau null kalau note
+     * ini tidak punya berkas yang bisa dikirim begitu.
+     *
+     * Hanya BAHAN: penyalinan ke OneDrive terjadi saat flush
+     * ({@see withNativeFiles()}), bukan di sini. queue() dipanggil di dalam
+     * request penyimpanan note, dan mengunggah berkas di sana membuat user ikut
+     * menunggu OneDrive.
+     *
+     * `message_html` hasil wrap() TIDAK diubah — ia tetap versi tautan yang
+     * lengkap, dan menjadi cadangan kalau penyalinan atau cabang Graph di flow 7
+     * gagal. Lihat docs/teams-sync-parity-design.md §6c.
+     *
+     * @param  list<array{id:int,name:string,url:string,is_image:bool,copyable:bool}>  $links
+     * @return array{html:string,items:list<array{attachment_id:int,name:string,url:string,copyable:bool}>}|null
+     */
+    private function nativeFileBlock(string $text, array $links): ?array
+    {
+        if (!$this->files->isEnabled()) {
+            return null;
+        }
+
+        $images = array_values(array_filter($links, static fn ($l) => $l['is_image']));
+        $others = array_values(array_filter($links, static fn ($l) => !$l['is_image']));
+
+        if (!array_filter($others, static fn ($l) => $l['copyable'])) {
+            return null;
+        }
+
+        $html = self::bodyHtml($text);
+
+        if ($images !== []) {
+            $html .= '<br><br>' . $this->attachmentHtml($images);
+        }
+
+        return [
+            // Badan note + gambar, TANPA baris berkas: baris itu digantikan
+            // kartunya. Berkas yang ternyata gagal disalin ditambahkan lagi
+            // sebagai tautan oleh graphMessage().
+            'html'  => $html,
+            'items' => array_map(static fn ($l) => [
+                'attachment_id' => $l['id'],
+                'name'          => $l['name'],
+                'url'           => $l['url'],
+                'copyable'      => $l['copyable'],
+            ], $others),
+        ];
+    }
+
+    /**
+     * Badan pesan untuk `POST /chats/{id}/messages`, atau null kalau tidak ada
+     * satu pun berkas yang berhasil disalin (pemanggil lalu memakai
+     * `message_html` versi tautan).
+     *
+     * Tiap lampiran `reference` WAJIB punya tag `<attachment id="…">` yang
+     * sepadan di badan pesan — tanpa itu Graph menolak pesannya.
+     *
+     * @param  list<array{attachment_id:int,name:string,url:string}>  $items
+     * @param  array<int,array{id:string,contentType:string,contentUrl:string,name:string}>  $published
+     *         dikunci id lampiran
+     * @return array{body:array{contentType:string,content:string},attachments:list<array>}|null
+     */
+    public static function graphMessage(string $html, array $items, array $published): ?array
+    {
+        $attachments = [];
+        $tags        = '';
+        $asLinks     = [];
+
+        foreach ($items as $item) {
+            $file = $published[$item['attachment_id']] ?? null;
+
+            if ($file) {
+                $attachments[] = $file;
+                $tags .= '<attachment id="' . e($file['id']) . '"></attachment>';
+
+                continue;
+            }
+
+            $asLinks[] = '<a href="' . e($item['url']) . '">' . e($item['name']) . '</a>';
+        }
+
+        if ($attachments === []) {
+            return null;
+        }
+
+        if ($asLinks !== []) {
+            $html .= '<br><br>' . implode('<br>', $asLinks);
+        }
+
+        return [
+            'body'        => ['contentType' => 'html', 'content' => $html . $tags],
+            'attachments' => $attachments,
+        ];
+    }
+
+    /** Badan note sebagai HTML: di-escape, baris baru jadi `<br>`. */
+    private static function bodyHtml(string $text): string
+    {
+        return nl2br(e(rtrim($text)), false);
     }
 
     /**
@@ -317,15 +426,15 @@ class TeamsOutboxService
      * Lampiran yang tidak bisa dilayani proxy (mis. tautan luar) dilewati
      * daripada mengirim tautan yang pasti gagal dibuka.
      *
-     * @return list<array{name:string,url:string,is_image:bool}>
+     * @return list<array{id:int,name:string,url:string,is_image:bool,copyable:bool}>
      */
     private function attachmentLinks(TicketMessage $message): array
     {
         $rows = DB::table('ticket_attachment')
             ->where('message_id', $message->id)
             ->orderBy('id')
-            ->get(['id', 'file_name', 'link_title', 'file_path', 'mime_type', 'attachment_type',
-                   'graph_message_id', 'graph_attachment_id']);
+            ->get(['id', 'file_name', 'link_title', 'file_path', 'file_size', 'mime_type',
+                   'attachment_type', 'graph_message_id', 'graph_attachment_id']);
 
         $days = max(0, (int) config('services.teams_sync.attachment_link_days', 0));
         $out  = [];
@@ -340,12 +449,15 @@ class TeamsOutboxService
             }
 
             $out[] = [
+                'id'       => (int) $row->id,
                 'name'     => (string) ($row->file_name ?: $row->link_title ?: 'Lampiran'),
                 'url'      => $days > 0
                     ? URL::temporarySignedRoute('attachments.teams', now()->addDays($days), ['id' => $row->id])
                     : URL::signedRoute('attachments.teams', ['id' => $row->id]),
                 'is_image' => $row->attachment_type === 'image'
                     || str_starts_with((string) $row->mime_type, 'image/'),
+                // Bisa disalin ke OneDrive untuk jadi kartu berkas asli Teams.
+                'copyable' => $this->files->canCopy($row),
             ];
         }
 
@@ -371,27 +483,27 @@ class TeamsOutboxService
         $parts = [];
 
         foreach ($links as $link) {
-            $line = '';
-
             // Gambar tampil langsung di badan pesan. TERBUKTI DIRENDER Teams
             // (uji 23 Sep 2026), dengan satu syarat yang mahal dipelajari:
             // JANGAN dibungkus <a href>. Percobaan pertama memakai
             // <a href><img></a> dan Teams membuang SELURUH bloknya — bukan
             // menampilkan gambar rusak, hilang sama sekali. Tanpa anchor, <img>
-            // lolos. Karena itu "klik untuk membuka penuh" diwakili baris URL di
-            // bawah, bukan dengan membungkus gambarnya.
+            // lolos.
+            //
+            // Tanpa baris URL di bawahnya (13 Okt 2026): URL bertanda tangan
+            // yang panjang membuat pesan berantakan. Membuka ukuran penuh
+            // kini bergantung pada penampil gambar bawaan Teams.
             if ($link['is_image']) {
-                $line .= '<img src="' . e($link['url']) . '" alt="' . e($link['name'])
-                    . '" width="400" style="max-width:400px"><br>';
+                $parts[] = '<img src="' . e($link['url']) . '" alt="' . e($link['name'])
+                    . '" width="400" style="max-width:400px">';
+
+                continue;
             }
 
-            // URL TELANJANG, bukan <a href> — lihat catatan di atas. Teams
-            // mengubahnya sendiri jadi tautan yang bisa diklik. Nama berkas ikut
-            // supaya orang tahu apa yang akan dibuka sebelum mengkliknya, dan
-            // baris ini juga yang menjadi jalan membuka gambar ukuran penuh.
-            $line .= e($link['name']) . ': ' . e($link['url']);
-
-            $parts[] = $line;
+            // Berkas non-gambar: nama berkasnya yang jadi tautan, URL-nya
+            // disembunyikan di href. Anchor di sini membungkus TEKS, bukan
+            // <img> — kasus yang dibuang Teams di atas adalah <a><img></a>.
+            $parts[] = '<a href="' . e($link['url']) . '">' . e($link['name']) . '</a>';
         }
 
         return implode('<br>', $parts);
@@ -444,7 +556,7 @@ class TeamsOutboxService
         // apa adanya. Menggabungkannya lebih dulu akan membuat <img> ikut
         // ter-escape dan tampil sebagai teks mentah.
         $body = rtrim($text);
-        $html = nl2br(e($body), false);
+        $html = self::bodyHtml($text);
 
         if ($htmlExtra !== '') {
             $html .= '<br><br>' . $htmlExtra;
@@ -490,6 +602,63 @@ class TeamsOutboxService
 
     // ─── Mengirim ────────────────────────────────────────────────────────────
 
+    /**
+     * Payload yang benar-benar dikirim ke flow 7: bahan internal `teams_files`
+     * dibuang, dan — kalau berkasnya berhasil disalin ke OneDrive — ditambah
+     * `graph_message`, yang membuat flow mengambil cabang Graph.
+     *
+     * Hasilnya DISIMPAN ke baris antrean, jadi percobaan ulang (flow sedang
+     * tidak bisa dihubungi) memakai `graph_message` yang sama, bukan menyalin
+     * berkasnya lagi.
+     *
+     * Semua kegagalan berakhir di payload tanpa `graph_message`, yaitu bentuk
+     * tautan yang lama. Note tidak boleh gagal terkirim hanya karena OneDrive.
+     *
+     * @return array<string,mixed>
+     */
+    private function withNativeFiles(TeamsOutboxItem $item): array
+    {
+        $payload = $item->payload;
+        $block   = $payload['teams_files'] ?? null;
+
+        unset($payload['teams_files']);
+
+        if (!is_array($block) || isset($payload['graph_message']) || !$this->files->isEnabled()) {
+            return $payload;
+        }
+
+        try {
+            $chat = TicketTeamsChat::where('chat_id', $item->chat_id)->first();
+            $ids  = array_column(
+                array_filter($block['items'] ?? [], static fn ($i) => !empty($i['copyable'])),
+                'attachment_id'
+            );
+
+            $graph = $chat
+                ? self::graphMessage(
+                    (string) ($block['html'] ?? ''),
+                    $block['items'] ?? [],
+                    $this->files->publish($chat, $ids)
+                )
+                : null;
+
+            if ($graph) {
+                $payload['graph_message'] = $graph;
+
+                $item->payload = $payload;
+                $item->save();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('TeamsOutbox: berkas gagal disiapkan sebagai kartu Teams, dikirim sebagai tautan', [
+                'outbox_id' => $item->id,
+                'ticket_id' => $item->ticket_id,
+                'error'     => mb_substr($e->getMessage(), 0, 500),
+            ]);
+        }
+
+        return $payload;
+    }
+
     /** @return iterable<TeamsOutboxItem> */
     public function due(): iterable
     {
@@ -517,12 +686,17 @@ class TeamsOutboxService
             return false;
         }
 
+        // SEBELUM status 'sending': menyalin berkas bisa makan beberapa detik,
+        // dan baris yang tertinggal di 'sending' karena proses mati di tengah
+        // unggahan tidak akan pernah dicoba lagi.
+        $payload = $this->withNativeFiles($item);
+
         $item->status = TeamsOutboxItem::STATUS_SENDING;
         $item->save();
 
         $ok = $this->powerAutomate->dispatch(
             PowerAutomateService::FLOW_TEAMS_POST_MESSAGE,
-            $item->payload
+            $payload
         );
 
         if (!$ok) {

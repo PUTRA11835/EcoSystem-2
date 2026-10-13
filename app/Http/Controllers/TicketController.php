@@ -3458,6 +3458,17 @@ class TicketController extends Controller
                     'email' => $sessionUser['email'] ?? null,
                 ])
             );
+
+            // Orang yang baru masuk grup juga diberi hak baca folder berkas chat
+            // tiket ini di OneDrive — tanpa itu kartu berkas yang sudah ada di
+            // grup tampil baginya tetapi tidak bisa dibuka. Setelah response,
+            // dan kegagalannya ditelan di dalam grantForTicket().
+            $ticketId = (int) $ticket->ticket_id;
+            $email    = (string) $person['email'];
+
+            app()->terminating(static function () use ($ticketId, $email) {
+                app(\App\Services\Teams\TeamsFileService::class)->grantForTicket($ticketId, [$email]);
+            });
         } catch (\Throwable $e) {
             Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
                 'ticket_id'   => $ticket->ticket_id,

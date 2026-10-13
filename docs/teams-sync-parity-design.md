@@ -265,6 +265,80 @@ yang bisa diakses dari internet semestinya melengkapi yang terakhir ini.
 masih `http://localhost` akan mengirim tautan yang tidak bisa dibuka siapa pun,
 dan itu baru ketahuan setelah pesannya terlanjur sampai di grup.
 
+### 6c. Kartu berkas asli Teams — 13 Oktober 2026
+
+> **Sisi EcoSystem selesai dan teruji; cabang flow 7 belum pernah dijalankan.**
+> Diminta supaya berkas dari EcoSystem tampil sama dengan berkas yang
+> dilampirkan orang langsung di Teams. Ini "Jalur B" dari §6b, yang dulu
+> ditunda.
+
+**Kenapa tautan tidak akan pernah jadi kartu:** Teams hanya membuat kartu berkas
+(ikon, nama, pratinjau) untuk berkas yang tinggal di OneDrive/SharePoint dan
+dilampirkan sebagai `contentType: "reference"`. Tautan ke proxy EcoSystem
+selamanya hanya tautan.
+
+**Gambar tidak berubah.** Gambar tetap `<img>` ke proxy bertanda tangan (§6a):
+itu sudah tampil sebagai pratinjau, dan menyalinnya ke OneDrive justru
+mengubahnya jadi kartu berkas.
+
+**Alurnya:**
+
+1. `queue()` — saat note disimpan — hanya mencatat **bahan** di payload antrean
+   (`teams_files`: badan pesan tanpa baris berkas + daftar lampirannya). Tidak
+   ada panggilan ke OneDrive di sini, supaya user tidak ikut menunggu.
+2. `send()` — saat `teams:flush-outbox` — menyalin berkasnya ke OneDrive akun
+   pengirim, membagikan foldernya ke roster grup, lalu menambahkan
+   `graph_message` ke payload dan **menyimpannya** ke baris antrean. Percobaan
+   ulang memakai `graph_message` yang sama.
+3. Flow 7 melihat `graph_message` dan memposting lewat *Send a Microsoft Graph
+   HTTP request*; kalau ditolak, aksi cadangan memposting `message_html`.
+
+| Berkas | Perubahan |
+|---|---|
+| [TeamsFileService.php](../app/Services/Teams/TeamsFileService.php) | baru — folder per tiket, berbagi ke roster, penyalinan, GUID lampiran |
+| [TeamsOutboxService.php](../app/Services/Teams/TeamsOutboxService.php) | `nativeFileBlock()`, `withNativeFiles()`, `graphMessage()` |
+| [OneDriveService.php](../app/Services/OneDriveService.php) | `ensureFolderPath()`, `ensureSubFolder()`, `uploadStream()`, `getItem()`, `grantRead()` |
+| [TicketController.php](../app/Http/Controllers/TicketController.php) | member/PIC baru ikut diberi hak baca folder berkas tiket |
+| migrasi `2026_10_13_000001` | tabel `ticket_teams_file`; kolom `ticket_teams_chat.files_folder_id` |
+| [config/services.php](../config/services.php) + `.env.example` | `TEAMS_SYNC_NATIVE_FILES`, `TEAMS_SYNC_NATIVE_FILE_MAX_MB`, `ONEDRIVE_TEAMS_CHAT_FILES_PATH` |
+| [power-automate/README.md](power-automate/README.md) | flow 7 langkah 3c |
+
+**Keputusan dan alasannya:**
+
+- **Folder sendiri**, susunannya meniru deliverable
+  (`DELIVERY SUPPORT/TEAMS CHAT FILES/{id customer} {NAMA}/TICKETING/{nomor tiket}`), bukan
+  folder `TICKETING`. Folder tiket yang itu dibagikan ke customer; lampiran
+  internal note tidak boleh ikut terlihat.
+- **Izin di folder, bukan per berkas.** Izin folder diwarisi isinya. Roster
+  dibagikan ulang pada tiap kiriman (memberi izin yang sudah ada tidak berakibat
+  apa-apa), dan orang yang ditambahkan ke tiket diberi izin saat itu juga.
+- **Gagal = kembali ke tautan.** Berkas yang gagal disalin ikut sebagai tautan
+  di pesan yang sama; kalau folder tidak bisa dibagikan sama sekali, seluruh
+  note memakai bentuk tautan. Kartu yang tampil tapi tidak bisa dibuka lebih
+  buruk daripada tautan yang jalan.
+- **Kill switch sendiri** (`TEAMS_SYNC_NATIVE_FILES`, default mati), dan
+  menyalakannya sebelum flow diperbarui tetap aman: flow lama hanya mengenal
+  `message_html`.
+
+**Terbukti pada drive sungguhan (13 Okt 2026):** pembuatan folder idempoten,
+unggahan satu potong dan multi-potong (3,2 MB), nama bentrok di-rename (bukan
+ditimpa), GUID terbaca dari eTag, `webDavUrl` tersedia, dan pemberian izin baca
+idempoten. App registration sudah memegang `Files.ReadWrite.All`.
+
+**Belum terbukti — uji ini sebelum dianggap selesai:**
+
+1. Aksi *Send a Microsoft Graph HTTP request* mau memposting ke group chat lewat
+   `/me/chats/{id}/messages` (lihat README flow 7 langkah 3c).
+2. Note berisi **gambar dan berkas sekaligus**: gambarnya ikut di badan pesan
+   Graph sebagai `<img>` ber-URL eksternal. Lewat *Post message* itu terbukti
+   tampil; lewat Graph belum. Kalau gambarnya hilang, jalur perbaikannya
+   mengirim gambar sebagai `hostedContents`.
+3. Anggota yang ditambahkan **setelah** berkas dikirim bisa membuka kartunya.
+
+**Yang dibayar:** berkasnya kini ada di dua tempat (disk EcoSystem dan OneDrive
+akun pengirim). Tabel `ticket_teams_file` mencatat setiap salinan supaya bisa
+dibersihkan; pembersihan otomatisnya belum ada.
+
 ### 6b. Rancangan asli
 
 
