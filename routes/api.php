@@ -776,6 +776,15 @@ Route::middleware(['web'])->group(function () {
     Route::put('/menus/{menuId}',                                   [\App\Http\Controllers\MenuController::class, 'update'])->middleware('menu:management.permissions');
     Route::delete('/menus/{menuId}',                                [\App\Http\Controllers\MenuController::class, 'destroy'])->middleware('menu:management.permissions');
     Route::post('/menus/{menuId}/delete',                           [\App\Http\Controllers\MenuController::class, 'destroy'])->middleware('menu:management.permissions');
+    // Menu List → "Siapa yang punya akses": Menu Access dari sisi MENU (baca: roles ATAU permissions; ubah: roles).
+    Route::prefix('menus/{menuId}/access')->whereNumber('menuId')->group(function () {
+        $c = \App\Http\Controllers\Management\MenuRoleAccessController::class;
+        Route::get('/',         [$c, 'show'])->middleware('menu:management.roles,management.permissions');
+        Route::get('/history',  [$c, 'history'])->middleware('menu:management.roles,management.permissions');
+        Route::post('/plan',    [$c, 'plan'])->middleware('menu:management.roles');
+        Route::post('/apply',   [$c, 'apply'])->middleware('menu:management.roles');
+        Route::post('/undo',    [$c, 'undo'])->middleware('menu:management.roles');
+    });
     Route::put('/menus/{menuId}/roles/{roleId}',                    [\App\Http\Controllers\MenuController::class, 'updateRolePermission'])->middleware('menu:management.roles');
     Route::delete('/menus/{menuId}/roles/{roleId}',                 [\App\Http\Controllers\MenuController::class, 'removeRolePermission'])->middleware('menu:management.roles');
     Route::post('/menus/{menuId}/roles/{roleId}/delete',            [\App\Http\Controllers\MenuController::class, 'removeRolePermission'])->middleware('menu:management.roles');

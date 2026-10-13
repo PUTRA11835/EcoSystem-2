@@ -102,7 +102,7 @@ class TableAccess
         'employee_engagement' => [
             'self_field' => null,
             'self_permission' => null,
-            'permission' => 'employee.section.engagement_rate.view',
+            'permission' => 'external.section.engagement_rate.view',
         ],
         // HC-D65 (J3/X5): data rekrutmen (pelamar, dokumen, jadwal wawancara, kompensasi penawaran) tak punya
         // jalur "milik sendiri" — pelamar belum menjadi pegawai. Hanya pemegang izin menu rekrutmen yang bersangkutan.

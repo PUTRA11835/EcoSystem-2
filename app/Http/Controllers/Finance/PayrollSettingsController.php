@@ -56,12 +56,32 @@ class PayrollSettingsController extends Controller
             'fixed_divisor' => (int) $request->input('fixed_divisor'),
             'attendance_effective_from' => trim((string) $request->input('attendance_effective_from')) === '' ? null : trim((string) $request->input('attendance_effective_from')),
             'slip_language' => (string) $request->input('slip_language', 'id'),
+            'overtime_wage_basis' => (string) $request->input('overtime_wage_basis', 'base_fixed'),
+            'overtime_min_minutes' => (int) $request->input('overtime_min_minutes'),
+            'overtime_round_minutes' => (int) $request->input('overtime_round_minutes'),
+            'overtime_round_method' => (string) $request->input('overtime_round_method', 'nearest'),
+            'ter_base_rounding' => (string) $request->input('ter_base_rounding', 'none'),
+            'net_rounding_mode' => (string) $request->input('net_rounding_mode', 'none'),
+            'net_rounding_increment' => (int) $request->input('net_rounding_increment', 1000),
+            'cutoff_day' => (int) $request->input('cutoff_day', 25),
         ];
+        $notes = trim((string) $request->input('internal_notes'));
+        if (mb_strlen($notes) > 2000) { $errors[] = 'Internal notes are limited to 2000 characters.'; }
+        $in['internal_notes'] = $notes === '' ? null : $notes;
         foreach (['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title'] as $k) {
             $v = trim((string) $request->input($k));
             if (mb_strlen($v) > 150) { $errors[] = 'Signer name and title are limited to 150 characters.'; }
             $in[$k] = $v === '' ? null : $v;
         }
+        $modes = ['none', 'nearest', 'up', 'down'];
+        if (!in_array($in['overtime_wage_basis'], ['base_fixed', 'base_only'], true)) { $errors[] = 'Choose the overtime wage basis.'; }
+        if (!in_array($in['overtime_min_minutes'], [0, 15, 30, 45, 60], true)) { $errors[] = 'Minimum overtime minutes must be 0, 15, 30, 45 or 60.'; }
+        if (!in_array($in['overtime_round_minutes'], [0, 5, 10, 15, 30, 60], true)) { $errors[] = 'Overtime minute rounding must be none, 5, 10, 15, 30 or 60.'; }
+        if (!in_array($in['overtime_round_method'], ['nearest', 'up', 'down'], true)) { $errors[] = 'Choose the overtime rounding method.'; }
+        if (!in_array($in['ter_base_rounding'], $modes, true)) { $errors[] = 'Choose the TER tax-base rounding.'; }
+        if (!in_array($in['net_rounding_mode'], $modes, true)) { $errors[] = 'Choose the net pay rounding.'; }
+        if (!in_array($in['net_rounding_increment'], [100, 500, 1000, 5000], true)) { $errors[] = 'The rounding increment must be 100, 500, 1000 or 5000.'; }
+        if ($in['cutoff_day'] < 1 || $in['cutoff_day'] > 31) { $errors[] = 'The cut-off date must be between 1 and 31.'; }
         if (!in_array($in['slip_language'], ['id', 'en'], true)) { $errors[] = 'Choose Indonesian or English for the payslip.'; }
         if (!in_array($in['work_days_per_week'], [5, 6], true)) { $errors[] = 'Weekly work schedule must be 5 or 6 days.'; }
         if ($in['overtime_work_days'] !== null && !in_array($in['overtime_work_days'], [5, 6], true)) { $errors[] = 'Overtime workweek basis must follow payroll, or be 5 or 6 days.'; }
@@ -92,6 +112,10 @@ class PayrollSettingsController extends Controller
             'deduct_bpjs_tk_before_pph21' => $request->boolean('deduct_bpjs_tk_before_pph21'),
             'pph21_enabled' => $request->boolean('pph21_enabled'),
             'apply_no_npwp_surcharge' => $request->boolean('apply_no_npwp_surcharge'),
+            'cutoff_enabled' => $request->boolean('cutoff_enabled'),
+            'timesheet_allowance_enabled' => $request->boolean('timesheet_allowance_enabled'),
+            'tax_timesheet_allowance' => $request->boolean('tax_timesheet_allowance'),
+            'loan_deduction_enabled' => $request->boolean('loan_deduction_enabled'),
         ]);
         $row->save();
 

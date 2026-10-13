@@ -38,7 +38,7 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name <span class="text-red-500">*</span></label>
                 <input type="text" id="nickName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Gender</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -53,7 +53,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Religion</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -83,7 +83,7 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Last Name</label>
                 <input type="text" id="lastName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Marital Status</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -100,9 +100,35 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Birth Date</label>
                 <input type="date" id="birthDate" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-4">
+            <div class="flex flex-col">
+                <label class="text-sm font-semibold text-gray-700 mb-1.5">Education Level <span class="text-xs font-normal text-gray-400">(optional)</span></label>
+                <div class="custom-dd relative">
+                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
+                        <span class="custom-dd-label text-gray-500">Select Level</span>
+                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <input type="hidden" id="educationLevel" value="">
+                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px;">
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Level</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SD">SD</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SMP">SMP</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SMA/SMK">SMA/SMK</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D1">D1</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D2">D2</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D3">D3</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="D4">D4</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S1">S1</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S2">S2</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="S3">S3</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -115,11 +141,11 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Search Term 2 <span class="text-gray-500 text-xs">(auto-generated)</span></label>
                 <input type="text" id="searchTerm2" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none">
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Birth Place</label>
                 <input type="text" id="birthPlace" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col">
+            <div class="flex flex-col js-internal-only">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Since Date
                     @if(!empty($isOwnProfile))<i class="fas fa-lock text-[10px] text-gray-400 ml-1" aria-hidden="true"></i>@endif
                 </label>

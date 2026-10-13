@@ -9,6 +9,8 @@ use App\Services\Letters\LetterService;
 use App\Support\Contracts\ContractHtmlSanitizer;
 use App\Support\Contracts\ContractPlaceholders;
 use App\Support\Contracts\ContractRules;
+use App\Support\Contracts\PageSettings;
+use App\Support\External\ExternalRules;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +23,9 @@ use Illuminate\Support\Facades\DB;
  */
 class ContractService
 {
+    /** Pesan hasil sinkron gaji kontrak → Salary Components pada simpan terakhir (null = tidak ada). */
+    public ?string $salarySyncNote = null;
+
     /** Jenis surat pada Letter Templates → Settings tempat kop surat kontrak dipasang. */
     public const LETTER_TYPE = Letterhead::TYPE_EMPLOYMENT_CONTRACT;
 
@@ -101,7 +106,7 @@ class ContractService
     }
 
     /** Cermin SQL dari ContractRules::effectiveStatus(). */
-    private function applyStatusFilter($q, string $status, string $today): void
+    public function applyStatusFilter($q, string $status, string $today): void
     {
         $notClosed = "IFNULL(c.lifecycle_status,'') NOT IN ('draft','terminated')";
 
@@ -240,7 +245,10 @@ class ContractService
             $attrs['created_by'] = $actorId;
             $attrs['contract_number'] = $this->allocateNumber($attrs['contract_type'], now());
 
-            return EmployeeContract::create($attrs);
+            $contract = EmployeeContract::create($attrs);
+            $this->syncSalary($contract, $canSalary, $d);
+
+            return $contract;
         });
     }
 
@@ -255,8 +263,10 @@ class ContractService
         return DB::transaction(function () use ($contract, $d, $canSalary) {
             $attrs = $this->attributes((int) $contract->employee_id, $contract, $d, $canSalary);
             $contract->update($attrs);
+            $contract->refresh();
+            $this->syncSalary($contract, $canSalary, $d);
 
-            return $contract->refresh();
+            return $contract;
         });
     }
 
@@ -271,6 +281,15 @@ class ContractService
             throw new \DomainException('Only a Draft contract can be deleted. End a running contract by setting its status to Terminated.');
         }
         $contract->delete();
+    }
+
+    /** Kontrak aktif yang disimpan pemegang "View Salary" (gaji ikut dikirim) → perbarui Salary Components. */
+    private function syncSalary(EmployeeContract $contract, bool $canSalary, array $d): void
+    {
+        $this->salarySyncNote = null;
+        if ($canSalary && array_key_exists('salary', $d)) {
+            $this->salarySyncNote = app(\App\Services\Payroll\ContractSalarySync::class)->sync($contract);
+        }
     }
 
     /** Nilai kolom dari kiriman formulir, dengan semua aturan bisnis. */
@@ -328,6 +347,10 @@ class ContractService
             'body_html'     => $status === ContractRules::STATUS_ACTIVE
                 ? (($existing && $existing->body_html && (int) $existing->template_id === $template->id) ? $existing->body_html : $template->body_html)
                 : ($status === ContractRules::STATUS_DRAFT ? null : ($existing?->body_html)),
+            // Paper size, orientation and margins are frozen together with the text.
+            'page_json'     => $status === ContractRules::STATUS_ACTIVE
+                ? (($existing && $existing->body_html && $existing->page_json && (int) $existing->template_id === $template->id) ? $existing->page_json : self::templatePage($template))
+                : ($status === ContractRules::STATUS_DRAFT ? null : ($existing?->page_json)),
         ];
 
         // Nomor: dibuat sistem saat pembuatan; boleh dikoreksi HR selama tetap unik.
@@ -461,6 +484,7 @@ class ContractService
             'body_html'      => $body,
             'use_letterhead' => (bool) ($d['use_letterhead'] ?? false),
             'signatory_employee_id' => $this->templateSigner($d['signatory_employee_id'] ?? null),
+            ...self::pageColumns($d),
             'status'         => ($d['status'] ?? 'active') === 'inactive' ? ContractTemplate::STATUS_INACTIVE : ContractTemplate::STATUS_ACTIVE,
             'updated_by'     => $actorId,
         ];
@@ -483,6 +507,25 @@ class ContractService
         $attrs['created_by'] = $actorId;
 
         return ContractTemplate::create($attrs);
+    }
+
+    /** Paper settings of a template as the structure PageSettings reads. */
+    public static function templatePage(ContractTemplate $t): array
+    {
+        return PageSettings::store($t->page_size, $t->page_orientation, [
+            'top' => $t->margin_top, 'right' => $t->margin_right, 'bottom' => $t->margin_bottom, 'left' => $t->margin_left,
+        ]);
+    }
+
+    /** Template columns from the submitted form (margin boxes left empty stay empty = default). */
+    public static function pageColumns(array $d): array
+    {
+        $p = PageSettings::store($d['page_size'] ?? null, $d['page_orientation'] ?? null, [
+            'top' => $d['margin_top'] ?? null, 'right' => $d['margin_right'] ?? null, 'bottom' => $d['margin_bottom'] ?? null, 'left' => $d['margin_left'] ?? null,
+        ]);
+
+        return ['page_size' => $p['size'], 'page_orientation' => $p['orientation'], 'margin_top' => $p['margins']['top'], 'margin_right' => $p['margins']['right'],
+            'margin_bottom' => $p['margins']['bottom'], 'margin_left' => $p['margins']['left']];
     }
 
     /** @throws \DomainException */
@@ -529,8 +572,11 @@ class ContractService
         $values = $this->values($contract, $type, $maskSalary);
 
         $letterhead = ($template?->use_letterhead ?? true) ? Letterhead::forLetter(self::LETTER_TYPE) : null;
+        // A frozen (Active) contract keeps its own paper settings; a Draft follows its template.
+        $page = PageSettings::resolve($contract->page_json ?: ($template ? self::templatePage($template) : null), $letterhead !== null);
 
         return [
+            'page'           => $page,
             'title'          => $contract->contract_name ?: ($template?->name ?? 'Contract'),
             'number'         => $contract->contract_number,
             'html'           => ContractRules::render($source, $values),
@@ -599,13 +645,19 @@ class ContractService
 
         if ($type === ContractRules::TYPE_EXTERNAL) {
             $eng = DB::table('employee_engagement')->where('employee_id', $id)->first();
-            $unit = match (strtolower((string) ($eng->engagement_scheme ?? ''))) {
-                'mandays', 'man-days', 'manday' => 'per manday',
-                'manmonth', 'man-month', 'monthly' => 'per bulan',
+            // Ketentuan komersial per kontrak (menu External → External Contract) menggantikan nilai engagement bila ada.
+            $terms = $c->contract_id ? DB::table('external_contract_terms')->where('contract_id', $c->contract_id)->first() : null;
+            $scheme = $terms->engagement_scheme ?? ($eng->engagement_scheme ?? null);
+            $unit = match (ExternalRules::schemeKey($scheme)) {
+                'mandays' => 'per manday',
+                'monthly' => 'per bulan',
                 'hourly' => 'per jam',
-                'fixed price', 'fixed' => 'paket (fixed price)',
+                'fixed_price' => 'paket (fixed price)',
                 default => '',
             };
+            $rate = $terms && $terms->rate !== null
+                ? ExternalRules::money($terms->rate, $terms->currency)
+                : ($eng && $eng->rate !== null ? ContractRules::money((float) $eng->rate) : '');
 
             return $common + [
                 'nama_konsultan'       => $name,
@@ -616,10 +668,12 @@ class ContractService
                 'perusahaan_prinsipal' => $eng->client_company ?? '',
                 'spesialisasi'         => $c->position ?: ($eng->assignment_role ?? ''),
                 'penugasan'            => $eng->assignment_role ?? ($c->position ?: ($basic->position ?? '')),
-                'skema'                => $eng->engagement_scheme ?? '',
-                'tarif'                => $maskSalary ? $masked : ($eng && $eng->rate !== null ? ContractRules::money((float) $eng->rate) : ''),
+                'skema'                => $terms ? ExternalRules::schemeLabel($terms->engagement_scheme) : ($eng->engagement_scheme ?? ''),
+                'tarif'                => $maskSalary ? $masked : $rate,
                 'satuan_tagihan'       => $unit,
                 'volume_kerja'         => (string) $c->work_volume,
+                'jam_per_manday'       => $terms ? rtrim(rtrim(number_format((float) $terms->hours_per_manday, 1, ',', '.'), '0'), ',') . ' jam' : '',
+                'termin_pembayaran'    => $terms ? $terms->payment_term_days . ' hari' : '',
             ];
         }
 
@@ -743,7 +797,7 @@ class ContractService
             return $common + [
                 'nama_konsultan' => 'Nama Konsultan', 'nomor_identitas' => '0000000000000000', 'vendor' => 'Vendor Contoh',
                 'perusahaan_prinsipal' => 'Klien Contoh', 'spesialisasi' => 'SAP Consultant', 'penugasan' => 'Proyek Contoh',
-                'skema' => 'Mandays', 'tarif' => 'Rp 2.500.000', 'satuan_tagihan' => 'per manday', 'volume_kerja' => '20,00 mandays', 'tempat_tanggal_lahir' => 'Kota Contoh, 5 Januari 1990', 'jenis_kelamin' => 'Laki-laki',
+                'skema' => 'Mandays', 'tarif' => 'Rp 2.500.000', 'satuan_tagihan' => 'per manday', 'volume_kerja' => '20,00 mandays', 'jam_per_manday' => '8 jam', 'termin_pembayaran' => '14 hari', 'tempat_tanggal_lahir' => 'Kota Contoh, 5 Januari 1990', 'jenis_kelamin' => 'Laki-laki',
             ];
         }
 

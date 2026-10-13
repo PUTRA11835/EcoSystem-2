@@ -248,6 +248,11 @@ class ContractRules
      */
     public static function render(string $html, array $values): string
     {
+        // Page break (the editor's "Page break" button): a paragraph holding only {{halaman_baru}} becomes a real break.
+        $break = '<div style="page-break-after:always;height:0;line-height:0;margin:0"></div>';
+        $html = preg_replace('#<p\b[^>]*>\s*\{\{\s*halaman_baru\s*\}\}\s*</p>#i', $break, $html);
+        $html = preg_replace('/\{\{\s*halaman_baru\s*\}\}/i', $break, $html);
+
         return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', function ($m) use ($values) {
             $key = strtolower($m[1]);
             if (!array_key_exists($key, $values)) {

@@ -1,8 +1,7 @@
 <aside id="sidebar" data-rail="{{ $__env->hasSection('sidebar-nav') ? 'off' : 'on' }}"
     class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col overflow-hidden {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
     @php
-        // HC-D25 — Favorit hanya untuk karyawan (portal pelanggan tidak memakainya).
-        // forEmployee() tidak pernah melempar galat: sidebar tampil di SETIAP halaman.
+        
         $sbFavoritesEnabled = (session('user.type') ?? null) === 'employee';
         $sbFavorites = $sbFavoritesEnabled
             ? app(\App\Services\Sidebar\SidebarFavoriteService::class)->forEmployee((int) session('user.id'))
@@ -14,8 +13,6 @@
         window.__sidebarFavoritesEnabled = @json($sbFavoritesEnabled);
         window.__sidebarFavorites = @json($sbFavorites);
         window.__sidebarFavoritesMax = {{ \App\Services\Sidebar\SidebarFavoriteService::MAX }};
-        // Mode rail (ikon + panel) dipilih per perangkat; diterapkan di sini agar halaman tak berkedip.
-        // Dimatikan pada halaman yang menimpa isi sidebar (data-rail="off", mis. inbox Ticket).
         (function () {
             try {
                 var a = document.getElementById('sidebar');
@@ -62,10 +59,6 @@
             <svg class="sb-ico" aria-hidden="true" focusable="false"><use href="#ti-search"/></svg>
         </button>
 
-        {{-- HC-D36 — Kotak ringkasan "Favorites" DIHAPUS dari sini (redundan dengan
-             tab "Favorite" di Command Center pada Dashboard, yang menampilkan hal
-             sama dengan kartu lebih lengkap). Ikon pin pada tiap tautan menu TETAP
-             ada (lihat IIFE "FAVORIT" di bawah) — itulah cara menyematkan/melepas. --}}
     </div>
 
     <!-- Navigation Menu (satu-satunya bagian yang di-scroll) -->
@@ -78,20 +71,6 @@
                 $essConfig    = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
                 $essGroupData = \App\Http\Controllers\Management\EssSettingsController::getEssGroups();
 
-                // 🔴 D182 — SATU array data menggantikan lima belas blok
-                // `@if(!empty($essConfig[...]))` yang dulu ditulis tangan satu
-                // per satu. Setiap baris di sini adalah PERSIS logika yang
-                // sudah ada sebelumnya (route, pola aktif, gerbang tambahan) —
-                // dipindah ke bentuk data, bukan ditulis ulang — supaya
-                // perilaku untuk siapa pun yang TIDAK memakai fitur grup baru
-                // (mis. instalasi yang belum pernah membuat grup) IDENTIK
-                // dengan sebelum D182.
-                //
-                // `logout`, `events_calendar`, `my_timesheet` SENGAJA tidak
-                // ada di sini — lihat EssSettingsController::UNGROUPABLE_ITEMS
-                // untuk alasannya (logout tidak pernah benar-benar dijaga
-                // sakelar ini; dua lainnya sudah punya dropdown "Calendar"
-                // sendiri di bawah, di luar cakupan fitur ini).
                 $essNav = [
                     'home' => [
                         'label'   => 'Dashboard',
@@ -207,13 +186,6 @@
                     ],
                 ];
 
-                // Susun urutan tampil: item flat dan grup diselingi mengikuti
-                // urutan ASLI $essNav di atas — grup muncul persis di posisi
-                // anggota PERTAMANYA. Tanpa satu pun grup terkonfigurasi
-                // (instalasi baru, atau sebelum D182), ini menghasilkan urutan
-                // yang identik dengan lima belas blok lama.
-                // Seksi tempat tiap item ESS dirender. Item di luar peta ini (mis. kunci ESS baru di masa depan)
-                // jatuh ke 'workspace' — TIDAK PERNAH hilang. Grup ESS buatan admin mengikuti seksi anggota pertamanya.
                 $essSecOf = ['home' => 'top', 'ai_assistant' => 'tools', 'ai_research' => 'tools'];
                 $essRenderedGroupIds = [];
                 $essOutput = [];
@@ -508,7 +480,21 @@
             @endif
 @php $sb['contracts'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-
+            {{-- External (konsultan eksternal) — six pages, each with its own Menu Access slug; the section shows only when one passes. --}}
+            @foreach([
+                ['general.external.consultants', 'general.external.consultants.index', 'general/external/consultants*', 'fas fa-user-tie', 'External Consultants'],
+                ['general.external.timesheet', 'general.external.timesheet.index', 'general/external/timesheet*', 'fas fa-clock', 'Timesheet & Payment'],
+                ['general.external.contracts', 'general.external.contracts.index', 'general/external/contracts*', 'fas fa-file-contract', 'External Contract'],
+                ['general.external.assignment-letters', 'general.external.assignment-letters.index', 'general/external/assignment-letters*', 'fas fa-briefcase', 'Assignment Letter'],
+                ['general.external.employment-certificates', 'general.external.employment-certificates.index', 'general/external/employment-certificates*', 'fas fa-file-circle-check', 'Employment Certificate'],
+                ['general.external.reference-letters', 'general.external.reference-letters.index', 'general/external/reference-letters*', 'fas fa-file-signature', 'Reference Letter'],
+            ] as [$extSlug, $extRoute, $extActive, $extIcon, $extLabel])
+                @if($can($extSlug))
+                    @include('partials.ess-nav-item', ['href' => route($extRoute), 'icon' => $extIcon, 'label' => $extLabel, 'active' => Request::is($extActive), 'nested' => false])
+                @endif
+            @endforeach
+@php $sb['external'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
             @if($can('finance.pph21.settings') || $can('finance.pph21.report'))
                 <div class="mb-2">
@@ -1335,16 +1321,12 @@
             @endif
 @php $sb['management'] = ob_get_clean(); @endphp
 
-            {{-- ===== SUSUNAN SIDEBAR (seksi berjudul, bisa dilipat; default terbuka) =====
-                 Tiap blok menu di atas ditangkap ke $sb[...] LALU dirakit di sini menurut seksi. Gerbang izin,
-                 alamat, dan pola aktif tiap menu TIDAK diubah — hanya letaknya. Seksi tanpa satu pun menu yang
-                 lolos gerbang tidak dirender (judulnya ikut hilang). Urutan: harian → HR → keuangan → pekerjaan →
-                 alat → bisnis → laporan (di bawah) → administrasi. Bukti "tidak ada menu hilang":
-                 docs/humancapital/tools/snapshot-sidebar.php --}}
+           
             @php
                 $sbSections = [
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
+                    ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
                     ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
                     ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],
@@ -1711,14 +1693,7 @@
 </script>
 
 <script>
-    /**
-     * Pencarian menu sidebar. Menyaring tautan (`a.nav-link`) di dalam #sidebarScroll:
-     *  - yang cocok tetap tampil, induk dropdown-nya DIBUKA otomatis;
-     *  - blok tingkat atas tanpa tautan cocok disembunyikan (label seksi ikut);
-     *  - bila NAMA grup yang cocok (mis. "hr"), seluruh isi grup ditampilkan;
-     *  - dikosongkan / Esc → keadaan dropdown dikembalikan persis seperti sebelum mencari.
-     * Enter membuka tautan cocok pertama.
-     */
+   
     (function () {
         var input = document.getElementById('sidebarSearch');
         var scroll = document.getElementById('sidebarScroll');
@@ -1802,17 +1777,7 @@
         clearBtn.addEventListener('click', function () { input.value = ''; apply(); input.focus(); });
     })();
 
-    /**
-     * FAVORIT (HC-D25, kotak ringkasan dipindah ke Command Center di HC-D36).
-     * Ikon pin muncul saat menu di-hover/fokus (ikonnya sendiri diganti dari
-     * bintang ke thumbtack — lihat komentar makePin() di bawah); klik
-     * menyematkan/melepas menu lewat `/sidebar/favorites` (maks.
-     * window.__sidebarFavoritesMax). Tampilan daftar favorit sendiri kini
-     * HANYA di tab "Favorite" Command Center (Dashboard) — lihat
-     * `window.SidebarFavorites` di bawah, API yang dipakai halaman itu.
-     *  - Yang disimpan hanya JALUR URL; validasinya di server (lihat SidebarFavoriteService).
-     *  - Simpan ke server semantik "replace"; bila gagal, keadaan dikembalikan + pemberitahuan.
-     */
+   
     (function () {
         var scroll = document.getElementById('sidebarScroll');
         if (!scroll || !window.__sidebarFavoritesEnabled) { return; }
@@ -1833,11 +1798,6 @@
 
         var links = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link')).filter(function (a) { return pathOf(a) !== null; });
 
-        // Ikon pin (bukan bintang) — permintaan pemilik sistem. SATU gaya ikon
-        // untuk kedua keadaan (fa-thumbtack TIDAK punya varian "regular"/garis
-        // di Font Awesome Free, beda dari fa-star yang punya), dibedakan lewat
-        // warna+opacity lewat class `.on` (lihat CSS `.sb-pin.on`) — bukan lewat
-        // ganti ikon, supaya tidak pernah menampilkan ikon yang hilang.
         function makePin(on) {
             var s = document.createElement('span');
             s.className = 'sb-pin' + (on ? ' on' : '');
@@ -1925,9 +1885,6 @@
             if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sb-pin')) { pinClick(e); }
         }, true);
 
-        // HC-D36 — API publik minimal supaya Command Center (Dashboard) bisa
-        // menyematkan/melepas menu lewat jalur yang SAMA (kuota, simpan ke
-        // server, kembalikan keadaan bila gagal) tanpa menduplikasi logikanya.
         window.SidebarFavorites = {
             toggle: toggleFavorite,
             list: function () { return favs.slice(); },
@@ -1937,17 +1894,6 @@
         render();
     })();
 
-    /**
-     * Sidebar TIDAK kembali ke atas setelah pindah halaman. Halaman dimuat ulang penuh
-     * (bukan SPA), sehingga posisi gulir #sidebarScroll dan dropdown yang dibuka manual
-     * hilang setiap klik menu. Keadaan disimpan di sessionStorage (per tab; bersih saat
-     * tab ditutup) dan dipulihkan SINKRON sebelum browser melukis halaman — tanpa kedipan.
-     *  1. dropdown yang dibuka manual dibuka kembali;
-     *  2. posisi gulir dipulihkan;
-     *  3. item AKTIF dipastikan terlihat (mis. kunjungan pertama, atau membuka URL langsung).
-     * Posisi TIDAK disimpan selama kolom pencarian terisi (daftar sedang tersaring, jadi
-     * posisinya tidak berlaku pada daftar penuh di halaman berikutnya).
-     */
     (function () {
         var KEY = 'ecosystem:sidebar:v1';
         var scroll = document.getElementById('sidebarScroll');
@@ -2005,9 +1951,6 @@
         }
         var boxes = scroll.querySelectorAll('[id$="Dropdown"], [id$="Submenu"]');
 
-        // Catat setiap buka/tutup dropdown dengan MENGAMATI kelas `hidden` di DOM — cara ini
-        // menjangkau klik, pemulihan, maupun pencarian tanpa mengait ke satu fungsi toggle.
-        // Selama pencarian aktif perubahan diabaikan (pencarian membuka grup sementara).
         if (window.MutationObserver) {
             var observer = new MutationObserver(function (mutations) {
                 if (searching()) { return; }
@@ -2026,14 +1969,7 @@
 </script>
 
 <script>
-    /**
-     * Buka/tutup dropdown sidebar — SATU sumber kebenaran: kelas `hidden` pada wadah dropdown.
-     * Chevron (`rotate-180` bila terbuka) dan `aria-expanded` pada tombolnya DISINKRONKAN
-     * otomatis oleh pengamat di bawah, apa pun yang membuka/menutup wadah (klik, pemulihan
-     * sessionStorage, pencarian menu). Dulu tiap grup punya fungsi + variabel status sendiri
-     * di dashboard.blade.php yang menimpa fungsi di sini — chevron tidak berputar / terbalik.
-     * Argumen kedua (id chevron) dipertahankan agar pemanggil lama tetap valid; diabaikan.
-     */
+    
     function toggleSidebarDropdown(dropdownId) {
         var box = document.getElementById(dropdownId);
         if (box) { box.classList.toggle('hidden'); }

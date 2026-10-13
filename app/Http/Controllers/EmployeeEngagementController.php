@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
  * Izin seksi: rute `employee.section:engagement[,view]`. Aturan tambahan di sini:
  *   - HANYA untuk karyawan External (Internal → tidak berlaku);
  *   - TIDAK pernah untuk diri sendiri (konsultan tidak melihat/mengubah engagement-nya sendiri);
- *   - TARIF + mata uang butuh izin terpisah `employee.section.engagement_rate.view|update`; tanpa izin,
+ *   - TARIF + mata uang butuh izin terpisah `external.section.engagement_rate.view|update`; tanpa izin,
  *     nilai tarif tidak dikirim ke browser dan field tarif ditolak saat simpan.
  * Semua aksi tulis: POST + header X-Requested-With (rute /api tanpa CSRF token; lihat EmployeeHrProfileController).
  */
@@ -36,11 +36,11 @@ class EmployeeEngagementController extends Controller
             return response()->json(['success' => true, 'data' => ['applicable' => false]]);
         }
 
-        $canViewRate = $this->can('employee.section.engagement_rate.view');
+        $canViewRate = $this->can('external.section.engagement_rate.view');
 
         return response()->json([
             'success' => true,
-            'data'    => ['applicable' => true, 'can_view_rate' => $canViewRate, 'can_edit_rate' => $this->can('employee.section.engagement_rate.update')]
+            'data'    => ['applicable' => true, 'can_view_rate' => $canViewRate, 'can_edit_rate' => $this->can('external.section.engagement_rate.update')]
                 + $this->service->forEmployee($employeeId, $canViewRate),
         ]);
     }
@@ -57,7 +57,7 @@ class EmployeeEngagementController extends Controller
             return response()->json(['success' => false, 'message' => 'Engagement details apply to External consultants only.'], 422);
         }
 
-        $canEditRate = $this->can('employee.section.engagement_rate.update');
+        $canEditRate = $this->can('external.section.engagement_rate.update');
         $input = $request->except(['_token']);
 
         try {

@@ -60,7 +60,9 @@ class CandidateHireService
                 'nick_name'     => $this->uniqueNickName($account['full_name'], $account['eci']),
                 'since_date'    => $joinDate ?? now()->toDateString(),
                 'home_base'     => $account['home_base'] ?? null,
-                'employee_type' => EmployeeBasicData::deriveEmployeeType($account['home_base'] ?? null),
+                // Karyawan hasil rekrutmen = Internal; Home Base hanya lokasi. Konsultan diatur lewat Employee Group.
+                'employee_group' => 'INTERNAL',
+                'employee_type' => EmployeeBasicData::typeForGroup('INTERNAL'),
                 'position'      => $account['position'] ?? null,
                 'created_by'    => session('user.eci', 'Recruitment'),
                 'created_on'    => now(),

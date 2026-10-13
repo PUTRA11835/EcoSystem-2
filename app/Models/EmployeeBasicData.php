@@ -28,6 +28,7 @@ class EmployeeBasicData extends Model
         'search_term_1',
         'search_term_2',
         'marital_status',
+        'education_level',
         'birth_date',
         'birth_place',
         'since_date',
@@ -74,9 +75,17 @@ class EmployeeBasicData extends Model
     protected $appends = ['full_name'];
 
     /**
-     * Aturan tunggal penentu jenis employee.
-     * Home Base "Others" = External (penanda dari file import HR), selain itu Internal.
-     * Dipakai importer & controller agar employee_type selalu konsisten dgn home_base.
+     * ATURAN TUNGGAL jenis employee (keputusan pemilik 13 Okt 2026): ditentukan oleh EMPLOYEE GROUP, bukan Home Base.
+     * Group EXTERNAL = External; INTERNAL, INTERNSHIP, atau kosong = Internal. Home Base hanyalah lokasi.
+     */
+    public static function typeForGroup(?string $group): string
+    {
+        return mb_strtoupper(trim((string) $group)) === 'EXTERNAL' ? 'External' : 'Internal';
+    }
+
+    /**
+     * @deprecated Jenis kini ditentukan Employee Group — pakai typeForGroup(). Dipertahankan hanya untuk pemanggil lama
+     * (seeder/uji) yang masih memberi Home Base: "Others" = External.
      */
     public static function deriveEmployeeType(?string $homeBase): string
     {

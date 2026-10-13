@@ -39,6 +39,7 @@ class ContractPlaceholders
         'meterai'              => 'Stamp-duty (meterai) box, aligned left — where the stamp is stuck',
         'meterai_tengah'       => 'Stamp-duty box, centred',
         'meterai_kanan'        => 'Stamp-duty box, aligned right',
+        'halaman_baru'         => 'Page break — the text after it starts on a new page (use the Page break button)',
     ];
 
     /** Kunci → penjelasan, untuk konsultan eksternal. */
@@ -61,6 +62,8 @@ class ContractPlaceholders
         'tarif'                => 'Rate',
         'satuan_tagihan'       => 'Billing unit',
         'volume_kerja'         => 'Work volume (set on the contract)',
+        'jam_per_manday'       => 'Hours per manday (set on the external contract)',
+        'termin_pembayaran'    => 'Payment term in days (set on the external contract)',
         'lokasi_kerja'         => 'Project model / work location',
         'tanggal_surat'        => 'Document date (07 Oktober 2026)',
         'catatan'              => 'Notes',
@@ -73,6 +76,7 @@ class ContractPlaceholders
         'meterai'              => 'Stamp-duty (meterai) box, aligned left — where the stamp is stuck',
         'meterai_tengah'       => 'Stamp-duty box, centred',
         'meterai_kanan'        => 'Stamp-duty box, aligned right',
+        'halaman_baru'         => 'Page break — the text after it starts on a new page (use the Page break button)',
     ];
 
     /** @return array<string,string> */

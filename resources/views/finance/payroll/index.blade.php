@@ -47,7 +47,7 @@
                 <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Attendance period end</label>
                     <input type="date" name="attendance_end" value="{{ old('attendance_end', $defaults['end']) }}" class="{{ $input }}"></div>
                 <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Cut-off date (optional)</label>
-                    <input type="date" name="cutoff_date" value="{{ old('cutoff_date') }}" class="{{ $input }}"></div>
+                    <input type="date" name="cutoff_date" value="{{ old('cutoff_date', $defaults['cutoff'] ?? '') }}" class="{{ $input }}"></div>
             </div>
             <p class="text-xs text-gray-500 mt-2">Attendance, leave and overtime are read from the attendance period. Workdays after the cut-off date are treated as fully present and corrected in the next payroll.</p>
             <div class="mt-3"><button type="submit" @disabled(!$enabled) class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90 disabled:opacity-50"><i class="fas fa-circle-plus mr-2"></i>Create period</button></div>
