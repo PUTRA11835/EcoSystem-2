@@ -2579,9 +2579,18 @@ class TicketController extends Controller
                 $updateData['pic'] = trim($leadName);
             }
 
+            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
             $ticket->update($updateData);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            // PIC baru ikut ditarik ke channel Teams tiket ini. Hanya saat
+            // orangnya benar-benar berganti — menyimpan ulang PIC yang sama
+            // tidak perlu memanggil flow.
+            if ($previousLeadId !== (int) $request->ticket_lead_id) {
+                $this->notifyTeamsTicketPerson($ticket, (int) $request->ticket_lead_id, 'pic', $sessionUser);
+            }
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -2991,11 +3000,22 @@ class TicketController extends Controller
             }
 
             if (!empty($updateData)) {
+                $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
                 $ticket->update($updateData);
 
                 if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
+                }
+
+                // Jalur kedua penetapan PIC (edit tiket / Take This Ticket), sejajar
+                // dengan assignTicketLead().
+                $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']
+                    ? (int) $updateData['ticket_lead_id']
+                    : null;
+                if ($newLeadId && $newLeadId !== $previousLeadId) {
+                    $this->notifyTeamsTicketPerson($ticket, $newLeadId, 'pic', $sessionUser);
                 }
             }
 
@@ -3556,6 +3576,9 @@ class TicketController extends Controller
             );
 
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
+
+            // Ikut tarik orangnya ke channel Teams tiket ini.
+            $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
 
             return response()->json([
                 'success' => true,
