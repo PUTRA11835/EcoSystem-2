@@ -11,8 +11,10 @@
 
 @php
     $hasLetterhead = (bool) $doc['letterhead']?->backgroundPath();
-    $hasSigned = !empty($contract->signed_file_path);
-    $canEditList = $canDo('general.contracts.list', 'edit');
+    // Dibuka dari External → External Contract ($external): tanpa tab Contract dan tanpa salinan bermeterai (itu di menu Contract).
+    $external = $external ?? false;
+    $hasSigned = !$external && !empty($contract->signed_file_path);
+    $canEditList = !$external && $canDo('general.contracts.list', 'edit');
     $canUpload = $canEditList && $contract->lifecycle_status !== 'draft' && !$masked;
     $confirmUpload = $hasSigned ? 'Replace the stamped copy of ' . $doc['number'] . ' with this file?' : null;
     $warnText = '{{' . implode('}}, {{', $doc['warnings']) . '}}';
@@ -29,7 +31,12 @@
 
 @section('content')
 <div class="w-full space-y-4 px-1 lg:px-2">
-    @include('hr-general.contracts.components.tabs')
+    @if($external)
+        @include('partials.accent-remap')
+        @include('hr-general.contracts.components.confirm-forms')
+    @else
+        @include('hr-general.contracts.components.tabs')
+    @endif
 
     <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 text-xs text-gray-500">
@@ -77,7 +84,7 @@
         <div class="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-4 py-3" role="alert"><i class="fas fa-circle-exclamation mr-1"></i> {{ $message }}</div>
     @enderror
 
-    @unless($masked)
+    @unless($masked || $external)
         {{-- Stamp duty (meterai). Method 1: download the PDF, sign it and stick the stamp, upload the PDF here. --}}
         <div class="bg-white border border-gray-200 rounded-xl px-4 py-3 text-xs flex flex-wrap items-center justify-between gap-3">
             @if($hasSigned)

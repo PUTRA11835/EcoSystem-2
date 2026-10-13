@@ -41,9 +41,9 @@ class ContractHtmlSanitizer
             . 'table[style],thead,tbody,tr,td[colspan|rowspan|style],th[colspan|rowspan|style]'
         );
         $config->set('CSS.AllowedProperties', [
-            'text-align', 'font-weight', 'font-style', 'text-decoration', 'font-size', 'color',
-            'margin-left', 'padding-left', 'text-indent', 'list-style-type', 'vertical-align', 'width', 'height',
-            'border', 'border-width', 'border-style', 'border-color',
+            'text-align', 'font-weight', 'font-style', 'text-decoration', 'font-size', 'color', 'background-color', 'font-family', 'line-height',
+            'margin-left', 'margin-right', 'margin-top', 'margin-bottom', 'padding-left', 'text-indent', 'list-style-type', 'vertical-align', 'width', 'height',
+            'border', 'border-width', 'border-style', 'border-color', 'border-collapse',
         ]);
         $config->set('AutoFormat.RemoveEmpty', false);
 

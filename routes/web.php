@@ -682,3 +682,7 @@ require __DIR__ . '/hr-general.php';
 // ==================== COMMERCIAL & FINANCE ROUTES ====================
 // Payroll, BPJS, PPh 21 (berkas baru; modul aditif)
 require __DIR__ . '/finance.php';
+
+// ==================== EXTERNAL (KONSULTAN EKSTERNAL) ROUTES ====================
+// Consultants, Timesheet & Payment (placeholder), External Contract, dan tiga surat konsultan (berkas baru; modul aditif)
+require __DIR__ . '/hr-external.php';

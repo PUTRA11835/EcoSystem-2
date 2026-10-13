@@ -1191,6 +1191,7 @@ Route::prefix('general')
                 Route::get('/', [ContractTemplateController::class, 'index'])->name('index');
                 Route::get('/create', [ContractTemplateController::class, 'create'])->name('create')->middleware($tplCan('create'));
                 Route::post('/', [ContractTemplateController::class, 'store'])->name('store')->middleware($tplCan('create'));
+                Route::post('/preview', [ContractTemplateController::class, 'previewDraft'])->name('preview')->middleware('throttle:30,1');
                 Route::whereNumber('templateId')->group(function () use ($tplCan) {
                     Route::get('/{templateId}', [ContractTemplateController::class, 'show'])->name('show');
                     Route::get('/{templateId}/pdf', [ContractTemplateController::class, 'pdf'])->name('pdf');

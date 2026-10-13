@@ -62,6 +62,10 @@ return [
         'general.letter-templates',
         'general.contracts.list',
         'general.contracts.templates',
+        'general.external.contracts',            // Create = add a contract, Edit = edit / change status, Delete = delete a Draft
+        'general.external.assignment-letters',   // Create = generate an assignment letter
+        'general.external.employment-certificates', // Create = generate an employment certificate
+        'general.external.reference-letters',    // Create = generate a reference letter
         'general.inventory.items',               // Create = add a stock line, Edit = edit / adjust stock, Delete = delete a line
         'general.inventory.assets',              // Create = add an asset, Edit = edit / assign, Delete = delete an asset
         'general.inventory.settings',            // Create = add a dropdown option, Edit = rename / re-order / switch off, Delete = delete an unused option
@@ -106,6 +110,7 @@ return [
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
         ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates']],
+        ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.contracts', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
         ['key' => 'inventory',     'label' => 'Inventory & Assets',   'tabs' => ['general.inventory.overview', 'general.inventory.items', 'general.inventory.assets', 'general.inventory.settings']],
         ['key' => 'payroll',       'label' => 'Payroll',              'tabs' => ['finance.payroll.periods', 'finance.payroll.settings', 'finance.payroll.simulation']],
         ['key' => 'bpjs',          'label' => 'BPJS',                 'tabs' => ['finance.bpjs.settings', 'finance.bpjs.report', 'finance.bpjs.letters']],
@@ -139,6 +144,10 @@ return [
         'general.inventory.assets'            => ['c' => 'Add an asset', 'e' => 'Edit an asset / assign it to an employee', 'd' => 'Delete an asset'],
         'general.inventory.settings'          => ['c' => 'Add a dropdown option', 'e' => 'Rename / re-order / switch an option on or off', 'd' => 'Delete an option nobody uses'],
         'general.contracts.templates'         => ['c' => 'Add a template', 'e' => 'Edit a template', 'd' => 'Delete a template (not a system default)'],
+        'general.external.contracts'          => ['c' => 'Create an external contract', 'e' => 'Edit an external contract / change its status', 'd' => 'Delete a Draft external contract'],
+        'general.external.assignment-letters' => ['c' => 'Generate an assignment letter'],
+        'general.external.employment-certificates' => ['c' => 'Generate an employment certificate'],
+        'general.external.reference-letters'  => ['c' => 'Generate a reference letter'],
         'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
         'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
         'hr_general.leave_permit.tab-types'   => ['c' => 'Add a leave type', 'e' => 'Edit or (de)activate a leave type'],
@@ -168,6 +177,7 @@ return [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
         ['key' => 'hr-contract', 'label' => 'HR · Contract', 'group' => 'Human Resources', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
+        ['key' => 'hr-external', 'label' => 'HR · External Consultants', 'group' => 'Human Resources', 'short' => 'External', 'match' => ['general.external', 'general.external.*']],
         ['key' => 'ga-inventory', 'label' => 'General Affairs · Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         ['key' => 'finance',     'label' => 'Commercial & Finance',     'match' => ['finance', 'finance.*']],
         ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'group' => 'Human Resources', 'short' => 'Docs & Letters', 'match' => [

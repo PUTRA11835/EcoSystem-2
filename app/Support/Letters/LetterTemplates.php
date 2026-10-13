@@ -85,6 +85,53 @@ class LetterTemplates
             'system'      => true,
             'fields'      => [],
         ],
+        // Surat konsultan eksternal — dibuat dari menu External (Assignment Letter / Employment Certificate / Reference Letter).
+        // `system` = tidak ada di pilihan Create Letter internal, tetapi tetap tercatat di Letter Register dan bisa diberi kop surat.
+        'ext_assignment_letter' => [
+            'label'       => 'Surat Tugas Konsultan',
+            'label_en'    => 'External Assignment Letter',
+            'description' => 'Assigns an external consultant to a task at a client location for a period. Created from External → Assignment Letter.',
+            'employee'    => 'required',
+            'system'      => true,
+            'fields'      => [
+                'addressed_to' => ['type' => 'text', 'label' => 'Addressed to', 'required' => false],
+                'contract_no'  => ['type' => 'text', 'label' => 'Related external contract', 'required' => false],
+                'task'         => ['type' => 'textarea', 'label' => 'Assignment / purpose', 'required' => true],
+                'location'     => ['type' => 'text', 'label' => 'Assignment location', 'required' => true],
+                'period_from'  => ['type' => 'date', 'label' => 'Assignment start', 'required' => true],
+                'period_to'    => ['type' => 'date', 'label' => 'Assignment end', 'required' => true],
+            ],
+        ],
+        'ext_employment_certificate' => [
+            'label'       => 'Surat Keterangan Kerja Konsultan',
+            'label_en'    => 'External Employment Certificate',
+            'description' => 'States that an external consultant is engaged on a project. Created from External → Employment Certificate.',
+            'employee'    => 'required',
+            'system'      => true,
+            'fields'      => [
+                'addressed_to' => ['type' => 'text', 'label' => 'Addressed to', 'required' => false],
+                'contract_no'  => ['type' => 'text', 'label' => 'Related external contract', 'required' => false],
+                'purpose'      => ['type' => 'text', 'label' => 'Purpose', 'required' => true],
+                'location'     => ['type' => 'text', 'label' => 'Assignment location', 'required' => false],
+                'period_from'  => ['type' => 'date', 'label' => 'Assignment start', 'required' => false],
+                'period_to'    => ['type' => 'date', 'label' => 'Assignment end', 'required' => false],
+            ],
+        ],
+        'ext_reference_letter' => [
+            'label'       => 'Surat Referensi Konsultan',
+            'label_en'    => 'External Reference Letter',
+            'description' => 'A professional reference for an external consultant\'s engagement. Created from External → Reference Letter.',
+            'employee'    => 'required',
+            'system'      => true,
+            'fields'      => [
+                'addressed_to' => ['type' => 'text', 'label' => 'Addressed to', 'required' => false],
+                'contract_no'  => ['type' => 'text', 'label' => 'Related external contract', 'required' => false],
+                'remarks'      => ['type' => 'textarea', 'label' => 'Reference summary', 'required' => false],
+                'location'     => ['type' => 'text', 'label' => 'Assignment location', 'required' => false],
+                'period_from'  => ['type' => 'date', 'label' => 'Assignment start', 'required' => false],
+                'period_to'    => ['type' => 'date', 'label' => 'Assignment end', 'required' => false],
+            ],
+        ],
     ];
 
     public static function exists(?string $key): bool
@@ -142,7 +189,7 @@ class LetterTemplates
             };
         }
 
-        if ($key === 'assignment_letter') {
+        if ($key === 'assignment_letter' || $key === 'ext_assignment_letter') {
             $rules['fields.period_to'][] = 'after_or_equal:fields.period_from';
         }
 

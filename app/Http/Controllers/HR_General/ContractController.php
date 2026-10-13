@@ -203,7 +203,7 @@ class ContractController extends Controller
         $contract = EmployeeContract::findOrFail($contractId);
         $doc = $this->contracts->document($contract, false);
 
-        $pdf = Pdf::loadView('hr-general.contracts.pdf', ['doc' => $doc])->setPaper('a4');
+        $pdf = Pdf::loadView('hr-general.contracts.pdf', ['doc' => $doc])->setPaper(\App\Support\Contracts\PageSettings::paper($doc));
         $file = str_replace(['/', '\\'], '-', $contract->contract_number) . '.pdf';
 
         // Inline = the sheet shown on the document page (and printed); ?download=1 = the PDF button.

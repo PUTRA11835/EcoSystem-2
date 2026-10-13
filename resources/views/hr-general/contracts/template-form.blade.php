@@ -57,7 +57,7 @@
             <div class="md:col-span-12">
                 <input type="hidden" name="use_letterhead" value="0">
                 <label class="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input type="checkbox" name="use_letterhead" value="1" class="rounded border-gray-300" @checked(old('use_letterhead', $template->use_letterhead))> Enable letterhead
+                    <input type="checkbox" id="tLetterhead" name="use_letterhead" value="1" class="rounded border-gray-300" @checked(old('use_letterhead', $template->use_letterhead))> Enable letterhead
                 </label>
                 <p class="text-[11px] text-gray-400 ml-6">Prints the company letterhead behind the contract. The letterhead itself is set in Letter Templates → Settings, letter type “Employment Contract”.
                     @unless($letterhead) <strong class="text-amber-700">None is set yet.</strong>@endunless
@@ -65,49 +65,33 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div class="px-5 pt-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div class="mb-3">
                 <h3 class="text-sm font-bold text-gray-800">Contract Text</h3>
-                <p class="text-[11px] text-gray-500 mt-0.5">Click a placeholder to insert it where the cursor is. Placeholders are filled in when the contract is shown or printed.</p>
-                @foreach(['employee' => 'Employee placeholders (PKWT / PKWTT)', 'external' => 'External consultant placeholders'] as $group => $title)
-                    <div data-group="{{ $group }}" class="mt-2 flex flex-wrap gap-1 items-center">
-                        <span class="text-[11px] text-gray-500 mr-1">{{ $title }}:</span>
-                        @foreach($placeholders[$group] as $key => $meaning)
-                            @php $token = '{{' . $key . '}}'; @endphp
-                            <button type="button" data-insert="{{ $token }}" title="{{ $meaning }}"
-                                class="px-2 py-0.5 rounded-md border border-gray-200 bg-white text-[11px] font-mono text-gray-600 hover:bg-indigo-50 hover:border-indigo-200">{{ $token }}</button>
-                        @endforeach
-                    </div>
-                @endforeach
+                <p class="text-[11px] text-gray-500 mt-0.5">Write and format the contract here as in Word — fonts, headings, lists, tables, indents on the ruler, page breaks. Use <strong>Fields</strong> to insert what is filled in from the employee and the contract. Press <kbd class="px-1 border rounded bg-gray-50">F1</kbd> for the keyboard shortcuts.</p>
             </div>
-
-            <div class="m-5 border border-gray-200 rounded-lg overflow-hidden">
-                <div class="flex flex-wrap items-center gap-1 px-2 py-1.5 bg-gray-50 border-b border-gray-200" id="editorBar">
-                    <select data-block class="text-xs border border-gray-200 rounded-md px-1.5 py-1 bg-white" style="width:auto">
-                        <option value="p">Normal</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option>
-                    </select>
-                    @foreach([['bold','bold'],['italic','italic'],['underline','underline'],['strikeThrough','strikethrough']] as [$cmd, $icon])
-                        <button type="button" data-command="{{ $cmd }}" class="w-7 h-7 rounded-md text-gray-600 hover:bg-gray-200 aria-pressed:bg-indigo-100 aria-pressed:text-indigo-700" title="{{ ucfirst($cmd) }}"><i class="fas fa-{{ $icon }} text-xs"></i></button>
-                    @endforeach
-                    <span class="w-px h-5 bg-gray-200 mx-1"></span>
-                    @foreach([['insertOrderedList','list-ol'],['insertUnorderedList','list-ul'],['indent','indent'],['outdent','outdent']] as [$cmd, $icon])
-                        <button type="button" data-command="{{ $cmd }}" class="w-7 h-7 rounded-md text-gray-600 hover:bg-gray-200" title="{{ $cmd }}"><i class="fas fa-{{ $icon }} text-xs"></i></button>
-                    @endforeach
-                    <span class="w-px h-5 bg-gray-200 mx-1"></span>
-                    @foreach([['justifyLeft','align-left'],['justifyCenter','align-center'],['justifyRight','align-right'],['justifyFull','align-justify']] as [$cmd, $icon])
-                        <button type="button" data-command="{{ $cmd }}" class="w-7 h-7 rounded-md text-gray-600 hover:bg-gray-200" title="{{ $cmd }}"><i class="fas fa-{{ $icon }} text-xs"></i></button>
-                    @endforeach
-                    <span class="w-px h-5 bg-gray-200 mx-1"></span>
-                    <select data-list-style class="text-xs border border-gray-200 rounded-md px-1.5 py-1 bg-white" style="width:auto" title="Numbering style of the list under the cursor">
-                        <option value="">List style…</option><option value="decimal">1. 2. 3.</option><option value="lower-alpha">a. b. c.</option>
-                        <option value="upper-alpha">A. B. C.</option><option value="lower-roman">i. ii. iii.</option><option value="upper-roman">I. II. III.</option><option value="disc">Bullets</option>
-                    </select>
-                    <button type="button" data-command="removeFormat" class="w-7 h-7 rounded-md text-gray-600 hover:bg-gray-200" title="Clear formatting"><i class="fas fa-eraser text-xs"></i></button>
-                </div>
-                <div id="bodyEditor" contenteditable="true" role="textbox" aria-multiline="true"
-                     class="min-h-[28rem] max-h-[70vh] overflow-y-auto px-8 py-6 bg-white text-[13px] leading-relaxed focus:outline-none" style="font-family: 'Times New Roman', Times, serif">{!! \App\Support\Contracts\ContractHtmlSanitizer::clean(old('body_html', $template->body_html)) !!}</div>
-                <input type="hidden" name="body_html" id="bodyHtml">
-            </div>
+            @include('hr-general.contracts.components.word-editor', [
+                'weHtml'       => \App\Support\Contracts\ContractHtmlSanitizer::clean(old('body_html', $template->body_html)),
+                'weInput'      => 'bodyHtml',
+                'weForm'       => 'templateForm',
+                'weFields'     => $placeholders,
+                'weTypeSelect' => 'tType',
+                'weLhToggle'   => '#tLetterhead',
+                'weLetterhead' => $letterheadUri ?? null,
+                'wePreviewUrl' => route('general.contracts.templates.preview'),
+                'wePage'       => [
+                    'size'        => old('page_size', $page['size']),
+                    'orientation' => old('page_orientation', $page['orientation']),
+                    'margins'     => [
+                        'top'    => old('margin_top', $page['margins']['top']),
+                        'right'  => old('margin_right', $page['margins']['right']),
+                        'bottom' => old('margin_bottom', $page['margins']['bottom']),
+                        'left'   => old('margin_left', $page['margins']['left']),
+                    ],
+                ],
+                'wePageDefaults' => $pageDefaults,
+            ])
+            <input type="hidden" name="body_html" id="bodyHtml">
         </div>
 
         <div class="flex justify-end gap-2">
@@ -117,61 +101,19 @@
     </form>
 </div>
 
-@push('styles')
-<style>
-    #editorBar select { width: auto !important; display: inline-block; }
-    @include('hr-general.contracts.components.paper-css', ['sel' => '#bodyEditor'])
-</style>
-@endpush
-
 @push('scripts')
 <script>
 (function () {
-    const editor = document.getElementById('bodyEditor');
-    const hidden = document.getElementById('bodyHtml');
-    const form = document.getElementById('templateForm');
     const typeSel = document.getElementById('tType');
 
-    // Only the placeholders of the chosen type are offered; consultants have no position.
+    // Consultants have no position; the Fields menu of the editor follows the type by itself.
     function syncType() {
         const ext = typeSel.value === 'EXTERNAL';
-        document.querySelector('[data-group="employee"]').classList.toggle('hidden', ext);
-        document.querySelector('[data-group="external"]').classList.toggle('hidden', !ext);
         document.getElementById('tPositionWrap').classList.toggle('hidden', ext);
         document.getElementById('tExternalNote').classList.toggle('hidden', !ext);
     }
     typeSel.addEventListener('change', syncType);
     syncType();
-
-    // A toolbar click must not take the focus (and the selection) away from the text.
-    document.querySelectorAll('[data-command], [data-insert]').forEach(b => b.addEventListener('mousedown', e => e.preventDefault()));
-    document.querySelectorAll('[data-command]').forEach(b => b.addEventListener('click', () => { editor.focus(); document.execCommand(b.dataset.command); sync(); }));
-    document.querySelectorAll('[data-insert]').forEach(b => b.addEventListener('click', () => { editor.focus(); document.execCommand('insertText', false, b.dataset.insert); }));
-    document.querySelector('[data-block]').addEventListener('change', e => { editor.focus(); document.execCommand('formatBlock', false, e.target.value); });
-
-    // Numbering style of the list the cursor is in (execCommand cannot set it).
-    document.querySelector('[data-list-style]').addEventListener('change', e => {
-        let n = document.getSelection()?.anchorNode;
-        while (n && n !== editor && !(['OL', 'UL'].includes(n.nodeName))) n = n.parentNode;
-        if (n && n !== editor && e.target.value) n.style.listStyleType = e.target.value;
-        e.target.value = '';
-    });
-
-    // Pasted text arrives without its outside formatting (also keeps foreign styles out of the contract).
-    editor.addEventListener('paste', e => { e.preventDefault(); document.execCommand('insertText', false, e.clipboardData.getData('text/plain')); });
-
-    function sync() {
-        document.querySelectorAll('[data-command]').forEach(b => {
-            try { b.setAttribute('aria-pressed', document.queryCommandState(b.dataset.command)); } catch (_) {}
-        });
-    }
-    document.addEventListener('selectionchange', () => { if (editor.contains(document.getSelection()?.anchorNode)) sync(); });
-
-    form.addEventListener('submit', e => {
-        hidden.value = editor.innerHTML;
-        if (!editor.textContent.trim()) { e.preventDefault(); window.showNotification('The contract text cannot be empty.', 'error'); }
-    });
-    hidden.value = editor.innerHTML;
 })();
 </script>
 @endpush

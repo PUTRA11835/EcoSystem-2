@@ -3,9 +3,10 @@
     Tailwind reset removes list markers and heading sizes, which a contract needs (numbered clauses, headings).
     Parameter: $sel — the CSS selector of the element that holds the contract text.
 --}}
+{{ $sel }} * { font-family: inherit; }   /* the layout sets a font on every element: the contract text keeps its own */
 {{ $sel }} p { margin: 0 0 8pt; }
-{{ $sel }} ol { list-style: decimal; margin: 0 0 8pt 18pt; padding-left: 12pt; }
-{{ $sel }} ul { list-style: disc; margin: 0 0 8pt 18pt; padding-left: 12pt; }
+{{ $sel }} ol { list-style: decimal; margin: 0 0 8pt 0; padding-left: 22pt; }
+{{ $sel }} ul { list-style: disc; margin: 0 0 8pt 0; padding-left: 22pt; }
 {{ $sel }} li { margin: 0 0 4pt; }
 {{ $sel }} blockquote { margin: 0 0 8pt 18pt; padding-left: 10pt; border-left: 2px solid #bbb; }
 {{ $sel }} h1 { font-size: 14pt; font-weight: bold; margin: 0 0 8pt; }

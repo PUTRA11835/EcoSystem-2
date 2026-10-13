@@ -201,6 +201,41 @@ class ContractRulesTest extends TestCase
         $this->assertSame(9, $count('EXTERNAL'));
     }
 
+    public function test_sanitizer_keeps_everything_the_word_like_editor_produces(): void
+    {
+        $in = '<h1 style="text-align: center;">Judul</h1>'
+            . '<p style="text-align: justify; line-height: 1.5; margin-left: 36pt; margin-right: 14.2pt; text-indent: -18pt; margin-top: 6pt;">Isi '
+            . '<span style="font-family: Arial; font-size: 14pt; color: rgb(255, 0, 0); background-color: rgb(255, 255, 0); font-weight: bold;">merah</span> '
+            . '<sub>x</sub><sup>2</sup> <s>coret</s></p>'
+            . '<ol style="list-style-type: lower-alpha;"><li style="margin-left: 18pt;">a</li></ol>'
+            . '<table style="width:100%;border-collapse: collapse"><tbody><tr><td colspan="2" style="border: 0.75pt solid #000000; width: 40%; text-align: right;">c</td></tr></tbody></table>'
+            . '<p>{{halaman_baru}}</p>';
+        $out = ContractHtmlSanitizer::clean($in);
+
+        foreach (['<h1', 'text-align:center', 'line-height:1.5', 'margin-left:36pt', 'margin-right:14.2pt', 'text-indent:-18pt', 'margin-top:6pt',
+            'font-family:Arial', 'font-size:14pt', 'color:rgb(255,0,0)', 'background-color:rgb(255,255,0)', 'font-weight:bold', '<sub>', '<sup>', '<s>',
+            'list-style-type:lower-alpha', 'colspan="2"', 'border:0.75pt solid #000000', 'width:40%', 'border-collapse:collapse', '{{halaman_baru}}'] as $needle) {
+            $this->assertStringContainsString($needle, str_replace([' ;', '; '], [';', ';'], $out), "hilang: $needle\n$out");
+        }
+    }
+
+    public function test_sanitizer_still_drops_what_the_editor_must_never_store(): void
+    {
+        $out = ContractHtmlSanitizer::clean('<p style="position:absolute;behavior:url(x);background:url(javascript:1)" onclick="1">a</p><iframe src="x"></iframe><img src="x"><form><input></form><a href="javascript:1">l</a><style>p{}</style>');
+        foreach (['position', 'behavior', 'javascript', 'onclick', '<iframe', '<img', '<form', '<input', '<a ', '<style'] as $bad) {
+            $this->assertStringNotContainsString($bad, $out, $bad);
+        }
+    }
+
+    public function test_page_break_paragraph_becomes_a_real_page_break(): void
+    {
+        $html = R::render('<p>Satu</p><p style="text-align:center">{{ halaman_baru }}</p><p>Dua {{halaman_baru}}</p>', []);
+        $this->assertSame(2, substr_count($html, 'page-break-after:always'));
+        $this->assertStringNotContainsString('halaman_baru', $html);
+        $this->assertSame([], R::unknownPlaceholders('{{halaman_baru}}', ContractPlaceholders::keysFor('PKWT')));
+        $this->assertSame([], R::unknownPlaceholders('{{halaman_baru}}', ContractPlaceholders::keysFor('EXTERNAL')));
+    }
+
     public function test_sanitizer_keeps_formatting_and_placeholders_but_drops_scripts_and_images(): void
     {
         $dirty = '<p style="text-align:center">{{nomor_kontrak}} <strong>x</strong></p><script>alert(1)</script><img src="x" onerror="1"><a href="http://a">l</a><p onclick="1">y</p>';
