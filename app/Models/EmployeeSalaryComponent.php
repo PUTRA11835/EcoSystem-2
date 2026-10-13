@@ -33,7 +33,7 @@ class EmployeeSalaryComponent extends Model
 
     protected $fillable = [
         'employee_id', 'component_id', 'name', 'kind', 'amount', 'effective_from',
-        'source', 'offer_id', 'notes', 'created_by',
+        'source', 'offer_id', 'contract_id', 'notes', 'created_by',
         // payroll
         'effective_to', 'is_active', 'taxable', 'bpjs_base', 'updated_by',
     ];

@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
  * Engagement-nya (employee_engagement, HC-D47). Halaman ini hanya MEMBACA — data tetap diubah di Master Employee, sehingga
  * tak ada dua sumber kebenaran. Kelak, bila internal dan eksternal dipisah, hanya kelas ini yang perlu diganti.
  *
- * Tarif hanya dibaca bila pemanggil memegang `employee.section.engagement_rate.view`; tanpa itu kolomnya tak pernah diambil.
+ * Tarif hanya dibaca bila pemanggil memegang `external.section.engagement_rate.view`; tanpa itu kolomnya tak pernah diambil.
  */
 class ExternalConsultantService
 {
@@ -165,6 +165,14 @@ class ExternalConsultantService
     {
         if ($scheme === 'unset') {
             $q->where(fn ($s) => $s->whereNull('g.engagement_scheme')->orWhere('g.engagement_scheme', ''));
+
+            return;
+        }
+        if ($scheme === 'other_unset') {
+            // Kartu "Other / not set": semua yang BUKAN Mandays atau Monthly, termasuk yang belum punya skema sama sekali.
+            $known = array_merge(ExternalRules::schemeAliases('mandays'), ExternalRules::schemeAliases('monthly'));
+            $q->where(fn ($s) => $s->whereNull('g.engagement_scheme')->orWhere('g.engagement_scheme', '')
+                ->orWhereRaw("LOWER(REPLACE(REPLACE(REPLACE(g.engagement_scheme,' ',''),'-',''),'_','')) NOT IN (" . implode(',', array_fill(0, count($known), '?')) . ')', $known));
 
             return;
         }

@@ -46,6 +46,7 @@ return [
         'employee.section.contract.*', 'employee.section.payment.*', 'employee.section.bank.*',
         'employee.section.engagement_rate.*', 'employee.section.hr_profile.*', 'employee.section.salary.*',
         'employee.section.compensation.*',
+        'external.section.bank.*', 'external.section.hr_profile.*', 'external.section.engagement_rate.*',
         'finance.payroll', 'finance.payroll.*',
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
         'general.contracts.salary',
@@ -83,6 +84,9 @@ return [
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
         // Tab Master Employee yang berisi daftar rekaman: Create/Delete = flag pada baris `.view`-nya (middleware
         // employee.section:<tab>,create|delete), Edit = slug `.update` seperti sebelumnya.
+        'general.external.consultants',          // Create = add a consultant
+        'external.section.address.view', 'external.section.identification.view', 'external.section.education.view',
+        'external.section.qualification.view', 'external.section.bank.view', 'external.section.attachment.view',
         'employee.section.address.view',
         'employee.section.identification.view',
         'employee.section.family.view',
@@ -123,6 +127,7 @@ return [
     // Section/tab pada halaman detail (slug `<prefix>.<seksi>.view|update|...`) dikelompokkan menurut awalan.
     'section_hubs' => [
         'employee.section.'         => 'Employee detail',
+        'external.section.'         => 'External consultant detail',
         'customer.section.'         => 'Business Partner detail',
         'my-profile.section.'       => 'My Profile',
         'delivery-project.'         => 'Project detail',
@@ -161,6 +166,13 @@ return [
         'employee.section.payment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.attachment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.salary.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'general.external.consultants' => ['c' => 'Add a consultant'],
+        'external.section.address.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'external.section.identification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'external.section.education.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'external.section.qualification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'external.section.bank.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
+        'external.section.attachment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
     ],
 
     // Urutan tampil di kolom kiri. `match` = pola slug (Str::is). Pola pertama yang cocok menang.
@@ -177,7 +189,7 @@ return [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
         ['key' => 'hr-contract', 'label' => 'HR · Contract', 'group' => 'Human Resources', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
-        ['key' => 'hr-external', 'label' => 'HR · External Consultants', 'group' => 'Human Resources', 'short' => 'External', 'match' => ['general.external', 'general.external.*']],
+        ['key' => 'hr-external', 'label' => 'HR · External Consultants', 'group' => 'Human Resources', 'short' => 'External', 'match' => ['general.external', 'general.external.*', 'external.section.*']],
         ['key' => 'ga-inventory', 'label' => 'General Affairs · Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         ['key' => 'finance',     'label' => 'Commercial & Finance',     'match' => ['finance', 'finance.*']],
         ['key' => 'hr-docs',  'label' => 'HR · Docs & Letters', 'group' => 'Human Resources', 'short' => 'Docs & Letters', 'match' => [
@@ -191,7 +203,7 @@ return [
             'about' => 'Only the parent row "HR & General" (slug general): the root above every HR & General page. The sidebar and the older tab bars use it as a fallback; pages with their own tab permission ignore it.', 'match' => ['general', 'general.*']],
         ['key' => 'employee',    'label' => 'Master · Employee',         'group' => 'Master', 'short' => 'Employee', 'match' => ['employee', 'employee.*', 'master.employee*']],
         ['key' => 'customer',    'label' => 'Master · Customer',         'group' => 'Master', 'short' => 'Customer', 'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
-        ['key' => 'ticketing',   'label' => 'Ticketing',                 'group' => 'Work & Service', 'short' => 'Ticketing', 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging']],
+        ['key' => 'ticketing',   'label' => 'Ticketing',                 'group' => 'Work & Service', 'short' => 'Ticketing', 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging', 'staging.*']],
         ['key' => 'delivery',    'label' => 'Delivery',                  'group' => 'Work & Service', 'short' => 'Delivery', 'match' => ['delivery', 'delivery.*', 'delivery-project.*', 'delivery-support.*']],
         ['key' => 'reporting',   'label' => 'Reporting',                 'match' => ['reporting', 'reporting.*']],
         ['key' => 'calendar',    'label' => 'Calendar & Timesheet',      'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],

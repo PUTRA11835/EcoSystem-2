@@ -32,7 +32,7 @@
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ route('general.external.consultants.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50"><i class="fas fa-arrow-left mr-1"></i> Consultant List</a>
-            @if($canDo('master.employee'))<a href="{{ route('master.employee.detail', $c->employee_id) }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">Edit in Employee Data</a>@endif
+            @if($canDo('external.section.basic_data.view'))<a href="{{ route('general.external.consultants.edit', $c->employee_id) }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">Edit consultant</a>@endif
             @if($canDo('general.external.contracts'))<a href="{{ route('general.external.contracts.manage', $c->employee_id) }}" class="px-3 py-1.5 rounded-full primary-gradient text-white text-xs font-semibold hover:opacity-90">Manage External Contract</a>@endif
         </div>
     </div>

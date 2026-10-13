@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
  * External → Consultants (slug general.external.consultants): daftar dan profil konsultan eksternal.
  *
  * HANYA MEMBACA. Konsultan = karyawan `External` di Master Employee + blok Engagement-nya; data diubah di sana
- * (ExternalConsultantService). Tarif butuh izin `employee.section.engagement_rate.view`; tiap blok profil mengikuti izin seksinya
+ * (ExternalConsultantService). Tarif butuh izin `external.section.engagement_rate.view`; tiap blok profil mengikuti izin seksinya
  * di Master Employee (identitas, alamat, rekening, lampiran).
  */
 class ExternalConsultantController extends Controller
@@ -32,7 +32,7 @@ class ExternalConsultantController extends Controller
             'status' => (string) $request->query('status'),
         ];
         $perPage = $this->perPage($request);
-        $canRate = $this->canView('employee.section.engagement_rate.view');
+        $canRate = $this->canView('external.section.engagement_rate.view');
 
         $data = [
             'rows'           => $this->consultants->listing($filters, $perPage, $canRate),
@@ -41,7 +41,7 @@ class ExternalConsultantController extends Controller
             'perPageOptions' => self::PER_PAGE_OPTIONS,
             'canRate'        => $canRate,
             'filterForm'     => 'consultantFilters',
-            'schemes'        => EngagementRules::SCHEMES + ['other' => 'Other', 'unset' => 'No scheme set'],
+            'schemes'        => EngagementRules::SCHEMES + ['other_unset' => 'Other / not set', 'other' => 'Other scheme', 'unset' => 'No scheme set'],
             'periodLabels'   => ExternalRules::PERIOD_LABELS,
         ];
 
@@ -55,15 +55,15 @@ class ExternalConsultantController extends Controller
 
     public function show(int $employeeId)
     {
-        $canRate = $this->canView('employee.section.engagement_rate.view');
+        $canRate = $this->canView('external.section.engagement_rate.view');
         $consultant = $this->consultants->find($employeeId, $canRate);
         abort_if($consultant === null, 404);
 
         $profile = $this->consultants->profile($employeeId, [
-            'identification' => $this->canView('employee.section.identification.view'),
-            'address'        => $this->canView('employee.section.address.view'),
-            'bank'           => $this->canView('employee.section.bank.view'),
-            'attachment'     => $this->canView('employee.section.attachment.view'),
+            'identification' => $this->canView('external.section.identification.view'),
+            'address'        => $this->canView('external.section.address.view'),
+            'bank'           => $this->canView('external.section.bank.view'),
+            'attachment'     => $this->canView('external.section.attachment.view'),
         ]);
 
         return view('hr-general.external.consultants.show', [
@@ -72,5 +72,16 @@ class ExternalConsultantController extends Controller
             'canRate'      => $canRate,
             'periodLabels' => ExternalRules::PERIOD_LABELS,
         ]);
+    }
+
+    /**
+     * Tambah konsultan baru (tombol "Add Consultant"): memakai logika pembuatan karyawan yang sama dengan Master Employee,
+     * tetapi Employee Group dikunci EXTERNAL dan izinnya = Create pada `general.external.consultants` (diatur Admin).
+     */
+    public function store(Request $request)
+    {
+        $request->merge(['employee_group' => 'EXTERNAL', 'home_base' => $request->input('home_base') ?: 'Others']);
+
+        return app(\App\Http\Controllers\EmployeeController::class)->store($request);
     }
 }

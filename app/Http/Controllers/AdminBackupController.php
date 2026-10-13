@@ -731,14 +731,15 @@ class AdminBackupController extends Controller
                 'marital_status'     => $get('marital_status'),
                 'personnel_area'     => $get('personnel_area'),
                 'personnel_subarea'  => $get('personnel_subarea'),
-                'employee_group'     => $get('employee_group'),
                 'employee_subgroup'  => $get('employee_subgroup'),
                 'position'           => $get('position'),
                 'division'           => $get('division'),
                 'department'         => $get('department'),
                 'home_base'          => $homeBase,
-                // Internal/External diturunkan dari home_base ("Others" → External).
-                'employee_type'      => \App\Models\EmployeeBasicData::deriveEmployeeType($homeBase),
+                // Internal/External mengikuti Employee Group. File lama yang hanya menandai konsultan lewat Home Base "Others"
+                // tetap dibaca sebagai EXTERNAL (group ditulis eksplisit supaya group tetap satu-satunya penentu).
+                'employee_group'     => $get('employee_group') ?: (\App\Models\EmployeeBasicData::deriveEmployeeType($homeBase) === 'External' ? 'EXTERNAL' : null),
+                'employee_type'      => \App\Models\EmployeeBasicData::typeForGroup($get('employee_group') ?: (\App\Models\EmployeeBasicData::deriveEmployeeType($homeBase) === 'External' ? 'EXTERNAL' : null)),
                 'since_date'         => $this->normalizeDate($get('since_date')),
             ], fn($v) => $v !== null);
 

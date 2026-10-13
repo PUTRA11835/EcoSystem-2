@@ -73,7 +73,7 @@
                             <div class="seg">
                                 <a href="{{ route('general.external.consultants.show', $row->employee_id) }}" class="seg-view">View</a>
                                 @if($canDo('general.external.contracts'))<a href="{{ route('general.external.contracts.manage', $row->employee_id) }}" class="seg-print">Contracts</a>@endif
-                                @if($canDo('master.employee'))<a href="{{ route('master.employee.detail', $row->employee_id) }}" class="seg-edit">Edit</a>@endif
+                                @if($canDo('external.section.basic_data.view'))<a href="{{ route('general.external.consultants.edit', $row->employee_id) }}" class="seg-edit">Edit</a>@endif
                             </div>
                         </div>
                     </td>

@@ -13,7 +13,7 @@
         ['Active', $summary['active'], 'user-check', 'green', ['status' => 'active']],
         ['Mandays', $summary['mandays'], 'calendar-day', 'blue', ['scheme' => 'mandays']],
         ['Monthly', $summary['monthly'], 'calendar-days', 'amber', ['scheme' => 'monthly']],
-        ['Other / not set', $summary['other'] + $summary['unset'], 'circle-question', 'gray', ['scheme' => 'other']],
+        ['Other / not set', $summary['other'] + $summary['unset'], 'circle-question', 'gray', ['scheme' => 'other_unset']],
     ];
 @endphp
 
@@ -28,7 +28,7 @@
         <div class="flex flex-wrap gap-2">
             @if($canDo('general.external.timesheet'))<a href="{{ route('general.external.timesheet.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50"><i class="fas fa-clock mr-1"></i> Timesheet &amp; Payment</a>@endif
             @if($canDo('general.external.contracts'))<a href="{{ route('general.external.contracts.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50"><i class="fas fa-file-contract mr-1"></i> External Contract</a>@endif
-            @if($canDo('master.employee'))<a href="{{ route('master.employee.index') }}" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus mr-1"></i> Add Consultant</a>@endif
+            @if($canDo('general.external.consultants', 'create'))<button type="button" id="addConsultantBtn" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus mr-1"></i> Add Consultant</button>@endif
         </div>
     </div>
 
@@ -139,4 +139,64 @@
 })();
 </script>
 @endpush
+
+@if($canDo('general.external.consultants', 'create'))
+{{-- Add Consultant: membuat akun konsultan (Employee Group = EXTERNAL), lalu membuka halaman edit untuk melengkapi datanya. --}}
+<div id="addConsultantModal" class="hidden fixed inset-0 z-50 items-start justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="acTitle">
+    <form id="addConsultantForm" class="bg-white rounded-xl shadow-xl w-full max-w-xl my-8" autocomplete="off">
+        <div class="flex items-start justify-between px-5 py-4 border-b border-gray-100">
+            <div><h3 class="text-base font-bold text-gray-900" id="acTitle">Add consultant</h3>
+                <p class="text-xs text-gray-500">Creates the consultant account. You complete the profile, engagement and documents on the next page.</p></div>
+            <button type="button" class="ac-close text-gray-400 hover:text-gray-700 text-xl leading-none" aria-label="Close">&times;</button>
+        </div>
+        <div class="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            @php $lbl = 'block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1'; @endphp
+            <div><label class="{{ $lbl }}">Consultant ID (ECI) *</label><input name="eci" required maxlength="50" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Work email *</label><input name="email_work" type="email" required maxlength="255" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">First name *</label><input name="first_name" required maxlength="255" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Last name</label><input name="last_name" maxlength="255" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Nick name *</label><input name="nick_name" required maxlength="100" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Mobile phone</label><input name="cell_phone" maxlength="50" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Password *</label><input name="password" type="password" required minlength="6" autocomplete="new-password" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}">Confirm password *</label><input name="password_confirmation" type="password" required minlength="6" autocomplete="new-password" class="{{ $input }}"></div>
+            <p id="acError" class="sm:col-span-2 hidden text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2"></p>
+        </div>
+        <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
+            <button type="button" class="ac-close px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-white">Cancel</button>
+            <button type="submit" id="acSave" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-check mr-2"></i>Create consultant</button>
+        </div>
+    </form>
+</div>
+<script>
+(function () {
+    var modal = document.getElementById('addConsultantModal'), form = document.getElementById('addConsultantForm');
+    if (!modal) return;
+    var open = function () { form.reset(); document.getElementById('acError').classList.add('hidden'); modal.classList.remove('hidden'); modal.classList.add('flex'); form.eci.focus(); };
+    var close = function () { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+    document.getElementById('addConsultantBtn').addEventListener('click', open);
+    modal.querySelectorAll('.ac-close').forEach(function (b) { b.addEventListener('click', close); });
+    modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = document.getElementById('acSave'), err = document.getElementById('acError');
+        btn.disabled = true; err.classList.add('hidden');
+        fetch(@json(route('general.external.consultants.store')), {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                       'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
+            body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+              if (res.ok && res.j.success) {
+                  if (window.showNotification) showNotification('Consultant created. Complete the profile on the next page.', 'success');
+                  window.location.href = @json(url('/general/external/consultants')) + '/' + res.j.data.employee_id + '/edit';
+              } else {
+                  err.textContent = res.j.message || 'Could not create the consultant.'; err.classList.remove('hidden'); btn.disabled = false;
+              }
+          }).catch(function () { err.textContent = 'Network error. Please try again.'; err.classList.remove('hidden'); btn.disabled = false; });
+    });
+})();
+</script>
+@endif
 @endsection

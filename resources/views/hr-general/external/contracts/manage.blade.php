@@ -46,7 +46,7 @@
     $lockActive = $activeLocked && !($editing && $edit->is_active);
     $pct = $readiness['percent'];
     $pctTone = $pct >= 100 ? 'bg-green-100 text-green-700' : ($pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700');
-    $employeeUrl = route('master.employee.detail', $c->employee_id);
+    $employeeUrl = route('general.external.consultants.edit', $c->employee_id);
 @endphp
 
 @section('content')

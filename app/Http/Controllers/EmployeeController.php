@@ -42,7 +42,8 @@ class EmployeeController extends Controller
             ]);
 
             return view('master.employee.index', [
-                'user' => $user
+                'user' => $user,
+                'summary' => $this->listSummary(),
             ]);
 
         } catch (\Exception $e) {
@@ -58,9 +59,45 @@ class EmployeeController extends Controller
     }
 
     /**
+     * Hitungan kartu ringkasan di atas daftar Master Employee (cakupan sama dengan daftar: karyawan INTERNAL, termasuk Internship).
+     * `active` = tidak diblokir & tidak dihapus (sama dengan filter Status "Active").
+     *
+     * @return array{total:int,active:int,blocked:int,internship:int,locked:int}
+     */
+    private function listSummary(): array
+    {
+        $base = fn () => DB::table('employee as e')->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'));
+
+        return [
+            'total'      => $base()->count(),
+            'active'     => $base()->where('eb.block', false)->where('eb.deletion_flag', false)->count(),
+            'blocked'    => $base()->where('eb.block', true)->count(),
+            'internship' => $base()->where('eb.employee_group', 'INTERNSHIP')->count(),
+            'locked'     => Schema::hasTable('employee_hr_profile')
+                ? $base()->whereExists(fn ($q) => $q->selectRaw('1')->from('employee_hr_profile as hp')->whereColumn('hp.employee_id', 'e.employee_id')->whereNotNull('hp.locked_at'))->count() : 0,
+        ];
+    }
+
+    /**
      * Display single employee detail page
      */
     public function show($id)
+    {
+        return $this->renderDetail($id, 'employee');
+    }
+
+    /**
+     * Halaman edit KONSULTAN di External → Consultants: tampilan sama dengan detail Master Employee, tetapi izin per tab memakai
+     * `external.section.*` (diatur Admin terpisah dari HR). Hanya untuk karyawan berjenis External.
+     */
+    public function showExternal($id)
+    {
+        return $this->renderDetail($id, 'external');
+    }
+
+    /** @param string $scope 'employee' (Master Employee, target Internal) | 'external' (External → Consultants, target External) */
+    private function renderDetail($id, string $scope)
     {
         try {
             $user = session('user');
@@ -150,6 +187,21 @@ class EmployeeController extends Controller
                 ]);
             }
 
+            // Pemisahan menurut JENIS: Internal hanya lewat Master Employee, External hanya lewat External → Consultants.
+            // Pembuka yang berhak atas halaman lawannya diarahkan ke sana; selain itu ditolak (tidak bisa menjangkau lewat ID di URL).
+            $guard = Employee::find($user['id'] ?? null);
+            $isExternalTarget = (($employee->employee_type ?? null) ?: 'Internal') === 'External';
+            if ($scope === 'employee' && $isExternalTarget) {
+                abort_unless($guard?->canAccessMenu('general.external.consultants'), 403, 'This is an external consultant. Open it from External → Consultants.');
+
+                return redirect()->route('general.external.consultants.edit', $id);
+            }
+            if ($scope === 'external' && !$isExternalTarget) {
+                abort_unless($guard?->canAccessMenu('master.employee'), 403, 'This is an internal employee. Open it from Master Employee.');
+
+                return redirect()->route('master.employee.detail', $id);
+            }
+
             Log::info('=== EMPLOYEE DATA LOADED SUCCESSFULLY ===', [
                 'employee_id' => $id,
                 'eci' => $employee->eci ?? null
@@ -165,12 +217,13 @@ class EmployeeController extends Controller
             $hidden   = [];
             $readonly = [];
             $crud     = [];
+            $prefix = $scope === 'external' ? 'external.section' : 'employee.section';
             foreach (array_keys(SettingsController::PROFILE_SECTIONS) as $key) {
-                $canView   = (bool) $viewer?->canAccessMenu("employee.section.{$key}.view");
-                $canUpdate = (bool) $viewer?->canAccessMenu("employee.section.{$key}.update");
+                $canView   = (bool) $viewer?->canAccessMenu("{$prefix}.{$key}.view");
+                $canUpdate = (bool) $viewer?->canAccessMenu("{$prefix}.{$key}.update");
                 // Create / Delete of a tab are the flags of its `.view` row (Menu Access boxes); Edit is `.update`.
-                $canCreate = $canView && (bool) ($matrix["employee.section.{$key}.view"]['create'] ?? false);
-                $canDelete = $canView && (bool) ($matrix["employee.section.{$key}.view"]['delete'] ?? false);
+                $canCreate = $canView && (bool) ($matrix["{$prefix}.{$key}.view"]['create'] ?? false);
+                $canDelete = $canView && (bool) ($matrix["{$prefix}.{$key}.view"]['delete'] ?? false);
                 $hidden[$key]   = !$canView;
                 $readonly[$key] = $canView && !$canUpdate && !$canCreate && !$canDelete;
                 $crud[$key]     = ['create' => $canCreate, 'edit' => $canUpdate, 'delete' => $canDelete];
@@ -179,12 +232,15 @@ class EmployeeController extends Controller
             return view('master.employee.show', [
                 'employee'               => $employee,
                 'user'                   => $user,
+                'detailScope'            => $scope,
                 'profileSectionHidden'   => $hidden,
                 'profileSectionReadonly' => $readonly,
                 'profileSectionCrud'     => $crud,
                 'profileLocked'          => app(\App\Services\HrProfile\ProfileLockService::class)->isLocked((int) $id),
             ]);
 
+        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+            throw $e;   // 403 dari penjaga jenis: biarkan sampai ke pengguna
         } catch (\Exception $e) {
             Log::error('=== ERROR LOADING EMPLOYEE DETAIL PAGE ===', [
                 'employee_id' => $id,
@@ -502,6 +558,10 @@ class EmployeeController extends Controller
             $request->input('lock') === 'locked' ? $query->whereExists($locked) : $query->whereNotExists($locked);
         }
 
+        // Master Employee hanya memuat karyawan INTERNAL (termasuk Internship). Konsultan eksternal dikelola di
+        // External → Consultants (keputusan pemilik 13 Okt 2026; datanya tetap satu tabel).
+        $query->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'));
+
         // Filter by employee group / division (multi-select, comma-separated).
         foreach (['employee_group' => 'eb.employee_group', 'division' => 'eb.division'] as $param => $column) {
             if ($request->filled($param)) {
@@ -680,6 +740,12 @@ class EmployeeController extends Controller
      */
     public function store(Request $request)
     {
+        // Konsultan EXTERNAL hanya boleh dibuat oleh pemegang izin Create pada External → Consultants (bukan hanya Master Employee).
+        if (mb_strtoupper(trim((string) $request->employee_group)) === 'EXTERNAL'
+            && !Employee::find(session('user.id'))?->hasMenuPermission('general.external.consultants', 'can_create')) {
+            return response()->json(['success' => false, 'message' => 'You do not have permission to add an external consultant. Ask an administrator for the Create permission on External → Consultants.'], 403);
+        }
+
         // Get current user's ECI
         $currentUserECI = $this->getCurrentUserECI();
 
@@ -781,8 +847,8 @@ class EmployeeController extends Controller
                 'manager' => $request->manager,
                 'authorization_group' => $request->authorization_group,
                 'home_base' => $request->home_base,
-                // Internal/External diturunkan dari home_base ("Others" → External).
-                'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
+                // Internal/External mengikuti Employee Group (bukan Home Base).
+                'employee_type' => \App\Models\EmployeeBasicData::typeForGroup($request->employee_group),
                 'created_by' => $currentUserECI,  // ✅ Gunakan ECI
                 'created_on' => now(),
                 'block' => false,
@@ -1058,8 +1124,8 @@ class EmployeeController extends Controller
                         'manager' => $request->manager,
                         'authorization_group' => $request->authorization_group,
                         'home_base' => $request->home_base,
-                        // Internal/External diturunkan dari home_base ("Others" → External).
-                        'employee_type' => \App\Models\EmployeeBasicData::deriveEmployeeType($request->home_base),
+                        // Internal/External mengikuti Employee Group (bukan Home Base).
+                        'employee_type' => \App\Models\EmployeeBasicData::typeForGroup($request->employee_group),
                         'last_changed_by' => $currentUserECI,  // ✅ Gunakan ECI
                         'last_changed_on' => now(),
                     ]

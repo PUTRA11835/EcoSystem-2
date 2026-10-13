@@ -23,6 +23,9 @@ use Illuminate\Support\Facades\DB;
  */
 class ContractService
 {
+    /** Pesan hasil sinkron gaji kontrak → Salary Components pada simpan terakhir (null = tidak ada). */
+    public ?string $salarySyncNote = null;
+
     /** Jenis surat pada Letter Templates → Settings tempat kop surat kontrak dipasang. */
     public const LETTER_TYPE = Letterhead::TYPE_EMPLOYMENT_CONTRACT;
 
@@ -242,7 +245,10 @@ class ContractService
             $attrs['created_by'] = $actorId;
             $attrs['contract_number'] = $this->allocateNumber($attrs['contract_type'], now());
 
-            return EmployeeContract::create($attrs);
+            $contract = EmployeeContract::create($attrs);
+            $this->syncSalary($contract, $canSalary, $d);
+
+            return $contract;
         });
     }
 
@@ -257,8 +263,10 @@ class ContractService
         return DB::transaction(function () use ($contract, $d, $canSalary) {
             $attrs = $this->attributes((int) $contract->employee_id, $contract, $d, $canSalary);
             $contract->update($attrs);
+            $contract->refresh();
+            $this->syncSalary($contract, $canSalary, $d);
 
-            return $contract->refresh();
+            return $contract;
         });
     }
 
@@ -273,6 +281,15 @@ class ContractService
             throw new \DomainException('Only a Draft contract can be deleted. End a running contract by setting its status to Terminated.');
         }
         $contract->delete();
+    }
+
+    /** Kontrak aktif yang disimpan pemegang "View Salary" (gaji ikut dikirim) → perbarui Salary Components. */
+    private function syncSalary(EmployeeContract $contract, bool $canSalary, array $d): void
+    {
+        $this->salarySyncNote = null;
+        if ($canSalary && array_key_exists('salary', $d)) {
+            $this->salarySyncNote = app(\App\Services\Payroll\ContractSalarySync::class)->sync($contract);
+        }
     }
 
     /** Nilai kolom dari kiriman formulir, dengan semua aturan bisnis. */

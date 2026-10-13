@@ -114,21 +114,32 @@ class PayrollCalculator
         $tot      = SalaryComponentRules::totalsOn($rows, $wageDate);
         $bpjsWage = $tot['bpjs_wage'];
         $rateWage = 0.0;   // gaji pokok + tunjangan tetap: dasar upah sejam, potongan harian, dan denda per menit
+        $baseOnlyWage = 0.0;
         foreach (SalaryComponentRules::effectiveOn($rows, $wageDate) as $r) {
             if (in_array($r['category'], [SalaryComponentRules::BASE, SalaryComponentRules::FIXED_ALLOWANCE], true)) {
                 $rateWage += (float) $r['amount'];
+            }
+            if ($r['category'] === SalaryComponentRules::BASE) {
+                $baseOnlyWage += (float) $r['amount'];
             }
         }
         $rateDivisor = $fixed ? $divisor : max(1, count($workdays) ?: PayrollPeriodRules::daysInPeriod($start, $end));
 
         // ── 3. Lembur disetujui ─────────────────────────────────────────────
         $overtimeTotal = 0.0;
-        $hourly = (new OvertimeRateService())->hourlyRateFromMonthly($rateWage);
+        // Dasar upah lembur: gaji pokok + tunjangan tetap (bawaan) atau gaji pokok saja (Payroll Settings).
+        $otWage = ($set['overtime_wage_basis'] ?? 'base_fixed') === 'base_only' ? $baseOnlyWage : $rateWage;
+        $hourly = (new OvertimeRateService())->hourlyRateFromMonthly($otWage);
         if (!empty($set['overtime_enabled']) && !empty($in['overtime'])) {
             $svc = new OvertimeRateService();
             $wd  = (int) (($set['overtime_work_days'] ?? null) ?: ($set['work_days_per_week'] ?? 5)) === 6 ? 6 : 5;
             foreach ($in['overtime'] as $o) {
-                $calc = $svc->calculate((int) $o['duration_minutes'], (string) $o['day_type'], $hourly, $wd);
+                // Ambang menit minimum dan pembulatan menit (Payroll Settings): di bawah ambang tidak dibayar.
+                $dur = PayrollRounding::overtimeMinutes((int) $o['duration_minutes'], (int) ($set['overtime_min_minutes'] ?? 0), (int) ($set['overtime_round_minutes'] ?? 0), (string) ($set['overtime_round_method'] ?? 'nearest'));
+                if ($dur <= 0) {
+                    continue;
+                }
+                $calc = $svc->calculate($dur, (string) $o['day_type'], $hourly, $wd);
                 $amt  = round((float) $calc['amount'], 2);
                 $overtimeTotal += $amt;
                 $items[] = [
@@ -137,7 +148,7 @@ class PayrollCalculator
                     'amount' => $amt, 'taxable' => true, 'source_type' => 'overtime_request', 'source_id' => $o['id'] ?? null,
                 ];
             }
-            if ($rateWage <= 0) {
+            if ($otWage <= 0) {
                 $warnings[] = 'Overtime exists but the hourly wage is zero (no Base Salary).';
             }
         }
@@ -250,6 +261,8 @@ class PayrollCalculator
         } else {
             // Opsi "potong JHT+JP karyawan sebelum TER" (bukan ketentuan baku PMK 168/2023): mengurangi dasar TER bulanan saja.
             $terBase = !empty($set['deduct_bpjs_tk_before_pph21']) ? max(0.0, $taxGross - $bpjs['totals']['employee_pension']) : $taxGross;
+            // Pembulatan dasar TER bulanan (hanya Jan–Nov, setelah potongan BPJS TK): ke kelipatan Rp 1.000 sesuai pilihan.
+            $terBase = PayrollRounding::apply($terBase, (string) ($set['ter_base_rounding'] ?? 'none'), 1000.0);
             $t   = Pph21Calculator::monthlyTer($terBase, $ptkp, $in['pph21']['ter']);
             $pph = ['method' => 'ter', 'category' => $t['category'], 'rate' => $t['rate'], 'tax_gross' => $taxGross, 'ter_base' => $terBase,
                 'tax' => floor($t['tax'] * $mult), 'refund' => 0.0, 'annual' => null, 'surcharge' => $surcharge];
@@ -261,6 +274,22 @@ class PayrollCalculator
         // ── 9. Total ────────────────────────────────────────────────────────
         $deductions = round($compDeduct + $bpjs['totals']['employee'] + $pph['tax'], 2);
         $thp        = round($earnings - $deductions, 2);
+
+        // Pembulatan gaji bersih: selisihnya dicatat sebagai baris tersendiri supaya total tetap dapat diaudit.
+        $netMode = (string) ($set['net_rounding_mode'] ?? 'none');
+        if ($netMode !== 'none' && $thp > 0) {
+            $diff = round(PayrollRounding::apply($thp, $netMode, (float) ($set['net_rounding_increment'] ?? 1000)) - $thp, 2);
+            if (abs($diff) > 0.004) {
+                $items[] = ['type' => $diff > 0 ? self::T_EARNING : self::T_DEDUCTION, 'code' => 'rounding', 'name' => 'Net pay rounding',
+                    'amount' => abs($diff), 'taxable' => false, 'source_type' => 'rounding', 'source_id' => null];
+                if ($diff > 0) {
+                    $earnings = round($earnings + $diff, 2);
+                } else {
+                    $deductions = round($deductions - $diff, 2);
+                }
+                $thp = round($earnings - $deductions, 2);
+            }
+        }
         if ($thp < 0) {
             $warnings[] = 'Take-home pay is negative. Check deductions and adjustments.';
         }

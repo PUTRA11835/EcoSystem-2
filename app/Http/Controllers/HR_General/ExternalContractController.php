@@ -73,7 +73,7 @@ class ExternalContractController extends Controller
     public function manage(Request $request, int $employeeId)
     {
         $canRate = $this->canView('general.contracts.salary');
-        $consultant = $this->consultants->find($employeeId, $this->canView('employee.section.engagement_rate.view'));
+        $consultant = $this->consultants->find($employeeId, $this->canView('external.section.engagement_rate.view'));
         abort_if($consultant === null, 404);
 
         $history = $this->external->history($employeeId, $canRate);

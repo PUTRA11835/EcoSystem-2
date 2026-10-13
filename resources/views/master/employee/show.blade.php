@@ -105,7 +105,7 @@
                 Back to Dashboard
             </a>
         @else
-            <a href="{{ route('master.employee.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+            <a href="{{ ($detailScope ?? 'employee') === 'external' ? route('general.external.consultants.index') : route('master.employee.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
                 </svg>
@@ -216,6 +216,13 @@
             'compensation'   => ['compensation',    'Compensation',  'compensation'],
         ];
         $visibleSections = array_filter($allSections, fn($k) => !($hidden[$k] ?? false), ARRAY_FILTER_USE_KEY);
+        // Profil per jenis (13 Okt 2026, mengikuti aturan Onboarding): konsultan EXTERNAL hanya diminta kontak, alamat, KTP, NPWP,
+        // rekening, dan dokumen. Tab khusus karyawan internal (keluarga/kontak darurat, kontrak & gaji, payment, compensation)
+        // disembunyikan; datanya TIDAK dihapus dan muncul lagi bila Employee Group kembali INTERNAL.
+        $isExternalEmp = (($employee->employee_type ?? null) ?: 'Internal') === 'External';
+        if ($isExternalEmp) {
+            $visibleSections = array_diff_key($visibleSections, array_flip(['family', 'contract', 'payment', 'compensation']));
+        }
         // HC-D54: fragmen data HR yang diletakkan di tab lain (golongan darah/ibu kandung di Basic Data, kontak darurat di Family).
         // Hanya untuk yang punya izin seksi hr_profile dan karyawan Internal (form konsultan ESH tidak memilikinya).
         $hrShow = !($hidden['hr_profile'] ?? true) && ((($employee->employee_type ?? null) ?: 'Internal') !== 'External');
@@ -479,6 +486,13 @@
     }
 
     // Refresh the header card from server without full page reload
+    // Jenis saat halaman dibuka; bila Employee Group diubah dan jenisnya berganti, halaman dimuat ulang agar tab & field menyesuaikan.
+    const EMP_TYPE_INITIAL = @json($isExternalEmp ? 'External' : 'Internal');
+    function applyTypeProfile() {
+        if (EMP_TYPE_INITIAL === 'External') document.querySelectorAll('.js-internal-only').forEach(el => el.classList.add('hidden'));
+    }
+    document.addEventListener('DOMContentLoaded', applyTypeProfile);
+
     window.refreshHeader = async function(id) {
         try {
             const res = await fetch(`/api/employees/${id}/header`, {
@@ -497,6 +511,7 @@
             const typeBadge = document.getElementById('headerTypeBadge');
             if (typeBadge) {
                 const t = d.employee_type || 'Internal';
+                if (t !== EMP_TYPE_INITIAL) { window.location.reload(); return; }
                 typeBadge.textContent = t;
                 typeBadge.className = 'inline-block mt-2 px-4 py-2 text-sm font-semibold rounded-full ' +
                     (t === 'External' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700');
@@ -540,6 +555,7 @@
                 setValue('searchTerm1', basicData.search_term_1);
                 setValue('searchTerm2', basicData.search_term_2);
                 setValue('maritalStatus', basicData.marital_status);
+                setValue('educationLevel', basicData.education_level);
                 setValue('birthDate', basicData.birth_date);
                 setValue('birthPlace', basicData.birth_place);
                 setValue('sinceDate', basicData.since_date);
@@ -595,6 +611,7 @@
             search_term_1: v('searchTerm1'),
             search_term_2: v('searchTerm2'),
             marital_status: v('maritalStatus'),
+            education_level: v('educationLevel'),
             birth_date: v('birthDate'),
             birth_place: v('birthPlace'),
             since_date: v('sinceDate'),
@@ -636,7 +653,7 @@
             } else {
                 const fieldLabels = {
                     first_name: 'First Name', last_name: 'Last Name', nick_name: 'Nick Name',
-                    gender: 'Gender', religion: 'Religion', marital_status: 'Marital Status',
+                    gender: 'Gender', religion: 'Religion', marital_status: 'Marital Status', education_level: 'Education Level',
                     birth_date: 'Birth Date', birth_place: 'Birth Place', since_date: 'Since Date',
                     title: 'Title',
                 };

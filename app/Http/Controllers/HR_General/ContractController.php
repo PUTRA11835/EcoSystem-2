@@ -85,7 +85,27 @@ class ContractController extends Controller
             'defaultType'   => $header->employee_type === 'External' ? ContractRules::TYPE_EXTERNAL : ContractRules::TYPE_PKWT,
             'gate'          => ContractService::gate(),
             'pkwtMaxMonths' => (int) config('hc_contract.pkwt_max_months', 60),
+            'salaryDefaults' => $canSalary ? $this->salaryDefaults($employeeId) : null,
         ]);
+    }
+
+    /**
+     * Gaji yang sedang berlaku di Salary Components (dari Offering Letter / kontrak sebelumnya) untuk mengisi awal kontrak BARU,
+     * supaya HR tidak mengetik ulang dan kontrak tidak menyimpang dari gaji di master. Hanya Basic Salary + tunjangan tetap.
+     *
+     * @return array{salary:float,components:array<int,array{name:string,amount:float}>}|null
+     */
+    private function salaryDefaults(int $employeeId): ?array
+    {
+        $today = now()->toDateString();
+        $rows = \App\Models\EmployeeSalaryComponent::where('employee_id', $employeeId)->whereIn('kind', ['base', 'fixed'])->where('is_active', true)
+            ->where('effective_from', '<=', $today)->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $today))->get();
+        $base = $rows->where('kind', 'base')->sortByDesc('effective_from')->first();
+        if (!$base) {
+            return null;
+        }
+
+        return ['salary' => (float) $base->amount, 'components' => $rows->where('kind', 'fixed')->map(fn ($r) => ['name' => $r->name, 'amount' => (float) $r->amount])->values()->all()];
     }
 
     public function store(Request $request, int $employeeId)
@@ -100,7 +120,7 @@ class ContractController extends Controller
         }
 
         return redirect()->route('general.contracts.show', $employeeId)
-            ->with('success', "Contract {$contract->contract_number} created" . ($contract->lifecycle_status === ContractRules::STATUS_DRAFT ? ' as a draft.' : '.'));
+            ->with('success', "Contract {$contract->contract_number} created" . ($contract->lifecycle_status === ContractRules::STATUS_DRAFT ? ' as a draft.' : '.') . ($this->contracts->salarySyncNote ? ' ' . $this->contracts->salarySyncNote : ''));
     }
 
     public function update(Request $request, int $contractId)
@@ -114,7 +134,7 @@ class ContractController extends Controller
             return $this->failed($e, 'edit', $contractId);
         }
 
-        return redirect()->route('general.contracts.show', $contract->employee_id)->with('success', "Contract {$contract->contract_number} saved.");
+        return redirect()->route('general.contracts.show', $contract->employee_id)->with('success', "Contract {$contract->contract_number} saved." . ($this->contracts->salarySyncNote ? ' ' . $this->contracts->salarySyncNote : ''));
     }
 
     public function destroy(int $contractId)

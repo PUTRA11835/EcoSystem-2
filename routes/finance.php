@@ -116,7 +116,7 @@ Route::prefix('finance')
     });
 
 // ESS → Paystub: slip gaji milik sendiri yang sudah dipublikasikan. Tanpa slug menu — kepemilikan diperiksa di controller.
-Route::prefix('general/my-paystub')->name('general.my-paystub.')->middleware(CheckAuthToken::class)->group(function () {
+Route::prefix('general/my-paystub')->name('general.my-paystub.')->middleware([CheckAuthToken::class, 'menu:general.my-paystub'])->group(function () {
     Route::get('/', [\App\Http\Controllers\Finance\MyPaystubController::class, 'index'])->name('index');
     Route::get('/{slip}/pdf', [\App\Http\Controllers\Finance\MyPaystubController::class, 'pdf'])->whereNumber('slip')->name('pdf');
 });
