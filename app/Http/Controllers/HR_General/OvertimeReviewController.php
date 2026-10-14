@@ -53,6 +53,11 @@ class OvertimeReviewController extends Controller
             'filters'  => $filters,
             'mineIds'  => $mineIds,
             'settings' => OvertimeSetting::current(),
+
+            // Kolom aksi tampil bagi pemegang slug approve ATAU penyetuju yang
+            // ditunjuk pada alur; siapa yang boleh bertindak pada SATU dokumen
+            // tetap diputuskan service lewat langkahnya.
+            'canAct'   => $this->holds('general.overtime.approve') || $overtime->isDesignatedApprover($actorId),
             'counts'   => [
                 'pending'  => collect(OvertimeRequest::OPEN_STATUSES)
                     ->sum(fn ($s) => (int) ($counts[$s]->total ?? 0)),
@@ -186,6 +191,13 @@ class OvertimeReviewController extends Controller
                           ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$term}%"));
                 });
             });
+    }
+
+    private function holds(string $slug): bool
+    {
+        $employee = \App\Models\Employee::where('employee_id', session('user.id'))->first();
+
+        return $employee?->canAccessMenu($slug) ?? false;
     }
 
     /** Apakah pengguna aktif memegang izin mengelola pengajuan tertutup? */

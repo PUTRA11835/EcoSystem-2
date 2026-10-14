@@ -23,7 +23,7 @@ class ReimbursementRequest extends Model
     protected $table = 'reimbursement_requests';
 
     protected $fillable = [
-        'request_no', 'employee_id', 'created_by', 'approver_id',
+        'request_no', 'employee_id', 'created_by', 'approver_id', 'requester_signature_path',
         'request_date', 'title', 'supporting_url',
         'charged_branch_id', 'charged_to_label',
         'currency', 'total_amount', 'item_count',
@@ -128,7 +128,11 @@ class ReimbursementRequest extends Model
      */
     public const FLAG_WORKFLOW_EXTENDED = 'workflow_extended';
 
+    /** Tanggal nota lebih tua dari batas jarak ke tanggal pengajuan. */
+    public const FLAG_STALE_RECEIPT = 'stale_receipt';
+
     public const FLAG_LABELS = [
+        self::FLAG_STALE_RECEIPT          => 'Old receipt date',
         self::FLAG_EXCEEDS_LIMIT          => 'Exceeds limit',
         self::FLAG_MISSING_SUPPORTING_URL => 'No supporting document',
         self::FLAG_MISSING_RECEIPT_NO     => 'Missing receipt number',
@@ -151,6 +155,7 @@ class ReimbursementRequest extends Model
      * pelajaran yang sama dengan `future_claim` pada Overtime.
      */
     public const ATTENTION_FLAGS = [
+        self::FLAG_STALE_RECEIPT,
         self::FLAG_EXCEEDS_LIMIT,
         self::FLAG_MISSING_SUPPORTING_URL,
         self::FLAG_MISSING_RECEIPT_NO,
@@ -293,7 +298,7 @@ class ReimbursementRequest extends Model
             if ($current && $this->approver_id
                 && in_array($this->approver_id, array_map('intval', $current->approver_employee_ids ?? []), true)) {
 
-                return $this->approver?->basicData?->nick_name ?? $current->approverLabel();
+                return $this->approver?->fullNameLabel() ?? $current->approverLabel();
             }
 
             return $current?->approverLabel() ?? '—';
@@ -304,7 +309,7 @@ class ReimbursementRequest extends Model
             ->sortByDesc('order_seq')
             ->first();
 
-        return $lastActed?->actor?->basicData?->nick_name
+        return $lastActed?->actor?->fullNameLabel()
             ?? $lastActed?->approverLabel()
             ?? '—';
     }

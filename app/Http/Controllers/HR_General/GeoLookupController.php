@@ -13,7 +13,7 @@ use Illuminate\Http\Request;
  * mewajibkan header User-Agent yang mengidentifikasi aplikasi, dan browser
  * tidak dapat mengaturnya. Lihat GeocodingService untuk uraian lengkapnya.
  *
- * Dilindungi izin `general.settings.branches.manage` karena hanya dipakai saat
+ * Dilindungi izin `management.branches.manage` karena hanya dipakai saat
  * mengisi data cabang — bukan endpoint umum, dan tidak boleh menjadi jalur
  * bagi siapa pun untuk memakai kuota Nominatim atas nama kantor.
  */

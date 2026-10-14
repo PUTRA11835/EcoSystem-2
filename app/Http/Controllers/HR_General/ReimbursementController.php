@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\HR_General;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\HR_General\Concerns\HandlesRecruitmentTables;
 use App\Models\Employee;
 use App\Models\Reimbursement\ReimbursementRequest;
 use App\Models\Reimbursement\ReimbursementSetting;
@@ -24,6 +25,11 @@ use Illuminate\Validation\Rule;
  */
 class ReimbursementController extends Controller
 {
+    use HandlesRecruitmentTables;
+
+    /** Filter yang tampil di kepala kolom; dipakai juga untuk "Reset Filter". */
+    private const COLUMN_FILTERS = ['number', 'title', 'requester', 'date_from', 'date_to', 'amount_min', 'amount_max'];
+
     public function index(Request $request, ReimbursementService $reimbursement)
     {
         $filters = $this->filters($request);
@@ -34,12 +40,14 @@ class ReimbursementController extends Controller
         // menebak mana yang menunggu dirinya.
         $mineIds = $reimbursement->pendingIdsFor($actorId);
 
+        $perPage = $this->perPage($request);
+
         $requests = $this->baseQuery($filters)
             ->when($filters['scope'] === 'mine', fn ($q) => $q->whereIn('id', $mineIds ?: [0]))
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('request_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($perPage)
             ->withQueryString();
 
         // Hanya jumlah dokumen per status. Total nominal sengaja TIDAK dihitung
@@ -62,6 +70,18 @@ class ReimbursementController extends Controller
         return view('hr-general.reimbursement.index', [
             'requests'    => $requests,
             'filters'     => $filters,
+            'hasFilters'  => $this->hasFilters($filters),
+
+            // Bulan yang punya dokumen, untuk dropdown bulan di kepala tabel.
+            'monthOptions' => ReimbursementRequest::query()
+                ->selectRaw("DATE_FORMAT(request_date, '%Y-%m') AS ym")
+                ->distinct()
+                ->orderByDesc('ym')
+                ->pluck('ym')
+                ->mapWithKeys(fn ($ym) => [$ym => \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $ym . '-01')->format('F Y')])
+                ->all(),
+            'perPage'     => $perPage,
+            'perPageOptions' => self::PER_PAGE_OPTIONS,
             'mineIds'     => $mineIds,
             'editableIds' => $editableIds,
             'settings'    => ReimbursementSetting::current(),
@@ -76,11 +96,104 @@ class ReimbursementController extends Controller
         ]);
     }
 
+    /**
+     * Ringkasan: angka bulan ini, tren enam bulan, antrean milik pengguna, dan
+     * dokumen yang perlu perhatian. Semuanya dihitung dari dokumen yang tidak
+     * terhapus; nominal hanya untuk dokumen IDR agar tidak mencampur mata uang.
+     */
+    public function dashboard(ReimbursementService $reimbursement)
+    {
+        $actorId = (int) session('user.id');
+        $mineIds = $reimbursement->pendingIdsFor($actorId);
+
+        $monthStart = now()->startOfMonth();
+        $idr        = ReimbursementRequest::DEFAULT_CURRENCY;
+
+        $thisMonth = ReimbursementRequest::query()->where('request_date', '>=', $monthStart->toDateString());
+
+        $byStatus = ReimbursementRequest::query()
+            ->selectRaw('status, COUNT(*) AS total, COALESCE(SUM(CASE WHEN currency = ? THEN total_amount ELSE 0 END), 0) AS amount', [$idr])
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
+
+        $openStatuses = ReimbursementRequest::OPEN_STATUSES;
+
+        // Rata-rata hari dari dibuat sampai disetujui, 90 hari terakhir.
+        $avgDays = ReimbursementRequest::query()
+            ->where('status', ReimbursementRequest::STATUS_APPROVED)
+            ->whereNotNull('completed_at')
+            ->where('completed_at', '>=', now()->subDays(90))
+            ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, completed_at)) / 24 AS days')
+            ->value('days');
+
+        $trend = collect(range(5, 0))->map(function ($ago) use ($idr) {
+            $start = now()->startOfMonth()->subMonths($ago);
+            $end   = $start->copy()->endOfMonth();
+
+            $rows = ReimbursementRequest::query()->whereBetween('request_date', [$start->toDateString(), $end->toDateString()]);
+
+            return [
+                'label'  => $start->format('M Y'),
+                'count'  => (clone $rows)->count(),
+                'amount' => (float) (clone $rows)->where('currency', $idr)->sum('total_amount'),
+            ];
+        });
+
+        $topRequesters = ReimbursementRequest::query()
+            ->with('employee.basicData')
+            ->where('request_date', '>=', $monthStart->toDateString())
+            ->where('currency', $idr)
+            ->selectRaw('employee_id, COUNT(*) AS docs, SUM(total_amount) AS amount')
+            ->groupBy('employee_id')
+            ->orderByDesc('amount')
+            ->limit(5)
+            ->get();
+
+        $waiting = ReimbursementRequest::query()
+            ->with('employee.basicData')
+            ->whereIn('id', $mineIds ?: [0])
+            ->orderBy('request_date')
+            ->limit(6)
+            ->get();
+
+        $attention = ReimbursementRequest::query()
+            ->with('employee.basicData')
+            ->open()
+            ->get()
+            ->filter(fn ($r) => $r->attentionFlags() !== [])
+            ->take(6)
+            ->values();
+
+        return view('hr-general.reimbursement.dashboard', [
+            'monthLabel' => $monthStart->format('F Y'),
+            'cards' => [
+                'mine'      => count($mineIds),
+                'pending'   => (int) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->total ?? 0),
+                'pendingAmount' => (float) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->amount ?? 0),
+                'month'     => (clone $thisMonth)->count(),
+                'monthAmount' => (float) (clone $thisMonth)->where('currency', $idr)->sum('total_amount'),
+                'approved'  => (int) ($byStatus[ReimbursementRequest::STATUS_APPROVED]->total ?? 0),
+                'rejected'  => (int) ($byStatus[ReimbursementRequest::STATUS_REJECTED]->total ?? 0),
+                'avgDays'   => $avgDays !== null ? round((float) $avgDays, 1) : null,
+            ],
+            'statusRows'    => [
+                'Open'     => (int) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->total ?? 0),
+                'Approved' => (int) ($byStatus[ReimbursementRequest::STATUS_APPROVED]->total ?? 0),
+                'Rejected' => (int) ($byStatus[ReimbursementRequest::STATUS_REJECTED]->total ?? 0),
+            ],
+            'trend'         => $trend,
+            'topRequesters' => $topRequesters,
+            'waiting'       => $waiting,
+            'attention'     => $attention,
+        ]);
+    }
+
     public function show(ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
     {
         $reimbursementRequest->load([
             'items.branch', 'approvals.actor.basicData', 'approvals.role',
-            'employee.basicData', 'creator.basicData',
+            'employee.basicData', 'creator.basicData', 'approver.basicData',
         ]);
 
         $actorId = (int) session('user.id');
@@ -177,8 +290,13 @@ class ReimbursementController extends Controller
             'settings'  => $settings,
             'branches'  => $reimbursement->branchOptions(),
             'steps'     => $reimbursement->activeSteps(),
-            'employees' => $this->employeeOptions(),
-            'directors' => $reimbursement->directorOptions(),
+
+            // Semua karyawan aktif dapat menjadi pemohon. Orang pada langkah
+            // bertanda "chosen by requester" dipilih dari kandidat langkahnya
+            // (diatur di Settings → Approval Workflow).
+            'requesters'  => $reimbursement->employeeOptions(),
+            'choiceSteps' => $reimbursement->choiceSteps(),
+            'fixedSteps'  => $reimbursement->fixedSteps(),
             'currencies' => ReimbursementRequest::CURRENCIES,
             'action'    => route('general.reimbursement.store'),
             'backRoute' => route('general.reimbursement.index'),
@@ -220,7 +338,7 @@ class ReimbursementController extends Controller
                 ->with('error', $this->editRefusalReason($reimbursementRequest));
         }
 
-        $reimbursementRequest->load('items');
+        $reimbursementRequest->load(['items', 'employee.basicData', 'approvals.actor.basicData']);
 
         return view('hr-general.reimbursement.form', [
             'mode'      => 'edit',
@@ -228,8 +346,7 @@ class ReimbursementController extends Controller
             'settings'  => ReimbursementSetting::current(),
             'branches'  => $reimbursement->branchOptions(),
             'steps'     => $reimbursement->activeSteps(),
-            'employees' => $this->employeeOptions(),
-            'directors' => collect(),
+            'signatories' => $reimbursement->signatories($reimbursementRequest),
             'currencies' => ReimbursementRequest::CURRENCIES,
             'action'    => route('general.reimbursement.update', $reimbursementRequest),
             'backRoute' => route('general.reimbursement.show', $reimbursementRequest),
@@ -312,13 +429,22 @@ class ReimbursementController extends Controller
     {
         $filters = $this->filters($request);
 
+        // Tanpa rentang tanggal, "Monthly Export" berarti bulan berjalan —
+        // bukan seluruh dokumen yang berlabel bulan berjalan.
+        if ($filters['date_from'] === '' && $filters['date_to'] === '') {
+            $filters['date_from'] = now()->startOfMonth()->toDateString();
+            $filters['date_to']   = now()->endOfMonth()->toDateString();
+        }
+
         $rows = $this->baseQuery($filters)
             ->with(['items.branch', 'approvals.actor.basicData', 'employee.basicData'])
             ->orderBy('request_date')
             ->orderBy('id')
             ->get();
 
-        $period = $filters['month'] !== '' ? $filters['month'] : now()->format('Y-m');
+        $period = $filters['date_from'] !== ''
+            ? substr($filters['date_from'], 0, 7)
+            : now()->format('Y-m');
 
         return $this->download(
             $rows,
@@ -336,16 +462,6 @@ class ReimbursementController extends Controller
             new \App\Exports\ReimbursementDocumentExport($rows, $reimbursement, $sheet),
             $file . '.xlsx'
         );
-    }
-
-    /** Karyawan aktif untuk dropdown "New RB". */
-    private function employeeOptions()
-    {
-        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
-            ->where('is_active', 1)
-            ->get(['employee_id', 'eci'])
-            ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
-            ->values();
     }
 
     /**
@@ -374,15 +490,17 @@ class ReimbursementController extends Controller
             $rules['employee_id'] = ['required', 'integer', 'exists:employee,employee_id'];
             $rules['currency']    = ['required', 'string', Rule::in(ReimbursementRequest::CURRENCIES)];
 
-            if ($settings->directorIds() !== []) {
-                $rules['approver_id'] = ['required', 'integer', Rule::in($settings->directorIds())];
+            foreach ($reimbursement->activeSteps()->where('requester_selectable', true) as $step) {
+                $rules['step_approver.' . $step->id] = [
+                    'required', 'integer', Rule::in($step->candidateEmployeeIds()),
+                ];
             }
         }
 
         return $request->validate($rules, [
             'employee_id.required'         => 'Choose which employee this reimbursement belongs to.',
-            'approver_id.required'         => 'Choose the director who will approve this reimbursement.',
-            'approver_id.in'               => 'The chosen approver is not one of the available directors.',
+            'step_approver.*.required'     => 'Choose who will act on every approval step marked for selection.',
+            'step_approver.*.in'           => 'The chosen person is not one of the candidates of that step.',
             'items.required'               => 'Add at least one reimbursement item.',
             'items.*.description.required' => 'Every item needs a description.',
             'items.*.branch_id.required'   => 'Every item needs a branch.',
@@ -394,12 +512,47 @@ class ReimbursementController extends Controller
     /** @return array<string, string> */
     protected function filters(Request $request): array
     {
-        return [
-            'status' => (string) $request->query('status', 'open'),
-            'scope'  => (string) $request->query('scope', 'all'),
-            'month'  => (string) $request->query('month', ''),
-            'search' => trim((string) $request->query('search', '')),
+        $text   = fn (string $key) => trim((string) $request->query($key, ''));
+        $amount = fn (string $key) => preg_replace('/\D/', '', (string) $request->query($key, ''));
+
+        $filters = [
+            'status'     => (string) $request->query('status', 'open'),
+            'scope'      => (string) $request->query('scope', 'all'),
+            'month'      => (string) $request->query('month', ''),
+            'search'     => $text('search'),
+            'number'     => $text('number'),
+            'title'      => $text('title'),
+            'requester'  => $text('requester'),
+            'date_from'  => $text('date_from'),
+            'date_to'    => $text('date_to'),
+            'amount_min' => $amount('amount_min'),
+            'amount_max' => $amount('amount_max'),
         ];
+
+        // `month` (YYYY-MM) lama tetap dipahami: tautan tersimpan dan impor
+        // masih memakainya. Ia diterjemahkan jadi rentang tanggal.
+        if ($filters['month'] !== '' && $filters['date_from'] === '' && $filters['date_to'] === ''
+            && preg_match('/^\d{4}-\d{2}$/', $filters['month'])) {
+
+            $start = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $filters['month'] . '-01')->startOfDay();
+
+            $filters['date_from'] = $start->toDateString();
+            $filters['date_to']   = $start->copy()->endOfMonth()->toDateString();
+        }
+
+        return $filters;
+    }
+
+    /** Apakah ada filter kolom yang aktif (menentukan tombol "Reset Filter")? */
+    protected function hasFilters(array $filters): bool
+    {
+        foreach (self::COLUMN_FILTERS as $key) {
+            if ($filters[$key] !== '') {
+                return true;
+            }
+        }
+
+        return $filters['scope'] === 'mine' || $filters['status'] !== 'open' || $filters['search'] !== '';
     }
 
     protected function baseQuery(array $filters)
@@ -416,22 +569,47 @@ class ReimbursementController extends Controller
             ->when($filters['status'] === 'deleted' && $this->canManage(),
                 fn ($q) => $q->onlyTrashed())
 
-            ->when($filters['month'] !== '', function ($q) use ($filters) {
-                [$year, $month] = array_pad(explode('-', $filters['month']), 2, null);
+            ->when($filters['date_from'] !== '', fn ($q) => $q->whereDate('request_date', '>=', $filters['date_from']))
+            ->when($filters['date_to'] !== '', fn ($q) => $q->whereDate('request_date', '<=', $filters['date_to']))
+            ->when($filters['amount_min'] !== '', fn ($q) => $q->where('total_amount', '>=', (float) $filters['amount_min']))
+            ->when($filters['amount_max'] !== '', fn ($q) => $q->where('total_amount', '<=', (float) $filters['amount_max']))
+            ->when($filters['number'] !== '', fn ($q) => $q->where('request_no', 'like', '%' . $filters['number'] . '%'))
+            ->when($filters['title'] !== '', function ($q) use ($filters) {
+                $term = '%' . $filters['title'] . '%';
 
-                $q->whereYear('request_date', (int) $year)
-                  ->whereMonth('request_date', (int) $month);
+                $q->where(fn ($inner) => $inner->where('title', 'like', $term)
+                    ->orWhereHas('items', fn ($i) => $i->where('description', 'like', $term)));
             })
+            ->when($filters['requester'] !== '', fn ($q) => $this->whereRequester($q, $filters['requester']))
             ->when($filters['search'] !== '', function ($q) use ($filters) {
                 $term = $filters['search'];
 
                 $q->where(function ($inner) use ($term) {
                     $inner->where('request_no', 'like', "%{$term}%")
-                          ->orWhere('title', 'like', "%{$term}%")
-                          ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$term}%"));
+                          ->orWhere('title', 'like', "%{$term}%");
+
+                    $this->whereRequester($inner, $term, true);
                 });
             });
+    }
+
+    /**
+     * Pemohon dicari lewat ECI, nama panggilan, atau nama lengkap.
+     *
+     * @param  bool  $or  true: digabung dengan OR pada query pemanggil.
+     */
+    private function whereRequester($query, string $term, bool $or = false): void
+    {
+        $like   = '%' . $term . '%';
+        $method = $or ? 'orWhereHas' : 'whereHas';
+
+        $query->{$method}('employee', function ($employee) use ($like) {
+            $employee->where('eci', 'like', $like)
+                ->orWhereHas('basicData', function ($basic) use ($like) {
+                    $basic->where('nick_name', 'like', $like)
+                        ->orWhereRaw("CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) LIKE ?", [$like]);
+                });
+        });
     }
 
     /** Apakah pengguna aktif memegang izin mengelola (ubah kapan pun / hapus)? */

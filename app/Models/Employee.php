@@ -214,6 +214,19 @@ class Employee extends Model
         return $this->hasOne(EmployeeBasicData::class, 'employee_id', 'employee_id');
     }
     
+    /**
+     * Nama lengkap untuk dokumen dan dropdown (bukan nama panggilan).
+     * Berurutan: nama lengkap -> nama panggilan -> ECI.
+     * Pemanggil yang memuat `basicData` dengan kolom terbatas harus ikut
+     * menyertakan first_name dan last_name.
+     */
+    public function fullNameLabel(): string
+    {
+        $basic = $this->basicData;
+
+        return trim((string) $basic?->full_name) ?: ($basic?->nick_name ?: (string) $this->eci);
+    }
+
     public function hasBasicData()
     {
         return $this->basicData()->exists();

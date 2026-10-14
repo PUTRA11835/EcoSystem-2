@@ -25,6 +25,22 @@
             Requests cannot be submitted until HR sets up at least one approval step in Overtime Settings.
         </p>
     </div>
+    @else
+    <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Your request will be reviewed by</p>
+        <ol class="flex flex-col md:flex-row md:flex-wrap gap-3">
+            @foreach($flow as $i => $stage)
+            <li class="flex items-center gap-2 text-sm">
+                <span class="w-6 h-6 flex items-center justify-center rounded-full bg-red-800 text-white text-xs font-bold">{{ $i + 1 }}</span>
+                <span>
+                    <span class="font-semibold text-gray-900">{{ $stage['name'] }}</span>
+                    <span class="text-gray-500"> — {{ $stage['who'] }}</span>
+                </span>
+                @if(!$loop->last)<i class="fas fa-chevron-right text-[10px] text-gray-300 hidden md:inline ml-2"></i>@endif
+            </li>
+            @endforeach
+        </ol>
+    </div>
     @endif
 
     <form method="POST" action="{{ route('general.my-overtime.store') }}" id="overtimeForm"

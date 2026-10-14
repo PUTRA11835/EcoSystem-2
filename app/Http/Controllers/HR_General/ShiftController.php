@@ -38,12 +38,12 @@ class ShiftController extends Controller
             ->paginate(25)
             ->withQueryString();
 
-        return view('hr-general.settings.shifts.index', compact('shifts', 'search', 'status'));
+        return view('hr-general.attendance.shifts.index', compact('shifts', 'search', 'status'));
     }
 
     public function create()
     {
-        return view('hr-general.settings.shifts.form', [
+        return view('hr-general.attendance.shifts.form', [
             'shift'     => new Shift([
                 'check_in_time'          => '08:00',
                 'check_out_time'         => '17:00',
@@ -58,7 +58,7 @@ class ShiftController extends Controller
 
     public function edit(Shift $shift)
     {
-        return view('hr-general.settings.shifts.form', [
+        return view('hr-general.attendance.shifts.form', [
             'shift'     => $shift,
             'isEditing' => true,
         ]);
@@ -165,7 +165,7 @@ class ShiftController extends Controller
             ->limit(200)
             ->get();
 
-        return view('hr-general.settings.shifts.assign', compact(
+        return view('hr-general.attendance.shifts.assign', compact(
             'shift', 'assigned', 'candidates', 'search', 'maxShifts', 'activeCounts'
         ));
     }

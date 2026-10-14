@@ -48,7 +48,8 @@ class MyReimbursementController extends Controller
             'settings' => $settings,
             'branches' => $reimbursement->branchOptions(),
             'steps'    => $reimbursement->activeSteps(),
-            'directors' => $reimbursement->directorOptions(),
+            'choiceSteps' => $reimbursement->choiceSteps(),
+            'fixedSteps'  => $reimbursement->fixedSteps(),
             'currencies' => ReimbursementRequest::CURRENCIES,
             'minDate'  => $settings->hasBackdateLimit()
                 ? $today->copy()->subDays($settings->max_backdate_days)->toDateString()
@@ -109,7 +110,14 @@ class MyReimbursementController extends Controller
         return view('hr-general.reimbursement.print', [
             'request'     => $request,
             'heading'     => $reimbursement->documentHeading($request),
+
+            // Kop surat pilihan Settings (Letter Templates), diinlinekan karena
+            // karyawan biasa tidak punya akses ke rute gambar kop.
+            'letterheadUri' => ReimbursementSetting::current()->letterhead_id
+                ? \App\Models\Letterhead::find(ReimbursementSetting::current()->letterhead_id)?->backgroundDataUri()
+                : null,
             'signatories' => $reimbursement->signatories($request),
+            'signatureImages' => $reimbursement->signatureImages($request),
         ]);
     }
 
@@ -132,8 +140,10 @@ class MyReimbursementController extends Controller
             'currency'     => ['required', 'string', Rule::in(ReimbursementRequest::CURRENCIES)],
         ];
 
-        if ($settings->directorIds() !== []) {
-            $rules['approver_id'] = ['required', 'integer', Rule::in($settings->directorIds())];
+        foreach ($reimbursement->activeSteps()->where('requester_selectable', true) as $step) {
+            $rules['step_approver.' . $step->id] = [
+                'required', 'integer', Rule::in($step->candidateEmployeeIds()),
+            ];
         }
 
         $rules['supporting_url'] = array_filter([
@@ -144,8 +154,8 @@ class MyReimbursementController extends Controller
         ]);
 
         return $request->validate($rules, [
-            'approver_id.required'             => 'Choose the director who will approve this reimbursement.',
-            'approver_id.in'                   => 'The chosen approver is not one of the available directors.',
+            'step_approver.*.required'         => 'Choose who will act on every approval step marked for selection.',
+            'step_approver.*.in'               => 'The chosen person is not one of the candidates of that step.',
             'items.required'                   => 'Add at least one reimbursement item.',
             'items.*.description.required'     => 'Every item needs a description.',
             'items.*.branch_id.required'       => 'Every item needs a branch.',

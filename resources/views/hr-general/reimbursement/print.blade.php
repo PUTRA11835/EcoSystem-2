@@ -63,7 +63,18 @@
             text-align: center; vertical-align: bottom; font-size: 11px;
         }
 
+        .signatures td img { display: block; margin: 0 auto 4px; max-height: 52px; max-width: 100%; }
+
         .note { margin-top: 14px; font-size: 10px; color: #6b7280; }
+
+        /* Kop surat dari Letter Templates: satu halaman A4 penuh di belakang isi. */
+        .sheet.has-letterhead {
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            padding: 40mm 18mm 30mm;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
 
         .toolbar { width: 210mm; margin: 0 auto 12px; text-align: right; }
         .toolbar button {
@@ -74,6 +85,8 @@
         @media print {
             body { background: #fff; padding: 0; }
             .sheet { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+            .sheet.has-letterhead { width: 210mm; min-height: 297mm; padding: 40mm 18mm 30mm; }
+            @page { margin: 0; }
             .toolbar { display: none; }
         }
     </style>
@@ -84,7 +97,8 @@
     <button type="button" onclick="window.print()">Print</button>
 </div>
 
-<div class="sheet">
+<div class="sheet {{ !empty($letterheadUri) ? 'has-letterhead' : '' }}"
+     @if(!empty($letterheadUri)) style="background-image: url('{{ $letterheadUri }}');" @endif>
     <div class="doc-title">REIMBURSEMENT</div>
     <div class="doc-company">{{ strtoupper($heading) }}</div>
 
@@ -151,10 +165,14 @@
         </thead>
         <tbody>
             <tr>
-                <td>{{ $signatories['requester'] }}</td>
-                <td>{{ $signatories['accounting'] }}</td>
-                <td>{{ $signatories['cashier'] }}</td>
-                <td>{{ $signatories['approver'] }}</td>
+                @foreach(['requester', 'accounting', 'cashier', 'approver'] as $column)
+                <td>
+                    @if(!empty($signatureImages[$column]))
+                        <img src="{{ $signatureImages[$column] }}" alt="Signature">
+                    @endif
+                    {{ $signatories[$column] }}
+                </td>
+                @endforeach
             </tr>
         </tbody>
     </table>

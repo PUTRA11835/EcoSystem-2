@@ -5,6 +5,13 @@
 @php
     $hubTabs = [
         [
+            'label' => 'Dashboard',
+            'icon'  => 'chart-pie',
+            'route' => 'general.reimbursement.dashboard',
+            'is'    => 'general/reimbursement/dashboard',
+            'gate'  => 'general.reimbursement',
+        ],
+        [
             'label' => 'Reimbursement Management',
             'icon'  => 'receipt',
             'route' => 'general.reimbursement.index',
@@ -20,6 +27,8 @@
             'route' => 'general.reimbursement.settings.edit',
             'is'    => 'general/reimbursement/settings*',
             'gate'  => 'general.settings.reimbursement',
+            // Approval Workflow adalah bagian tab ini, dengan slug sendiri (D180).
+            'also'  => 'general.approval-workflow.reimbursement',
         ],
     ];
 @endphp

@@ -69,15 +69,8 @@ class ReimbursementDemoSeeder extends Seeder
 
         $this->purgePreviousDemo();
 
-        $settings  = ReimbursementSetting::current();
-        $directors = $settings->directorIds();
-
-        if ($directors === []) {
-            $directors = array_slice($employees, 0, 2);
-            $settings->update(['director_employee_ids' => $directors]);
-            ReimbursementSetting::forgetCache();
-            $this->command?->info('Selectable Directors was empty; set to employee ids ' . implode(', ', $directors) . '.');
-        }
+        // Langkah yang dipilih pemohon: orangnya diambil dari kandidat langkah itu.
+        $choiceSteps = $service->activeSteps()->where('requester_selectable', true);
 
         $branchIds = $branches->pluck('id')->all();
 
@@ -111,24 +104,18 @@ class ReimbursementDemoSeeder extends Seeder
                 ];
             }
 
-            // Dokumen "tanpa direktur" meniru dokumen lama: dibuat selagi daftar
-            // direktur kosong, lalu daftarnya dikembalikan.
-            if (!$withDirector) {
-                $this->setDirectors([]);
-            }
-
             $result = $service->submit($employeeId, [
                 'request_date'   => $date,
                 'title'          => self::PREFIX . $title,
                 'supporting_url' => 'https://drive.google.com/demo/' . ($i + 1),
                 'currency'       => $currency,
-                'approver_id'    => $withDirector ? $directors[$i % count($directors)] : null,
+                'step_approver'  => $choiceSteps->mapWithKeys(function ($step) use ($i) {
+                    $candidates = $step->candidateEmployeeIds();
+
+                    return $candidates === [] ? [] : [$step->id => $candidates[$i % count($candidates)]];
+                })->all(),
                 'items'          => $items,
             ]);
-
-            if (!$withDirector) {
-                $this->setDirectors($directors);
-            }
 
             if (!$result['allowed']) {
                 $this->command?->warn("Skipped \"{$title}\": {$result['reason']}");
@@ -140,12 +127,6 @@ class ReimbursementDemoSeeder extends Seeder
         }
 
         $this->command?->info("Seeded {$created} demo reimbursement document(s).");
-    }
-
-    private function setDirectors(array $ids): void
-    {
-        ReimbursementSetting::current()->update(['director_employee_ids' => $ids]);
-        ReimbursementSetting::forgetCache();
     }
 
     private function moveTo(ReimbursementRequest $request, string $state, int $actorId): void

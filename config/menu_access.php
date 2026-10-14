@@ -104,12 +104,11 @@ return [
      * sebagian tab saja). Urutan = urutan tab di layar. Hanya memengaruhi pengelompokan di halaman Menu Access.
      */
     'hubs' => [
-        ['key' => 'attendance',     'label' => 'Attendance',          'tabs' => ['general.attendance', 'general.attendance.monthly', 'general.attendance.correction', 'general.settings.branches', 'general.settings.shifts', 'general.settings.attendance']],
-        ['key' => 'overtime',       'label' => 'Overtime',            'tabs' => ['general.overtime', 'general.settings.overtime']],
-        ['key' => 'reimbursement',  'label' => 'Reimbursement',       'tabs' => ['general.reimbursement', 'general.settings.reimbursement']],
-        ['key' => 'purchase-req',   'label' => 'Purchase Request',    'tabs' => ['general.purchase-request', 'general.settings.purchase-request']],
-        ['key' => 'cash-advance',   'label' => 'Cash Advance',        'tabs' => ['general.cash-advance', 'management.cash-advance-settings']],
-        ['key' => 'approval-wf',    'label' => 'Approval Workflow',   'tabs' => ['general.approval-workflow.overtime', 'general.approval-workflow.reimbursement', 'general.approval-workflow.purchase-request', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
+        ['key' => 'attendance',     'label' => 'Attendance',          'tabs' => ['general.attendance', 'general.attendance.monthly', 'general.attendance.correction', 'general.settings.shifts', 'general.settings.attendance']],
+        ['key' => 'overtime',       'label' => 'Overtime',            'tabs' => ['general.overtime', 'general.settings.overtime', 'general.approval-workflow.overtime']],
+        ['key' => 'reimbursement',  'label' => 'Reimbursement',       'tabs' => ['general.reimbursement', 'general.settings.reimbursement', 'general.approval-workflow.reimbursement']],
+        ['key' => 'purchase-req',   'label' => 'Purchase Request',    'tabs' => ['general.purchase-request', 'general.purchase-order', 'general.settings.purchase-request', 'general.approval-workflow.purchase-request']],
+        ['key' => 'cash-advance',   'label' => 'Cash Advance',        'tabs' => ['general.cash-advance', 'management.cash-advance-settings', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
         ['key' => 'recruitment',    'label' => 'Recruitment',         'tabs' => ['general.recruitment', 'general.recruitment.candidates', 'general.recruitment.schedule', 'general.recruitment.jobs', 'general.recruitment.settings']],
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
@@ -180,10 +179,10 @@ return [
     // `short` = nama pendeknya di dalam blok itu. `about` (opsional) = penjelasan satu kalimat, tampil di atas daftar baris modul itu.
     'modules' => [
         ['key' => 'ess',         'label' => 'My Workspace (ESS)',        'group' => 'My Workspace', 'short' => 'Self-service (ESS)', 'match' => ['ess', 'ess.*', 'general.my-*', 'my-leave-permit', 'profile.my', 'my-profile', 'my-profile.*', 'general.my-kpi*']],
-        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Resources', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.branches*', 'general.settings.shifts*', 'general.settings.attendance*']],
-        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Resources', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*']],
-        ['key' => 'hr-reimb',    'label' => 'HR · Reimbursement',        'group' => 'Human Resources', 'short' => 'Reimbursement', 'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*']],
-        ['key' => 'hr-pr',       'label' => 'HR · Purchase Request',     'group' => 'Human Resources', 'short' => 'Purchase Request', 'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.settings.purchase-request*']],
+        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Resources', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.shifts*', 'general.settings.attendance*']],
+        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Resources', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*', 'general.approval-workflow.overtime']],
+        ['key' => 'hr-reimb',    'label' => 'HR · Reimbursement',        'group' => 'Human Resources', 'short' => 'Reimbursement', 'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*', 'general.approval-workflow.reimbursement']],
+        ['key' => 'hr-pr',       'label' => 'HR · Purchase Request',     'group' => 'Human Resources', 'short' => 'Purchase Request', 'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.purchase-order', 'general.purchase-order.*', 'general.settings.purchase-request*', 'general.approval-workflow.purchase-request']],
         ['key' => 'hr-ca',       'label' => 'HR · Cash Advance',         'group' => 'Human Resources', 'short' => 'Cash Advance', 'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
         ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'group' => 'Human Resources', 'short' => 'Recruitment & Offering', 'match' => [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
@@ -197,7 +196,6 @@ return [
         ]],
         ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Resources', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
         ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Resources', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
-        ['key' => 'hr-approval', 'label' => 'HR · Approval Workflow',    'group' => 'Human Resources', 'short' => 'Approval Workflow', 'match' => ['general.approval-workflow', 'general.approval-workflow.*']],
         ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Resources', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
         ['key' => 'hr-other',    'label' => 'HR & General · root access', 'group' => 'Human Resources', 'short' => 'Root access (General)',
             'about' => 'Only the parent row "HR & General" (slug general): the root above every HR & General page. The sidebar and the older tab bars use it as a fallback; pages with their own tab permission ignore it.', 'match' => ['general', 'general.*']],

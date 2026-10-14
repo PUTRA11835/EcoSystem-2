@@ -170,13 +170,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         return view('financial.financial', ['user' => session('user')]);
     })->name('financial')->middleware('menu:financial');
 
-    // ==================== HR & GENERAL ====================
-    Route::get('/general', function () {
-        // Nama view mengikuti rename folder pada merge staging_al_naf:
-        // resources/views/HR_General/HR_General.blade.php -> hr-general/hr-general.blade.php
-        return view('hr-general.hr-general', ['user' => session('user')]);
-    })->name('general')->middleware('menu:general');
-
     // ==================== BUSINESS ====================
     Route::get('/business', function () {
         return view('business.business', ['user' => session('user')]);
@@ -624,6 +617,22 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/holidays', [\App\Http\Controllers\HolidayManagementController::class, 'page'])
             ->middleware('menu:management.holidays')
             ->name('holidays.index');
+
+        // Master cabang — dipakai banyak menu (Attendance, Reimbursement, Purchase
+        // Request, Cash Advance, ...), karena itu hidup di Management.
+        Route::prefix('branches')->name('branches.')->group(function () {
+            Route::get('/', [\App\Http\Controllers\Management\BranchController::class, 'index'])
+                ->middleware('menu:management.branches')
+                ->name('index');
+
+            Route::middleware('menu:management.branches.manage')->group(function () {
+                Route::get('/create', [\App\Http\Controllers\Management\BranchController::class, 'create'])->name('create');
+                Route::post('/', [\App\Http\Controllers\Management\BranchController::class, 'store'])->name('store');
+                Route::get('/{branch}/edit', [\App\Http\Controllers\Management\BranchController::class, 'edit'])->name('edit');
+                Route::post('/{branch}/update', [\App\Http\Controllers\Management\BranchController::class, 'update'])->name('update');
+                Route::post('/{branch}/delete', [\App\Http\Controllers\Management\BranchController::class, 'destroy'])->name('destroy');
+            });
+        });
 
         Route::get('/hidden-tickets', [\App\Http\Controllers\HiddenTicketController::class, 'page'])
             ->middleware('menu:management.hidden-tickets')

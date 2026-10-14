@@ -19,6 +19,7 @@ class ReimbursementRequestApproval extends Model
     protected $fillable = [
         'reimbursement_request_id', 'order_seq',
         'step_name', 'approver_type', 'approver_role_id', 'approver_employee_ids',
+        'signs_as', 'signature_path', 'signed_at',
         'status', 'acted_by', 'acted_at', 'notes',
     ];
 
@@ -27,6 +28,7 @@ class ReimbursementRequestApproval extends Model
         'approver_role_id'      => 'integer',
         'approver_employee_ids' => 'array',
         'acted_at'              => 'datetime',
+        'signed_at'             => 'datetime',
     ];
 
     // ── Konstanta ───────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ class ReimbursementRequestApproval extends Model
             $approver = $this->request?->approver;
 
             if ($approver && (int) $approver->employee_id === $ids[0]) {
-                return $approver->basicData?->nick_name ?? $approver->eci;
+                return $approver->fullNameLabel();
             }
         }
 
