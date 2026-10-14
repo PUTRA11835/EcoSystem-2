@@ -4,7 +4,6 @@
 @section('page-subtitle', 'Recruitment performance to date and this week\'s interview calendar.')
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => ['recruitment.recap', 'recruitment.candidates', 'recruitment.jobs']])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')
@@ -14,12 +13,15 @@
             <h2 class="text-sm font-bold text-gray-800">Recruitment Overview</h2>
             <p class="text-[11px] text-gray-400 mt-0.5">All figures cover every candidate recorded to date.</p>
         </div>
-        @if($can('general.recruitment.candidates') && $canDo('general.recruitment.candidates', 'create'))
-            <a href="{{ route('general.recruitment.candidates.index', ['add' => 1]) }}"
-                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
-                <i class="fas fa-plus text-xs"></i> Add Candidate
-            </a>
-        @endif
+        <div class="flex flex-wrap items-center gap-2">
+            @include('hr-general.partials.data-transfer', ['dataset' => ['recruitment.recap', 'recruitment.candidates', 'recruitment.jobs'], 'bare' => true])
+            @if($can('general.recruitment.candidates') && $canDo('general.recruitment.candidates', 'create'))
+                <a href="{{ route('general.recruitment.candidates.index', ['add' => 1]) }}"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all shadow-sm">
+                    <i class="fas fa-plus text-xs"></i> Add Candidate
+                </a>
+            @endif
+        </div>
     </div>
 
     @php

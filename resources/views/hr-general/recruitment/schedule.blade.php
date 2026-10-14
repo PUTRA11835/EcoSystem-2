@@ -19,7 +19,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.interviews'])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')
@@ -41,6 +40,8 @@
                     <i class="fas fa-calendar-plus text-xs"></i> Schedule Interview
                 </button>
             @endif
+
+            @include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.interviews', 'bare' => true])
 
             <div class="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs font-semibold" role="group" aria-label="Calendar view">
                 @foreach($views as $key => $label)

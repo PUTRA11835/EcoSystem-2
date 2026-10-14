@@ -134,7 +134,7 @@ class PurchaseRequestApproval extends Model
             $ids  = array_map('intval', $this->approver_employee_ids ?? []);
             $name = $ids === []
                 ? null
-                : Employee::with('basicData')->find($ids[0])?->basicData?->nick_name;
+                : Employee::with('basicData')->find($ids[0])?->basicData?->full_name;
 
             return $name ? $name . ' (chosen by requester)' : 'Chosen by requester';
         }

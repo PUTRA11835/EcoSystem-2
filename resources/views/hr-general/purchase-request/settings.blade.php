@@ -13,7 +13,7 @@
 
 {{-- Lebar penuh (D177), mengikuti pola Attendance/Overtime/Cash Advance
      Settings — sebelumnya `max-w-6xl`. --}}
-@include('hr-general.purchase-request.hub-tabs-purchase-request')
+@include('hr-general.purchase-request.components.hub-tabs')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Purchase Request'])

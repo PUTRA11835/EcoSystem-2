@@ -177,13 +177,13 @@ class MyPurchaseRequestController extends Controller
 
         $ids = $first->candidateEmployeeIds();
 
-        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name')
+        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,full_name')
             ->whereIn('employee_id', $ids)
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
             ->map(fn (Employee $e) => [
                 'id'   => (int) $e->employee_id,
-                'name' => $e->basicData?->nick_name ?? $e->eci,
+                'name' => $e->basicData?->full_name ?? $e->eci,
             ])
             ->sortBy('name')
             ->values()
@@ -204,7 +204,7 @@ class MyPurchaseRequestController extends Controller
     {
         $employee = Employee::with('basicData')->find($employeeId);
 
-        return $employee?->basicData?->nick_name ?? $employee?->eci ?? (session('user.name') ?? '—');
+        return $employee?->basicData?->full_name ?? $employee?->eci ?? (session('user.name') ?? '—');
     }
 
     private function validatePayload(Request $request, PurchaseRequestService $purchaseRequest): array

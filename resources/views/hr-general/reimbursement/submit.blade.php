@@ -4,14 +4,8 @@
 @section('page-title', 'Submit Reimbursement')
 @section('page-subtitle', 'Claim expenses you already paid for. The request is verified before it is paid.')
 
-@section('page-actions')
-    <a href="{{ route('general.my-reimbursement.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.my-reimbursement.index'), 'backLabel' => 'Back'])
 @include('hr-general.reimbursement.components.date-picker')
 {{-- Lebar penuh (D152/D176), sejalan dengan Purchase Request & Cash Advance. --}}
 <div class="w-full space-y-5">
@@ -113,7 +107,7 @@
             @error('supporting_url')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('hr-general.reimbursement._item_rows', ['existingItems' => null])
+        @include('hr-general.reimbursement.components.item-rows', ['existingItems' => null])
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
@@ -182,7 +176,7 @@
 @endsection
 
 @push('scripts')
-@include('hr-general.reimbursement._item_rows_script')
+@include('hr-general.reimbursement.components.item-rows-script')
 <script>
     // Konfirmasi sebelum kirim. Karena karyawan tidak dapat membatalkan
     // dokumennya (Keputusan D111), inilah kesempatan terakhir memeriksa nominal.

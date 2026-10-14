@@ -1,9 +1,13 @@
 {{--
-    The two tabs of HR & General → Contract. Each is rendered only when one of the person's roles has the View box of
+    The tabs of HR & General → Contract (Dashboard and Contracts share the View box of `general.contracts.list`). Each is rendered only when one of the person's roles has the View box of
     its slug ticked (Management → Roles) — 'strict': the group slug `general.contracts` is only the parent in Menu
     Access and never opens a tab by itself.
 --}}
 @include('partials.hub-tabs', ['hubTabs' => [
+    [
+        'label' => 'Dashboard', 'icon' => 'chart-pie', 'route' => 'general.contracts.dashboard',
+        'is' => 'general/contracts/dashboard*', 'gate' => 'general.contracts.list', 'strict' => true,
+    ],
     [
         'label' => 'Contracts', 'icon' => 'file-signature', 'route' => 'general.contracts.list',
         'is' => 'general/contracts/list*', 'gate' => 'general.contracts.list', 'strict' => true,

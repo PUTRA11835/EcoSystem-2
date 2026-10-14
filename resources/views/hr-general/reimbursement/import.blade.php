@@ -4,14 +4,8 @@
 @section('page-title', 'Import Reimbursement')
 @section('page-subtitle', 'Create several reimbursement documents from one Excel file')
 
-@section('page-actions')
-    <a href="{{ route('general.reimbursement.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back to List
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.reimbursement.index'), 'backLabel' => 'Back to List'])
 <div class="max-w-4xl space-y-5">
 
     {{-- Sifat "gagal utuh" disampaikan sebelum tombolnya, bukan sesudah.

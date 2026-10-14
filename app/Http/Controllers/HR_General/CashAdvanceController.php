@@ -312,7 +312,7 @@ class CashAdvanceController extends Controller
             'minDate'     => null,
             'maxDate'     => null,
 
-            'requesterName' => $cashAdvance->employee?->basicData?->nick_name ?? '—',
+            'requesterName' => $cashAdvance->employee?->basicData?->full_name ?? '—',
 
             // 🔴 Alur dokumen ini sudah dibekukan saat dibuat, dan
             // CashAdvanceService::update() sengaja TIDAK menyusunnya ulang.
@@ -561,7 +561,7 @@ class CashAdvanceController extends Controller
                           ->orWhere('description', 'like', "%{$term}%")
                           ->orWhere('notes', 'like', "%{$term}%")
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

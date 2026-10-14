@@ -4,14 +4,8 @@
 @section('page-title', $row['name'])
 @section('page-subtitle', 'Data checklist' . ($row['join_date'] ? ' for employee joining ' . \Carbon\Carbon::parse($row['join_date'])->format('d M Y') : ''))
 
-@section('page-actions')
-    <a href="{{ route('general.onboarding.index') }}"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-full border border-gray-300 hover:bg-gray-50 transition-all">
-        <i class="fas fa-arrow-left text-xs"></i> Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.onboarding.index'), 'backLabel' => 'Back'])
 @php
     $canOpenMaster = $can('master.employee');
     $masterUrl = fn (?string $section) => route('master.employee.detail', $row['employee_id'])

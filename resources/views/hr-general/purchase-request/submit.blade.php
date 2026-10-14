@@ -4,14 +4,8 @@
 @section('page-title', 'Submit Purchase Request')
 @section('page-subtitle', 'Request goods or services that have not been bought yet')
 
-@section('page-actions')
-    <a href="{{ route('general.my-purchase-request.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.my-purchase-request.index'), 'backLabel' => 'Back'])
 {{-- Lebar penuh (D152/D176) — tabel baris item paling diuntungkan: kolom
      Description/Period/Charged To sempat berdesakan di max-w-6xl. --}}
 <div class="w-full space-y-5">
@@ -80,7 +74,7 @@
             @error('notes')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('hr-general.purchase-request._item_rows', ['existingItems' => null])
+        @include('hr-general.purchase-request.components.item-rows', ['existingItems' => null])
 
         {{-- Aturan yang sedang berlaku. Ditampilkan apa adanya supaya pengguna
              tidak menebak-nebak batas yang tak terlihat. --}}
@@ -183,7 +177,7 @@
 @endsection
 
 @push('scripts')
-@include('hr-general.purchase-request._item_rows_script')
+@include('hr-general.purchase-request.components.item-rows-script')
 <script>
     // Konfirmasi sebelum kirim. Berbeda dari Reimbursement, di sini pemohon MASIH
     // dapat menarik kembali dokumennya selama belum ditinjau (Keputusan D131) —

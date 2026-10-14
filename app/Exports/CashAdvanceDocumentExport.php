@@ -97,7 +97,7 @@ class CashAdvanceDocumentExport implements FromArray, WithEvents, WithTitle, Sho
             $push(['Date', ':', $request->dateRangeLabel()
                 ? $request->request_date->format('d.m.Y') . ' — ' . $request->dateRangeLabel()
                 : $request->request_date->format('d.m.Y')]);
-            $push(['Requester', ':', $request->employee?->basicData?->nick_name
+            $push(['Requester', ':', $request->employee?->basicData?->full_name
                 ?? $request->employee?->eci ?? '—']);
             $push(['Charged To', ':', $request->charged_to_label ?? '—']);
 

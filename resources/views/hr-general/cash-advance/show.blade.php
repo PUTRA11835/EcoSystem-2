@@ -143,7 +143,7 @@
                     <div class="flex justify-between gap-4">
                         <dt class="text-gray-500 uppercase text-xs tracking-wide">Requester</dt>
                         <dd class="font-medium text-right">
-                            {{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}
+                            {{ $request->employee?->basicData?->full_name ?? $request->employee?->eci ?? '—' }}
                         </dd>
                     </div>
                     <div class="flex justify-between gap-4">
@@ -268,7 +268,7 @@
                                 <p class="text-sm font-medium text-gray-900">{{ $approval->timelineLabel() }}</p>
                                 <p class="text-xs text-gray-500 mt-0.5">
                                     {{ $approval->acted_by
-                                        ? ($approval->actor?->basicData?->nick_name ?? $approval->actor?->eci ?? '—')
+                                        ? ($approval->actor?->basicData?->full_name ?? $approval->actor?->eci ?? '—')
                                         : $approval->approverLabel() }}
                                 </p>
                                 @if($approval->notes)
@@ -398,7 +398,7 @@
                         <div>
                             <p class="text-xs text-gray-500">{{ $entry->timelineLabel() }}</p>
                             <p class="text-sm font-medium text-gray-900">
-                                {{ $entry->actor?->basicData?->nick_name ?? $entry->actor?->eci ?? '—' }}
+                                {{ $entry->actor?->basicData?->full_name ?? $entry->actor?->eci ?? '—' }}
                             </p>
                         </div>
                         <p class="text-xs text-gray-400 whitespace-nowrap">
@@ -412,7 +412,7 @@
                 @if($request->cancelled_at)
                     <p class="text-xs text-gray-500 mt-3">
                         Cancelled by
-                        {{ $request->canceller?->basicData?->nick_name ?? $request->canceller?->eci ?? '—' }}
+                        {{ $request->canceller?->basicData?->full_name ?? $request->canceller?->eci ?? '—' }}
                         on {{ $request->cancelled_at->format('d.m.Y H:i') }}.
                     </p>
                 @endif

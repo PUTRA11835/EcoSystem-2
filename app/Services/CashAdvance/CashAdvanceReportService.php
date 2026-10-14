@@ -1186,7 +1186,7 @@ class CashAdvanceReportService
 
     private function nameOf(?Employee $employee): string
     {
-        return $employee?->basicData?->nick_name ?? $employee?->eci ?? '—';
+        return $employee?->basicData?->full_name ?? $employee?->eci ?? '—';
     }
 
     private function notify(CashAdvanceReport $report, string $outcome, ?string $notes = null): void

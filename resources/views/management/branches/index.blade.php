@@ -5,10 +5,9 @@
 @section('page-subtitle', 'Branch master data and the geofence points used to validate attendance')
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'attendance.branches'])
 <div class="space-y-5">
 
-@include('hr-general.attendance.hub-tabs-attendance')
+@include('hr-general.attendance.components.hub-tabs')
 
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
@@ -19,12 +18,15 @@
                 The coordinates and radius defined here validate where employees are allowed to check in.
             </p>
         </div>
-        @if($can('management.branches.manage'))
-        <a href="{{ route('management.branches.create') }}"
-           class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-            <i class="fas fa-plus"></i> Add Branch
-        </a>
-        @endif
+        <div class="flex flex-wrap items-center gap-2">
+            @include('hr-general.partials.data-transfer', ['dataset' => 'attendance.branches', 'bare' => true])
+            @if($can('management.branches.manage'))
+            <a href="{{ route('management.branches.create') }}"
+               class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg shadow-sm hover:opacity-90 transition-all">
+                <i class="fas fa-plus text-xs"></i> Add Branch
+            </a>
+            @endif
+        </div>
     </div>
 
     <form method="GET" action="{{ route('management.branches.index') }}"

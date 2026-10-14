@@ -127,7 +127,7 @@ class PurchaseRequestApprovalStep extends Model
             self::TYPE_EMPLOYEE => match (count($this->approver_employee_ids ?? [])) {
                 0       => 'No employee chosen yet',
                 1       => Employee::with('basicData')
-                            ->find($this->approver_employee_ids[0])?->basicData?->nick_name
+                            ->find($this->approver_employee_ids[0])?->basicData?->full_name
                             ?? 'Employee #' . $this->approver_employee_ids[0],
                 default => count($this->approver_employee_ids) . ' selected employee(s)',
             },

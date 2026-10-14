@@ -21,7 +21,7 @@
 
 <div class="space-y-5">
 
-    @include('hr-general.attendance.hub-tabs-attendance')
+    @include('hr-general.attendance.components.hub-tabs')
 
     <div class="bg-white rounded-xl p-6 shadow-sm">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5 pb-4 border-b-2 border-gray-100">

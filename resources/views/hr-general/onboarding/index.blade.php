@@ -94,7 +94,7 @@
 
         {{-- HC-D64 — alat join date untuk HR (opsional): hanya saat filter "Missing: Join date" aktif & ada izinnya --}}
         @if(($filters['missing'] ?? '') === 'join_date' && $can('general.onboarding.join-date'))
-            @include('hr-general.onboarding.partials.join-date-tools')
+            @include('hr-general.onboarding.components.join-date-tools')
         @endif
 
         <div class="border-t border-gray-100 overflow-x-auto">

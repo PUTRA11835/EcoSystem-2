@@ -1,6 +1,6 @@
 {{--
     Recruitment hub tab list — one place for the five pages inside the
-    Recruitment hub, following the hub-tabs-attendance.blade.php pattern.
+    Recruitment hub, following the components/hub-tabs.blade.php pattern.
 
     Which tabs a person sees is decided entirely in Management → Roles: a tab
     is rendered only when one of the person's roles has the View box of that

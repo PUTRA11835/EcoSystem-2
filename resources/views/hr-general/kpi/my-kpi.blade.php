@@ -290,7 +290,7 @@
     @if($showLeadTab)
     <div class="kpi-tab-panel space-y-5 hidden" data-tab="lead">
         @if($hasLeader || $isSystemAdmin)
-        @include('hr-general.kpi.partials.my-lead-assessments')
+        @include('hr-general.kpi.components.my-lead-assessments')
         @endif
 
         {{-- My Team + Review History only make sense for someone who actually leads a team;

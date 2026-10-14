@@ -16,7 +16,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'letters.register'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
@@ -44,6 +43,8 @@
                     @endif
                 </p>
             </div>
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'letters.register', 'bare' => true])
             <div class="flex items-center gap-2" data-live-region="toolbar">
                 @if($hasFilters)
                     <a href="{{ route('general.letters.register.index', array_filter(['direction' => $filters['direction']])) }}"
@@ -61,6 +62,7 @@
                         <i class="fas fa-plus text-xs"></i> Outgoing Letter
                     </a>
                 @endif
+            </div>
             </div>
         </div>
 

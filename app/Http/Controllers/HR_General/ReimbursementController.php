@@ -96,42 +96,119 @@ class ReimbursementController extends Controller
         ]);
     }
 
+    /** Periods of the dashboard. `month` and `year` take a value (`month=YYYY-MM`, `year=YYYY`). */
+    public const DASHBOARD_PERIODS = [
+        'month'      => 'Choose a month',
+        'this_month' => 'This month',
+        'last_month' => 'Last month',
+        'quarter'    => 'This quarter',
+        'last_3'     => 'Last 3 months',
+        'last_6'     => 'Last 6 months',
+        'ytd'        => 'Year to date',
+        'year'       => 'Annual (choose a year)',
+        'last_12'    => 'Last 12 months',
+        'all'        => 'All time',
+    ];
+
     /**
-     * Ringkasan: angka bulan ini, tren enam bulan, antrean milik pengguna, dan
-     * dokumen yang perlu perhatian. Semuanya dihitung dari dokumen yang tidak
-     * terhapus; nominal hanya untuk dokumen IDR agar tidak mencampur mata uang.
+     * The date range a dashboard period stands for, with the months its trend shows.
+     *
+     * @return array{key:string,from:?\Carbon\Carbon,to:?\Carbon\Carbon,label:string,months:\Carbon\Carbon[],month:string,year:int}
      */
-    public function dashboard(ReimbursementService $reimbursement)
+    private function dashboardPeriod(Request $request): array
+    {
+        $now = now();
+        $key = array_key_exists((string) $request->query('period'), self::DASHBOARD_PERIODS) ? (string) $request->query('period') : 'this_month';
+
+        $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->query('month')) ? (string) $request->query('month') : $now->format('Y-m');
+        $year = (int) $request->query('year');
+        $year = $year >= 2000 && $year <= $now->year + 1 ? $year : $now->year;
+
+        $monthsEnding = fn ($end, int $n) => collect(range($n - 1, 0))->map(fn ($ago) => $end->copy()->startOfMonth()->subMonths($ago))->all();
+
+        switch ($key) {
+            case 'month':
+                $start = \Carbon\Carbon::createFromFormat('Y-m-d', $month . '-01')->startOfMonth();
+                [$from, $to, $label, $months] = [$start, $start->copy()->endOfMonth(), $start->format('F Y'), $monthsEnding($start, 6)];
+                break;
+            case 'last_month':
+                $start = $now->copy()->subMonthNoOverflow()->startOfMonth();
+                [$from, $to, $label, $months] = [$start, $start->copy()->endOfMonth(), $start->format('F Y'), $monthsEnding($start, 6)];
+                break;
+            case 'quarter':
+                $start = $now->copy()->firstOfQuarter();
+                [$from, $to, $label, $months] = [$start, $now->copy()->lastOfQuarter()->endOfDay(), 'Q' . $now->quarter . ' ' . $now->year, $monthsEnding($start->copy()->addMonths(2), 3)];
+                break;
+            case 'last_3':
+            case 'last_6':
+            case 'last_12':
+                $n = (int) substr($key, 5);
+                $start = $now->copy()->startOfMonth()->subMonths($n - 1);
+                [$from, $to, $label, $months] = [$start, $now->copy()->endOfDay(), 'Last ' . $n . ' months', $monthsEnding($now, $n)];
+                break;
+            case 'ytd':
+                [$from, $to, $label, $months] = [$now->copy()->startOfYear(), $now->copy()->endOfDay(), 'Year to date ' . $now->year, $monthsEnding($now, $now->month)];
+                break;
+            case 'year':
+                $start = \Carbon\Carbon::create($year, 1, 1)->startOfDay();
+                [$from, $to, $label, $months] = [$start, $start->copy()->endOfYear(), (string) $year, $monthsEnding($start->copy()->endOfYear(), 12)];
+                break;
+            case 'all':
+                [$from, $to, $label, $months] = [null, null, 'All time', $monthsEnding($now, 12)];
+                break;
+            default: // this_month
+                $start = $now->copy()->startOfMonth();
+                [$from, $to, $label, $months] = [$start, $start->copy()->endOfMonth(), $start->format('F Y'), $monthsEnding($start, 6)];
+        }
+
+        return ['key' => $key, 'from' => $from, 'to' => $to, 'label' => $label, 'months' => $months, 'month' => $month, 'year' => $year];
+    }
+
+    /**
+     * Ringkasan untuk periode yang dipilih (bulan, bulan lalu, kuartal, tahunan, ...): angka periode, tren per
+     * bulan, campuran status, dan pengaju teratas. Antrean milik pengguna dan dokumen yang perlu perhatian selalu
+     * keadaan SAAT INI. Nominal hanya untuk dokumen IDR agar tidak mencampur mata uang.
+     */
+    public function dashboard(Request $request, ReimbursementService $reimbursement)
     {
         $actorId = (int) session('user.id');
         $mineIds = $reimbursement->pendingIdsFor($actorId);
+        $idr     = ReimbursementRequest::DEFAULT_CURRENCY;
+        $period  = $this->dashboardPeriod($request);
 
-        $monthStart = now()->startOfMonth();
-        $idr        = ReimbursementRequest::DEFAULT_CURRENCY;
-
-        $thisMonth = ReimbursementRequest::query()->where('request_date', '>=', $monthStart->toDateString());
-
-        $byStatus = ReimbursementRequest::query()
-            ->selectRaw('status, COUNT(*) AS total, COALESCE(SUM(CASE WHEN currency = ? THEN total_amount ELSE 0 END), 0) AS amount', [$idr])
-            ->groupBy('status')
-            ->get()
-            ->keyBy('status');
+        $inPeriod = fn () => ReimbursementRequest::query()
+            ->when($period['from'], fn ($q) => $q->where('request_date', '>=', $period['from']->toDateString()))
+            ->when($period['to'], fn ($q) => $q->where('request_date', '<=', $period['to']->toDateString()));
 
         $openStatuses = ReimbursementRequest::OPEN_STATUSES;
 
-        // Rata-rata hari dari dibuat sampai disetujui, 90 hari terakhir.
-        $avgDays = ReimbursementRequest::query()
+        // Open documents right now (not limited to the period): what is still on somebody's desk.
+        $open = ReimbursementRequest::query()->whereIn('status', $openStatuses)
+            ->selectRaw('COUNT(*) AS total, COALESCE(SUM(CASE WHEN currency = ? THEN total_amount ELSE 0 END), 0) AS amount', [$idr])->first();
+
+        // Documents of the period, by status.
+        $byStatus = $inPeriod()
+            ->selectRaw('status, COUNT(*) AS total, COALESCE(SUM(CASE WHEN currency = ? THEN total_amount ELSE 0 END), 0) AS amount', [$idr])
+            ->groupBy('status')->get()->keyBy('status');
+        $sum = fn (array $statuses, string $col) => collect($statuses)->sum(fn ($s) => $byStatus[$s]->{$col} ?? 0);
+        $statusRows = [
+            'Open'     => (int) $sum($openStatuses, 'total'),
+            'Approved' => (int) $sum([ReimbursementRequest::STATUS_APPROVED], 'total'),
+            'Rejected' => (int) $sum([ReimbursementRequest::STATUS_REJECTED], 'total'),
+        ];
+        $periodDocs = array_sum($statusRows);
+
+        // Average days from created to approved, for the documents of the period (90 days back when "all time").
+        $avgDays = $inPeriod()
             ->where('status', ReimbursementRequest::STATUS_APPROVED)
             ->whereNotNull('completed_at')
-            ->where('completed_at', '>=', now()->subDays(90))
+            ->when(!$period['from'], fn ($q) => $q->where('completed_at', '>=', now()->subDays(90)))
             ->selectRaw('AVG(TIMESTAMPDIFF(HOUR, created_at, completed_at)) / 24 AS days')
             ->value('days');
 
-        $trend = collect(range(5, 0))->map(function ($ago) use ($idr) {
-            $start = now()->startOfMonth()->subMonths($ago);
-            $end   = $start->copy()->endOfMonth();
-
-            $rows = ReimbursementRequest::query()->whereBetween('request_date', [$start->toDateString(), $end->toDateString()]);
+        $trend = collect($period['months'])->map(function ($start) use ($idr) {
+            $rows = ReimbursementRequest::query()
+                ->whereBetween('request_date', [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()]);
 
             return [
                 'label'  => $start->format('M Y'),
@@ -140,9 +217,8 @@ class ReimbursementController extends Controller
             ];
         });
 
-        $topRequesters = ReimbursementRequest::query()
+        $topRequesters = $inPeriod()
             ->with('employee.basicData')
-            ->where('request_date', '>=', $monthStart->toDateString())
             ->where('currency', $idr)
             ->selectRaw('employee_id, COUNT(*) AS docs, SUM(total_amount) AS amount')
             ->groupBy('employee_id')
@@ -166,22 +242,20 @@ class ReimbursementController extends Controller
             ->values();
 
         return view('hr-general.reimbursement.dashboard', [
-            'monthLabel' => $monthStart->format('F Y'),
+            'period'      => $period,
+            'periods'     => self::DASHBOARD_PERIODS,
+            'monthLabel'  => $period['label'],
             'cards' => [
-                'mine'      => count($mineIds),
-                'pending'   => (int) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->total ?? 0),
-                'pendingAmount' => (float) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->amount ?? 0),
-                'month'     => (clone $thisMonth)->count(),
-                'monthAmount' => (float) (clone $thisMonth)->where('currency', $idr)->sum('total_amount'),
-                'approved'  => (int) ($byStatus[ReimbursementRequest::STATUS_APPROVED]->total ?? 0),
-                'rejected'  => (int) ($byStatus[ReimbursementRequest::STATUS_REJECTED]->total ?? 0),
-                'avgDays'   => $avgDays !== null ? round((float) $avgDays, 1) : null,
+                'mine'          => count($mineIds),
+                'pending'       => (int) ($open->total ?? 0),
+                'pendingAmount' => (float) ($open->amount ?? 0),
+                'month'         => $periodDocs,
+                'monthAmount'   => (float) collect($byStatus)->sum('amount'),
+                'approved'      => $statusRows['Approved'],
+                'rejected'      => $statusRows['Rejected'],
+                'avgDays'       => $avgDays !== null ? round((float) $avgDays, 1) : null,
             ],
-            'statusRows'    => [
-                'Open'     => (int) collect($openStatuses)->sum(fn ($s) => $byStatus[$s]->total ?? 0),
-                'Approved' => (int) ($byStatus[ReimbursementRequest::STATUS_APPROVED]->total ?? 0),
-                'Rejected' => (int) ($byStatus[ReimbursementRequest::STATUS_REJECTED]->total ?? 0),
-            ],
+            'statusRows'    => $statusRows,
             'trend'         => $trend,
             'topRequesters' => $topRequesters,
             'waiting'       => $waiting,

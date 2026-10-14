@@ -13,9 +13,9 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => ['inventory.recap', 'inventory.assets', 'inventory.items']])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.inventory.components.tabs')
+    @include('hr-general.partials.data-transfer', ['dataset' => ['inventory.recap', 'inventory.assets', 'inventory.items']])
 
     {{-- Inactive inventory lines and disposed assets are left out of every figure on this page. --}}
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">

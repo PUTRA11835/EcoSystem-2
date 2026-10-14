@@ -17,7 +17,7 @@
     ];
 @endphp
 
-@include('hr-general.reimbursement.hub-tabs-reimbursement')
+@include('hr-general.reimbursement.components.hub-tabs')
 @include('hr-general.recruitment.components.unsaved-guard')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">

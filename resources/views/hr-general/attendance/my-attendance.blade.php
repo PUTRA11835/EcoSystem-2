@@ -537,7 +537,7 @@
     </div>
 </div>
 
-@include('hr-general.attendance.partials.punch_map')
+@include('hr-general.attendance.components.punch-map')
 
 <form id="cancelCorrectionForm" method="POST" class="hidden">
     @csrf
@@ -947,5 +947,5 @@ async function cancelCorrection(id) {
     form.submit();
 }
 </script>
-@include('hr-general.attendance.partials.punch_map_script')
+@include('hr-general.attendance.components.punch-map-script')
 @endpush

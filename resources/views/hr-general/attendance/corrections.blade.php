@@ -5,10 +5,9 @@
 @section('page-subtitle', 'Review employee check-in and check-out changes before applying them to attendance data')
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'attendance.corrections'])
 <div class="space-y-5">
 
-    @include('hr-general.attendance.hub-tabs-attendance')
+    @include('hr-general.attendance.components.hub-tabs')
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         @foreach([
@@ -31,6 +30,7 @@
                     Approving a request updates the employee's attendance and keeps the previous times on record.
                 </p>
             </div>
+            @include('hr-general.partials.data-transfer', ['dataset' => 'attendance.corrections', 'bare' => true])
         </div>
 
         <form method="GET" action="{{ route('general.attendance.corrections.index') }}"

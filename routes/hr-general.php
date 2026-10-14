@@ -1200,6 +1200,7 @@ Route::prefix('general')
             // Pintu masuk sidebar: membuka tab pertama yang boleh dibuka.
             Route::get('/', [ContractController::class, 'home'])->name('index')->middleware($tabs);
 
+            Route::get('/dashboard', [ContractController::class, 'dashboard'])->name('dashboard')->middleware($list);
             Route::get('/list', [ContractController::class, 'index'])->name('list')->middleware($list);
 
             Route::prefix('templates')->name('templates.')->middleware('menu:general.contracts.templates')->group(function () use ($tplCan) {
@@ -1387,7 +1388,7 @@ Route::prefix('general')
  * (D141 di atas) — memindah URL/prefix-nya ke bawah `general/cash-advance/*`
  * hanya kosmetik dan mempertaruhkan pemisahan yang sudah teruji tanpa manfaat.
  * Yang berubah HANYA tampilannya: halaman ini kini menyertakan tab bar yang
- * sama dengan "Cash Advance (CA)" (lihat hr-general/cash-advance/hub-tabs-cash-advance.blade.php),
+ * sama dengan "Cash Advance (CA)" (lihat hr-general/cash-advance/components/hub-tabs.blade.php),
  * jadi terasa satu hub bagi yang memegang kedua slug, sementara siapa pun yang
  * HANYA memegang `management.cash-advance-settings` tetap membuka halaman ini
  * lewat URL dan slug yang sama persis seperti sebelumnya.

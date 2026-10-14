@@ -1,5 +1,5 @@
 {{--
-    Daftar tab hub Cash Advance (CA) — dua tab (D177). Lihat hub-tabs-attendance.blade.php
+    Daftar tab hub Cash Advance Management (sisi Finance) — tiga tab: CA, CAR, Settings (D177, direvisi: CAR kini tab). Lihat components/hub-tabs.blade.php
     untuk penjelasan pola secara umum.
 
     🔴 Tab "Settings" menunjuk ke rute `management.cash-advance-settings.edit`,
@@ -16,10 +16,16 @@
             'is'    => 'general/cash-advance',
             'gate'  => 'general.cash-advance',
             // 🔴 D179 — "menunggu SAYA", pola sama dengan Overtime di atas.
-            // Cash Advance Report (CAR) TIDAK ikut di sini — CAR sengaja
-            // tetap terpisah dari hub ini (D177); badge-nya sendiri
-            // ditaruh langsung di baris sidebar CAR, bukan di sebuah tab.
             'badge' => fn () => count(app(\App\Services\CashAdvance\CashAdvanceService::class)
+                ->pendingIdsFor((int) session('user.id'))),
+        ],
+        [
+            'label' => 'Cash Advance Report (CAR)',
+            'icon'  => 'file-invoice-dollar',
+            'route' => 'general.cash-advance-report.index',
+            'is'    => 'general/cash-advance-report',
+            'gate'  => 'general.cash-advance-report',
+            'badge' => fn () => count(app(\App\Services\CashAdvance\CashAdvanceReportService::class)
                 ->pendingIdsFor((int) session('user.id'))),
         ],
         [

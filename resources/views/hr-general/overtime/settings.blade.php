@@ -13,7 +13,7 @@
 {{-- Lebar penuh (D152/D176) — sebelumnya max-w-6xl, satu-satunya tab di hub
      ini yang masih sempit dibanding Branches/Shifts/Cash Advance Settings.
      Grid-grid di dalamnya sudah responsif (3/4/3/2 kolom per bagian). --}}
-@include('hr-general.overtime.hub-tabs-overtime')
+@include('hr-general.overtime.components.hub-tabs')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Overtime'])

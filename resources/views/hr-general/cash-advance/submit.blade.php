@@ -338,7 +338,7 @@
                         @foreach($employees as $employee)
                             <option value="{{ $employee->employee_id }}"
                                     @selected((int) old('employee_id') === (int) $employee->employee_id)>
-                                {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                                {{ $employee->basicData?->full_name ?? $employee->eci }}
                                 @if($employee->basicData?->department)
                                     — {{ $employee->basicData->department }}
                                 @endif
@@ -351,7 +351,7 @@
                 @else
                     <input type="text" disabled
                            value="{{ $isEdit
-                               ? ($document->employee?->basicData?->nick_name ?? $requesterName)
+                               ? ($document->employee?->basicData?->full_name ?? $requesterName)
                                : $requesterName }}"
                            class="w-full px-3 py-2 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600">
                     @if($isEdit)

@@ -180,7 +180,7 @@
                                 @foreach($employees as $employee)
                                     <option value="{{ $employee->employee_id }}"
                                         @selected(in_array((int) $employee->employee_id, array_map('intval', $step->approver_employee_ids ?? []), true))>
-                                        {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                                        {{ $employee->basicData?->full_name ?? $employee->eci }}
                                     </option>
                                 @endforeach
                             </select>
@@ -311,7 +311,7 @@
                         class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 primary-border">
                     @foreach($employees as $employee)
                         <option value="{{ $employee->employee_id }}">
-                            {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                            {{ $employee->basicData?->full_name ?? $employee->eci }}
                         </option>
                     @endforeach
                 </select>
