@@ -10,6 +10,10 @@
             'route' => 'general.overtime.index',
             'is'    => 'general/overtime',
             'gate'  => 'general.overtime',
+            // Karyawan yang DITUNJUK sebagai penyetuju pada alur (peran atau nama)
+            // otomatis dapat membuka halaman ini tanpa slug menu terpisah.
+            'when'  => fn () => app(\App\Services\Overtime\OvertimeService::class)
+                ->isDesignatedApprover((int) session('user.id')),
             // 🔴 D179 — "menunggu SAYA", bukan seluruh yang pending: dihitung
             // lewat langkah persetujuan dokumen (siapa gilirannya sekarang),
             // persis kartu "Waiting for You" di halaman ini sendiri.
@@ -22,6 +26,7 @@
             'route' => 'general.overtime.settings.edit',
             'is'    => 'general/overtime/settings*',
             'gate'  => 'general.settings.overtime',
+            'also'  => 'general.approval-workflow.overtime',
         ],
     ];
 @endphp

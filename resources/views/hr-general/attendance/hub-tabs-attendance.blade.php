@@ -1,9 +1,9 @@
 {{--
-    Daftar tab hub Attendance — SATU tempat untuk enam halaman (D175).
+    Daftar tab hub Attendance — SATU tempat untuk halaman Attendance (D175).
 
     Urutan tab TETAP di sini, tidak bergantung slug yang dipegang pengguna;
     yang berubah per pengguna hanya MANA yang dirender (lihat hub-tabs.blade.php).
-    Ubah label/ikon/urutan di sini, otomatis berlaku di keenam halaman.
+    Ubah label/ikon/urutan di sini, otomatis berlaku di semua halaman.
 --}}
 @php
     $hubTabs = [
@@ -31,13 +31,6 @@
             // membuka Corrections boleh meninjau baris apa pun (satu slug,
             // D77), jadi hitungannya sama untuk semua penerimanya.
             'badge' => fn () => \App\Models\Attendance\AttendanceCorrection::pending()->count(),
-        ],
-        [
-            'label' => 'Branches',
-            'icon'  => 'map-marker-alt',
-            'route' => 'general.attendance.branches.index',
-            'is'    => 'general/attendance/branches*',
-            'gate'  => 'general.settings.branches',
         ],
         [
             'label' => 'Shifts',

@@ -32,6 +32,7 @@
             // payung `general.*` (D141); seorang holder `general` polos TANPA
             // slug ini TIDAK boleh melihat tab ini sama sekali.
             'strict' => true,
+            'also'   => ['management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report'],
         ],
     ];
 @endphp

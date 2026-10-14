@@ -26,6 +26,10 @@
           'is'     => string,          pola Request::is() untuk status aktif
           'gate'   => string|null,     slug menu; null = selalu tampil
           'strict' => bool,            true = JANGAN ikut `|| $can('general')`
+          'also'   => string|string[]|null,  slug TAMBAHAN yang juga memunculkan tab ini
+                                       (tanpa fallback `general`), mis. slug Approval Workflow
+          'when'   => (Closure(): bool)|null, syarat TAMBAHAN yang juga memunculkan tab ini,
+                                       mis. karyawan yang ditunjuk sebagai penyetuju alur
           'badge'  => (Closure(): int)|null,  D179, lihat di bawah
       ]
 
@@ -50,13 +54,27 @@
 {{-- $hubHideSingle (opsional): true = bila hanya SATU tab yang boleh dilihat pengguna, bilah tab tidak dirender —
      judul halaman sudah menjelaskan, dan satu tab sendirian hanya menambah kekacauan. --}}
 @php
-    $hubVisibleCount = collect($hubTabs)->filter(fn ($t) => empty($t['gate']) || $can($t['gate']) || (empty($t['strict']) && $can('general')))->count();
+    $hubTabAllowed = function (array $t) use ($can): bool {
+        if (empty($t['gate']) || $can($t['gate']) || (empty($t['strict']) && $can('general'))) {
+            return true;
+        }
+
+        foreach ((array) ($t['also'] ?? []) as $slug) {
+            if ($can($slug)) {
+                return true;
+            }
+        }
+
+        return !empty($t['when']) && (bool) $t['when']();
+    };
+
+    $hubVisibleCount = collect($hubTabs)->filter($hubTabAllowed)->count();
 @endphp
 @if(empty($hubHideSingle) || $hubVisibleCount > 1)
 <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200">
     <nav class="flex flex-wrap gap-1 p-1" aria-label="Tabs">
         @foreach($hubTabs as $tab)
-            @continue(!empty($tab['gate']) && !($can($tab['gate']) || (empty($tab['strict']) && $can('general'))))
+            @continue(!$hubTabAllowed($tab))
             @php $badgeCount = !empty($tab['badge']) ? (int) $tab['badge']() : 0; @endphp
             <a href="{{ route($tab['route']) }}"
                class="flex-1 sm:flex-none px-4 py-2.5 text-sm font-medium text-center rounded-lg transition-all

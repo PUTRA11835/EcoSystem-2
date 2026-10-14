@@ -1,21 +1,17 @@
 <aside id="sidebar" data-rail="{{ $__env->hasSection('sidebar-nav') ? 'off' : 'on' }}"
     class="sidebar-transition fixed inset-y-0 left-0 h-screen flex flex-col overflow-hidden {{ $preferences['sidebar_style'] === 'gradient' ? 'primary-gradient' : 'primary-solid' }} text-white shadow-2xl z-50 w-64 -translate-x-full lg:translate-x-0">
     @php
-        // HC-D25 — Favorit hanya untuk karyawan (portal pelanggan tidak memakainya).
-        // forEmployee() tidak pernah melempar galat: sidebar tampil di SETIAP halaman.
         $sbFavoritesEnabled = (session('user.type') ?? null) === 'employee';
         $sbFavorites = $sbFavoritesEnabled
             ? app(\App\Services\Sidebar\SidebarFavoriteService::class)->forEmployee((int) session('user.id'))
             : [];
     @endphp
-    {{-- Sprite ikon sidebar (Tabler, MIT) — dibangkitkan; lihat app/Support/SidebarIcons.php --}}
+
     @include('partials.sidebar-icons')
     <script>
         window.__sidebarFavoritesEnabled = @json($sbFavoritesEnabled);
         window.__sidebarFavorites = @json($sbFavorites);
         window.__sidebarFavoritesMax = {{ \App\Services\Sidebar\SidebarFavoriteService::MAX }};
-        // Mode rail (ikon + panel) dipilih per perangkat; diterapkan di sini agar halaman tak berkedip.
-        // Dimatikan pada halaman yang menimpa isi sidebar (data-rail="off", mis. inbox Ticket).
         (function () {
             try {
                 var a = document.getElementById('sidebar');
@@ -26,19 +22,14 @@
         })();
     </script>
 
-    {{-- HC: header TETAP (logo + pencarian menu). Dulu seluruh <aside> yang di-scroll
-         (overflow-y-auto) sehingga logo ikut terguling. Kini <aside> berupa kolom flex:
-         header `flex-shrink-0` tidak pernah bergeser, hanya #sidebarScroll di bawahnya
-         yang menggulung. --}}
     <div id="sidebarHeader" class="shrink-0 px-4 pt-4 pb-3">
-        <!-- Logo Section -->
+
         <div class="sidebar-logo flex items-center justify-center">
             <div class="w-full rounded-xl px-3 backdrop-blur-sm">
                 <img src="/images/eclectic_logo_nobg.png" alt="EcoSystem Logo" class="w-full h-auto mx-auto" style="max-height:64px; object-fit:contain;" />
             </div>
         </div>
 
-        <!-- Pencarian menu -->
         <div class="mt-3 flex items-center gap-1.5 sb-search-row">
         <div class="relative flex-1 min-w-0">
             <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-xs text-white text-opacity-60 pointer-events-none"></i>
@@ -50,25 +41,19 @@
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        {{-- Buka/tutup SEMUA seksi sekaligus. Sengaja polos (tanpa latar) agar tak mengotori kepala sidebar;
-             ikon & label berganti menurut keadaan (lihat sbRefreshSections). --}}
+
         <button type="button" id="sidebarToggleAll" onclick="toggleAllSidebarSections()" class="sb-toggle-all"
             aria-label="Collapse all sections" title="Collapse all sections">
             <i class="fas fa-angles-up"></i>
         </button>
         </div>
-        {{-- Hanya tampil pada mode rail: membuka tampilan penuh & memfokuskan pencarian. --}}
+
         <button type="button" id="sidebarRailSearch" class="sb-rail-only" onclick="sbRailSearch()" title="Search menu" aria-label="Search menu">
             <svg class="sb-ico" aria-hidden="true" focusable="false"><use href="#ti-search"/></svg>
         </button>
 
-        {{-- HC-D36 — Kotak ringkasan "Favorites" DIHAPUS dari sini (redundan dengan
-             tab "Favorite" di Command Center pada Dashboard, yang menampilkan hal
-             sama dengan kartu lebih lengkap). Ikon pin pada tiap tautan menu TETAP
-             ada (lihat IIFE "FAVORIT" di bawah) — itulah cara menyematkan/melepas. --}}
     </div>
 
-    <!-- Navigation Menu (satu-satunya bagian yang di-scroll) -->
     <div id="sidebarScroll" class="flex-1 min-h-0 overflow-y-auto">
     @hasSection('sidebar-nav')
         @yield('sidebar-nav')
@@ -78,20 +63,6 @@
                 $essConfig    = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
                 $essGroupData = \App\Http\Controllers\Management\EssSettingsController::getEssGroups();
 
-                // 🔴 D182 — SATU array data menggantikan lima belas blok
-                // `@if(!empty($essConfig[...]))` yang dulu ditulis tangan satu
-                // per satu. Setiap baris di sini adalah PERSIS logika yang
-                // sudah ada sebelumnya (route, pola aktif, gerbang tambahan) —
-                // dipindah ke bentuk data, bukan ditulis ulang — supaya
-                // perilaku untuk siapa pun yang TIDAK memakai fitur grup baru
-                // (mis. instalasi yang belum pernah membuat grup) IDENTIK
-                // dengan sebelum D182.
-                //
-                // `logout`, `events_calendar`, `my_timesheet` SENGAJA tidak
-                // ada di sini — lihat EssSettingsController::UNGROUPABLE_ITEMS
-                // untuk alasannya (logout tidak pernah benar-benar dijaga
-                // sakelar ini; dua lainnya sudah punya dropdown "Calendar"
-                // sendiri di bawah, di luar cakupan fitur ini).
                 $essNav = [
                     'home' => [
                         'label'   => 'Dashboard',
@@ -135,7 +106,6 @@
                         'active'  => Request::is('general/my-reimbursement*'),
                         'visible' => !empty($essConfig['expense_reimbursement']),
                     ],
-                    // Paystub: slip gaji sendiri yang sudah dipublikasikan (Finance → Payroll → Publish Payslip).
                     'paystub' => [
                         'label'   => 'Paystub',
                         'icon'    => 'fas fa-file-invoice-dollar',
@@ -150,9 +120,6 @@
                         'active'  => Request::is('general/my-purchase-request*'),
                         'visible' => !empty($essConfig['purchase_request']),
                     ],
-                    // 🔴 Pola aktif PRESISI, bukan wildcard (Keputusan D161) — supaya
-                    // tidak ikut menangkap `my-cash-advance-report` dan menyalakan
-                    // dua item sekaligus.
                     'advance_payment_ca' => [
                         'label'   => 'Cash Advance',
                         'icon'    => 'fas fa-hand-holding-usd',
@@ -167,7 +134,6 @@
                         'active'  => Request::is('general/my-cash-advance-report*'),
                         'visible' => !empty($essConfig['advance_payment_car']),
                     ],
-                    // route('coming-soon', ...) — belum menunjuk halaman sungguhan.
                     'loans' => [
                         'label'   => 'My Loans',
                         'icon'    => 'fas fa-landmark',
@@ -175,7 +141,6 @@
                         'active'  => false,
                         'visible' => !empty($essConfig['loans']),
                     ],
-                    // Gerbang GANDA: sakelar ESS DAN slug izin (role User System Registered).
                     'my_letter_requests' => [
                         'label'   => 'My Letter Requests',
                         'icon'    => 'fas fa-envelope-open-text',
@@ -207,13 +172,6 @@
                     ],
                 ];
 
-                // Susun urutan tampil: item flat dan grup diselingi mengikuti
-                // urutan ASLI $essNav di atas — grup muncul persis di posisi
-                // anggota PERTAMANYA. Tanpa satu pun grup terkonfigurasi
-                // (instalasi baru, atau sebelum D182), ini menghasilkan urutan
-                // yang identik dengan lima belas blok lama.
-                // Seksi tempat tiap item ESS dirender. Item di luar peta ini (mis. kunci ESS baru di masa depan)
-                // jatuh ke 'workspace' — TIDAK PERNAH hilang. Grup ESS buatan admin mengikuti seksi anggota pertamanya.
                 $essSecOf = ['home' => 'top', 'ai_assistant' => 'tools', 'ai_research' => 'tools'];
                 $essRenderedGroupIds = [];
                 $essOutput = [];
@@ -233,8 +191,6 @@
                     $essGroup = collect($essGroupData['groups'])->firstWhere('id', $essGroupId);
 
                     if (!$essGroup) {
-                        // Seharusnya sudah disaring getEssGroups() — jaga-jaga saja,
-                        // supaya item tidak pernah hilang hanya karena grupnya cacat.
                         $essOutput[] = ['type' => 'item', 'key' => $essKey, 'item' => $essItem];
                         continue;
                     }
@@ -249,28 +205,6 @@
             @endphp
 
             @php $sb = []; @endphp
-
-            {{-- Dulu: HR & General adalah dropdown berisi 12 anak dengan gerbang luar berupa OR atas semua slug anak.
-                 Kini tiap anak berdiri sendiri di seksi yang sesuai dan dijaga gerbangnya SENDIRI (sama persis seperti
-                 di dalam dropdown) — gerbang luar itu superset anak-anaknya sehingga tak seorang pun bertambah/berkurang. --}}
-            {{-- 🔴 D175: Branches/Shifts/Attendance Settings/Overtime Settings
-                 pindah jadi tab DI DALAM dropdown ini (bukan lagi hidup di
-                 dropdown Management terpisah yang punya gerbangnya sendiri).
-                 Keempat slug itu — plus `general.attendance.monthly` yang
-                 sebelumnya juga terlewat — WAJIB ada di gerbang terluar ini.
-                 Tanpanya, orang yang HANYA memegang mis. `general.settings.
-                 branches` kehilangan SATU-SATUNYA jalan menuju Branches:
-                 dropdown-nya sendiri tidak pernah dirender. Ditemukan lewat
-                 uji nyata (render sidebar dengan satu slug terisolasi), bukan
-                 dugaan — lihat smoke-hub-tabs.php. --}}
-            {{-- 🔴 D177: Reimbursement/Purchase Request/Cash Advance Settings ikut
-                 masuk gerbang ini — kelas cacat yang sama dengan D175, kali ini
-                 dicegah dari awal alih-alih ditemukan lewat uji. --}}
-            {{-- 🔴 D180: kelima slug Approval Workflow ikut masuk gerbang ini juga,
-                 dengan alasan yang SAMA PERSIS — tanpanya, orang yang HANYA
-                 memegang mis. `general.approval-workflow.overtime` (dan tidak
-                 memegang slug HR & General lain apa pun) tidak akan pernah
-                 melihat dropdown-nya sama sekali. --}}
 
 @php ob_start(); @endphp
 @include('partials.ess-nav-list', ['essSecs' => ['top']])
@@ -310,14 +244,9 @@
             @endif
 @php $sb['timesheet'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Dropdown Reporting versi lengkap — memuat sub-grup Project & Support beserta Consultant Assignment dan Diagram Report. Buka/tutup digerakkan toggleSidebarDropdown() di bagian skrip bawah berkas ini. --}}
+
             @if($can('reporting'))
                 @php
-                    // Reporting dipisah jadi dua grup: Project & Support. Grup hanya
-                    // dirender kalau user punya minimal satu laporan di dalamnya —
-                    // tidak ada slug izin baru, murni pengelompokan visual.
-                    // Catatan: 'reporting/collection-outlook*' TIDAK dipakai untuk grup
-                    // Project karena wildcard-nya ikut menangkap collection-outlook-support.
                     $repCoProject     = Request::is('reporting/collection-outlook') || Request::is('reporting/collection-outlook/*');
                     $repProjectActive = $repCoProject || Request::is('reporting/consultant-assignment*');
                     $repSupportActive = Request::is('reporting')
@@ -337,7 +266,7 @@
                         || $can('reporting.resolution-days');
                 @endphp
                     @if($canRepProject)
-                    {{-- Reporting → Project --}}
+
                     <div>
                         <button onclick="toggleReportingProjectDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repProjectActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
@@ -367,7 +296,7 @@
                     </div>
                     @endif
                     @if($canRepSupport)
-                    {{-- Reporting → Support --}}
+
                     <div>
                         <button onclick="toggleReportingSupportDropdown()" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg w-full text-left {{ $repSupportActive ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                             <span class="nav-icon w-4 h-4 flex items-center justify-center">
@@ -394,9 +323,7 @@
                                 <span class="nav-text text-sm">MD Recap</span>
                             </a>
                         @endif
-                        {{-- "Collection Outlook" polos DIHAPUS dari grup Support: rute, slug, dan pola
-                             aktifnya sama dengan item di Project (menyala ganda, dan grup Support
-                             tertutup saat itu aktif). Versi Support = "(Support)" di bawah. --}}
+
                         @if($can('reporting.collection-outlook-support'))
                             <a href="{{ route('reporting.collection-outlook-support') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('reporting/collection-outlook-support*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -479,9 +406,7 @@
 @php $sb['partner'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('general.onboarding'))
-                {{-- <div class="sb-label nav-text">Human Capital</div> --}}
-                    {{-- Item datar tingkat atas: memakai gaya tingkat atas (dulu gaya anak dropdown,
-                         sehingga tampak "melayang" setelah Master). --}}
+
                     <div class="mb-2">
                         <a href="{{ route('general.onboarding.index') }}"
                             class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/onboarding*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -494,7 +419,7 @@
             @endif
 @php $sb['onboarding'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Contract (HC-D66) — contracts + templates as two tabs of one page; opens the first tab the person holds. --}}
+
             @if($can('general.contracts.list') || $can('general.contracts.templates'))
                 <div class="mb-2">
                     <a href="{{ route('general.contracts.index') }}"
@@ -509,7 +434,6 @@
 @php $sb['contracts'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
 
-            {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
             @if($can('finance.pph21.settings') || $can('finance.pph21.report'))
                 <div class="mb-2">
                     <a href="{{ route('finance.pph21.index') }}"
@@ -523,7 +447,7 @@
             @endif
 @php $sb['pph21'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Commercial & Finance → BPJS (Payroll Fase 2) — one hub; opens its first tab (Settings). --}}
+
             @if($can('finance.bpjs.settings') || $can('finance.bpjs.report') || $can('finance.bpjs.letters'))
                 <div class="mb-2">
                     <a href="{{ route('finance.bpjs.index') }}"
@@ -537,7 +461,7 @@
             @endif
 @php $sb['bpjs'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- General Affairs → Inventory & Assets — one hub (Overview | Inventory | Assets | Settings); opens the first tab the person holds. --}}
+
             @if($can('general.inventory.overview') || $can('general.inventory.items') || $can('general.inventory.assets') || $can('general.inventory.settings'))
                 <div class="mb-2">
                     <a href="{{ route('general.inventory.index') }}"
@@ -551,7 +475,7 @@
             @endif
 @php $sb['inventory'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Commercial & Finance → Payroll (Fase 3) — one hub; opens the first tab the person holds. --}}
+
             @if($can('finance.payroll.periods') || $can('finance.payroll.settings') || $can('finance.payroll.simulation'))
                 <div class="mb-2">
                     <a href="{{ route('finance.payroll.index') }}"
@@ -576,24 +500,11 @@
                         @endif
 @php $sb['leave'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 SATU baris untuk hub Attendance (D175) — dulunya DUA
-                             ("Attendance Recap" + "Attendance Corrections"), plus TIGA
-                             baris lagi di Management → HR & General (Branches, Shifts,
-                             Attendance Settings). Keenamnya kini tab di dalam satu hub;
-                             sidebar hanya perlu satu pintu masuk.
 
-                             Gerbangnya "ATAU" atas SELURUH enam slug — bukan cuma
-                             `general.attendance` — supaya orang yang HANYA memegang
-                             mis. Branches (tanpa Daily Recap) tetap melihat baris ini.
-                             Landasannya tab PERTAMA yang benar-benar ia pegang, mengikuti
-                             urutan yang sama dengan tab bar (hr-general/attendance/hub-tabs-attendance),
-                             sehingga tidak pernah melempar ke halaman yang menolaknya
-                             (pola yang sama dengan D172). --}}
                         @php
                             $attendanceGate = $can('general.attendance')
                                 || $can('general.attendance.monthly')
                                 || $can('general.attendance.correction')
-                                || $can('general.settings.branches')
                                 || $can('general.settings.shifts')
                                 || $can('general.settings.attendance')
                                 || $can('general');
@@ -602,7 +513,6 @@
                                 $can('general.attendance') || $can('general')            => route('general.attendance.daily'),
                                 $can('general.attendance.monthly')                       => route('general.attendance.monthly'),
                                 $can('general.attendance.correction')                    => route('general.attendance.corrections.index'),
-                                $can('general.settings.branches')                        => route('general.attendance.branches.index'),
                                 $can('general.settings.shifts')                          => route('general.attendance.shifts.index'),
                                 $can('general.settings.attendance')                      => route('general.attendance.settings.edit'),
                                 default                                                  => route('general.attendance.daily'),
@@ -619,15 +529,12 @@
                         @endif
 @php $sb['attendance'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 Label DISAMAKAN dengan `menu.name` (D174). Gerbang &
-                             landasannya DILEBARKAN untuk D175: dulu hanya
-                             `general.overtime` yang membuka baris ini, sehingga
-                             seseorang yang HANYA memegang Overtime Settings (kini tab
-                             kedua di hub yang sama) tidak akan melihat baris ini sama
-                             sekali — jalan satu-satunya menuju Settings hilang. --}}
+
                         @php
-                            $overtimeGate = $can('general.overtime') || $can('general.settings.overtime') || $can('general');
-                            $overtimeLanding = ($can('general.overtime') || $can('general'))
+                            $overtimeGate = $can('general.overtime') || $can('general.settings.overtime') || $can('general.approval-workflow.overtime') || $can('general')
+                                || app(\App\Services\Overtime\OvertimeService::class)->isDesignatedApprover((int) session('user.id'));
+                            $overtimeLanding = ($can('general.overtime') || $can('general')
+                                    || app(\App\Services\Overtime\OvertimeService::class)->isDesignatedApprover((int) session('user.id')))
                                 ? route('general.overtime.index')
                                 : route('general.overtime.settings.edit');
                         @endphp
@@ -642,12 +549,9 @@
                         @endif
 @php $sb['overtime'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 D177 — Gerbang & landasan DILEBARKAN, pola sama dengan
-                             Overtime di atas: Reimbursement Settings kini tab kedua di
-                             hub yang sama, jadi orang yang HANYA memegang slug
-                             setelannya tetap perlu jalan masuk lewat baris ini. --}}
+
                         @php
-                            $reimbursementGate = $can('general.reimbursement') || $can('general.settings.reimbursement') || $can('general');
+                            $reimbursementGate = $can('general.reimbursement') || $can('general.settings.reimbursement') || $can('general.approval-workflow.reimbursement') || $can('general');
                             $reimbursementLanding = ($can('general.reimbursement') || $can('general'))
                                 ? route('general.reimbursement.index')
                                 : route('general.reimbursement.settings.edit');
@@ -663,39 +567,29 @@
                         @endif
 @php $sb['reimbursement'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 D177 — sama seperti Reimbursement di atas. --}}
+
                         @php
-                            $purchaseRequestGate = $can('general.purchase-request') || $can('general.settings.purchase-request') || $can('general');
+                            $purchaseRequestGate = $can('general.purchase-request') || $can('general.purchase-order') || $can('general.settings.purchase-request') || $can('general.approval-workflow.purchase-request') || $can('general');
                             $purchaseRequestLanding = ($can('general.purchase-request') || $can('general'))
                                 ? route('general.purchase-request.index')
-                                : route('general.purchase-request.settings.edit');
+                                : ($can('general.purchase-order')
+                                    ? route('general.purchase-order.index')
+                                    : route('general.purchase-request.settings.edit'));
                         @endphp
                         @if($purchaseRequestGate)
                             <a href="{{ $purchaseRequestLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/purchase-request*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ (Request::is('general/purchase-request*') || Request::is('general/purchase-order*')) ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-5 h-5 flex items-center justify-center">
                                     <i class="fas fa-cart-shopping"></i>
                                 </span>
-                                <span class="nav-text font-medium">Purchase Request Management</span>
+                                <span class="nav-text font-medium">Purchase Management</span>
                             </a>
                         @endif
 @php $sb['purchase_request'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 Namanya memakai singkatan — "Cash Advance (CA)", bukan
-                             "Cash Advance" polos. Itulah PEMBEDA sisi admin dari item
-                             ESS bernama sama (Keputusan D142/D151); tanpanya, dua baris
-                             identik di layar Menu Access membuat pembagian izin jadi
-                             tebak-tebakan.
 
-                             🔴 D177 — Gerbang & landasan DILEBARKAN dengan
-                             `management.cash-advance-settings`: halaman itu kini tab
-                             kedua di hub ini (lihat routes/hr-general.php, blok Cash
-                             Advance Settings), meski URL & slug-nya TETAP di luar
-                             `general.*` (D141) — hanya tampilannya yang digabung. --}}
-                        @if($can('general.cash-advance') || $can('management.cash-advance-settings') || $can('general'))
-                            {{-- 🔴 Presisi, bukan `cash-advance*` (D161) — cacat yang
-                                 sama dengan sisi ESS: wildcard itu ikut menangkap
-                                 `cash-advance-report` dan menyalakan dua item. --}}
+                        @if($can('general.cash-advance') || $can('management.cash-advance-settings') || $can('management.approval-workflow.cash-advance') || $can('management.approval-workflow.cash-advance-report') || $can('general'))
+
                             @php
                                 $hrCaActive = Request::is('general/cash-advance')
                                     || Request::is('general/cash-advance/*')
@@ -714,11 +608,7 @@
                         @endif
 @php $sb['cash_advance'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 D179 — CAR TIDAK punya hub tab (D177 sengaja membiarkannya
-                             terpisah dari Cash Advance), jadi badge "menunggu saya"-nya
-                             ditaruh di baris sidebar ini langsung, bukan di sebuah tab.
-                             Dihitung HANYA saat gerbangnya lolos — pengguna yang tidak
-                             berhak atas baris ini tidak pernah memicu query-nya. --}}
+
                         @if($can('general.cash-advance-report') || $can('general'))
                             @php
                                 $carPending = count(app(\App\Services\CashAdvance\CashAdvanceReportService::class)
@@ -750,51 +640,8 @@
                         @endif
 @php $sb['kpi'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- 🔴 D180 — "Approval Workflow", di BAWAH grup ini (posisi
-                             disepakati pemilik sistem: konfigurasi berkala, bukan
-                             operasional harian). Gerbangnya SENGAJA TIDAK memakai
-                             `|| $can('general')` — kelima slug barunya (lihat migrasi
-                             2026_09_16_000001_add_approval_workflow_menus) memang
-                             dibuat supaya HANYA terlihat lewat pemberian manual,
-                             "pengawasan ketat" yang diminta secara eksplisit. Seorang
-                             pemegang `general` blanket TIDAK otomatis melihat baris
-                             ini — beda dari hampir seluruh baris lain di dropdown ini. --}}
-                        @php
-                            $approvalWorkflowGate = $can('general.approval-workflow.overtime')
-                                || $can('general.approval-workflow.reimbursement')
-                                || $can('general.approval-workflow.purchase-request')
-                                || $can('management.approval-workflow.cash-advance')
-                                || $can('management.approval-workflow.cash-advance-report');
 
-                            $approvalWorkflowLanding = match (true) {
-                                $can('general.approval-workflow.overtime')            => route('general.approval-workflow.overtime'),
-                                $can('general.approval-workflow.reimbursement')       => route('general.approval-workflow.reimbursement'),
-                                $can('general.approval-workflow.purchase-request')    => route('general.approval-workflow.purchase-request'),
-                                $can('management.approval-workflow.cash-advance')     => route('general.approval-workflow.cash-advance'),
-                                $can('management.approval-workflow.cash-advance-report') => route('general.approval-workflow.cash-advance-report'),
-                                default => route('general.approval-workflow.overtime'),
-                            };
-                        @endphp
-                        @if($approvalWorkflowGate)
-                            <a href="{{ $approvalWorkflowLanding }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/approval-workflow*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-list-check"></i>
-                                </span>
-                                <span class="nav-text font-medium">Approval Workflow</span>
-                            </a>
-                        @endif
-@php $sb['approval'] = ob_get_clean(); @endphp
-@php ob_start(); @endphp
-                        {{-- Rekrutmen — hub bertab (Dashboard / Selection Process / Schedule /
-                             Job Openings / Settings), mengikuti pola Attendance & Overtime:
-                             gerbangnya ATAU atas seluruh tab, landasannya tab PERTAMA
-                             yang benar-benar dipegang. --}}
                         @php
-                            // Offers is intentionally EXCLUDED here — it is its own sidebar
-                            // entry below, not a tab inside the Recruitment hub, so this
-                            // gate/landing/active-check must stay in sync with the five tabs
-                            // actually listed in hr-general/recruitment/components/hub-tabs.blade.php.
                             $recruitmentGate = $can('general.recruitment') || $can('general.recruitment.jobs')
                                 || $can('general.recruitment.candidates') || $can('general.recruitment.schedule')
                                 || $can('general.recruitment.settings');
@@ -825,10 +672,7 @@
                         @endif
 @php $sb['recruitment'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-                        {{-- Offering Letter — a standalone menu item with its own two tabs
-                             (Letters / Settings), deliberately NOT tabs inside the Recruitment
-                             hub, so it can be granted independently of the rest of the module.
-                             It lands on the first tab the person actually holds. --}}
+
                         @if($can('general.recruitment.offers') || $can('general.recruitment.offers.settings'))
                             <a href="{{ $can('general.recruitment.offers') ? route('general.recruitment.offers.index') : route('general.recruitment.offers.settings.edit') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/recruitment/offers*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -845,7 +689,6 @@
                             </a>
                         @endif
 
-                        {{-- Letter Templates — the letters hub; opens the first of its five tabs the person can view. --}}
                         @if($can('general.letters.dashboard') || $can('general.letters.requests') || $can('general.letters.register')
                             || $can('general.letters.compose') || $can('general.letter-templates'))
                             <a href="{{ route('general.letters.index') }}"
@@ -859,7 +702,7 @@
 @php $sb['letter_templates'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('business'))
-                <!-- BUSINESS DEV -->
+
                 <div class="mb-2">
                     <a href="{{ route('business') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('business') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -873,7 +716,7 @@
 @php $sb['business'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('tickets.inbox'))
-                <!-- TICKET -->
+
                 <div class="mb-2">
                     @php
                         $ticketActive = Request::is('ticket') || (Request::is('ticket/*') && !Request::is('ticket/task*') && !Request::is('ticket/consultant-workload*'));
@@ -890,7 +733,7 @@
 @php $sb['ticket'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('ticket.my-tasks'))
-                <!-- MY TASKS -->
+
                 <div class="mb-2">
                     <a href="{{ route('ticket.task') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/task*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -904,7 +747,7 @@
 @php $sb['my_tasks'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('ticket.consultant-workload'))
-                <!-- CONSULTANT WORKLOAD -->
+
                 <div class="mb-2">
                     <a href="{{ route('ticket.consultant-workload') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('ticket/consultant-workload*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -918,7 +761,7 @@
 @php $sb['workload'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('tickets.staging'))
-                <!-- TICKET VALIDATION -->
+
                 <div class="mb-2">
                     <a href="{{ route('staging.index') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('staging-tickets*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -939,7 +782,7 @@
 @php $sb['validation'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('delivery'))
-                <!-- DELIVERY Dropdown -->
+
                 <div class="mb-2">
                     <button onclick="toggleDeliveryDropdown()"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ Request::is('project*') || Request::is('planning*') || Request::is('issues*') || Request::is('delivery/support*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -975,7 +818,7 @@
 @php $sb['delivery'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('control-center'))
-                <!-- CONTROL CENTER -->
+
                 @php $adminOpen = Request::is('admin*'); @endphp
                 <div class="mb-2">
                     <button onclick="toggleAdminDropdown()"
@@ -1066,7 +909,7 @@
                 $canManageSla = isset($canManageSla) ? $canManageSla : $can('sla.config');
             @endphp
             @if($showSlaMenu || $canManageSla)
-                <!-- SLA Dropdown -->
+
                 @php $slaDropdownOpen = Request::is('sla*'); @endphp
                 <div class="mb-2">
                     <button onclick="toggleSlaDropdown()"
@@ -1106,7 +949,7 @@
                 $showRpmoMenu = isset($showRpmoMenu) ? $showRpmoMenu : ($can('rpmo') || $can('rpmo.overview'));
             @endphp
             @if($showRpmoMenu)
-                <!-- RPMO -->
+
                 @php $rpmoDropdownOpen = Request::is('rpmo*'); @endphp
                 <div class="mb-2">
                     <button onclick="toggleRpmoDropdown()"
@@ -1147,7 +990,7 @@
 @php $sb['rpmo'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             @if($can('legal'))
-                <!-- LEGAL -->
+
                 <div class="mb-2">
                     <a href="{{ route('legal') }}"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1160,19 +1003,9 @@
             @endif
 @php $sb['legal'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Dropdown Management.
 
-                 🔴 D177 — `$can('management.cash-advance-settings')` DICABUT dari
-                 kondisi ini. Sejak Keputusan D141 slug itu sengaja diperluas ke
-                 sini karena Cash Advance Settings dulu HANYA bisa dibuka lewat
-                 submenu Management → HR & General. Kini halaman itu juga jadi tab
-                 "Settings" di hub "Cash Advance (CA)" (lihat baris `general.
-                 cash-advance` di bawah, yang gerbangnya sudah diperluas dengan
-                 slug yang sama) — orang Finance yang HANYA memegang slug setelan
-                 ini tetap punya pintu masuk, tanpa perlu ikut melihat dropdown
-                 Management yang tidak relevan baginya. --}}
             @if($can('management'))
-                <!-- MANAJEMEN -->
+
                 <div class="mb-2">
                     <button onclick="toggleManajemenDropdown()"
                         class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left {{ (Request::is('management*') && !Request::is('management/cash-advance-settings*')) ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1218,6 +1051,15 @@
                                 <span class="nav-text text-sm">Holidays</span>
                             </a>
                         @endif
+                        @if($can('management.branches'))
+                            <a href="{{ route('management.branches.index') }}"
+                                class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/branches*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                                <span class="nav-icon w-4 h-4 flex items-center justify-center">
+                                    <i class="fas fa-building text-xs"></i>
+                                </span>
+                                <span class="nav-text text-sm">Branches</span>
+                            </a>
+                        @endif
                         @if($can('management.hidden-tickets'))
                             <a href="{{ route('management.hidden-tickets.index') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('management/hidden-tickets*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1227,13 +1069,7 @@
                                 <span class="nav-text text-sm">Hidden Tickets</span>
                             </a>
                         @endif
-                        {{-- 🔴 D177 — Submenu "HR & General" DIHAPUS. Reimbursement/Purchase
-                             Request/Cash Advance Settings (yang terakhir menghuninya setelah
-                             D175 memindahkan Branches/Shifts/Attendance/Overtime Settings)
-                             kini masing-masing jadi tab "Settings" di hub-nya sendiri —
-                             Reimbursement Management, Purchase Request Management, dan
-                             Cash Advance (CA) — persis pola D175. Submenu ini jadi kosong
-                             begitu ketiganya pindah, jadi dihapus, bukan dibiarkan hampa. --}}
+
                         @if($can('management.employee'))
                             <div class="mt-1">
                                 <button onclick="toggleMasterMgmtDropdown()"
@@ -1335,24 +1171,18 @@
             @endif
 @php $sb['management'] = ob_get_clean(); @endphp
 
-            {{-- ===== SUSUNAN SIDEBAR (seksi berjudul, bisa dilipat; default terbuka) =====
-                 Tiap blok menu di atas ditangkap ke $sb[...] LALU dirakit di sini menurut seksi. Gerbang izin,
-                 alamat, dan pola aktif tiap menu TIDAK diubah — hanya letaknya. Seksi tanpa satu pun menu yang
-                 lolos gerbang tidak dirender (judulnya ikut hilang). Urutan: harian → HR → keuangan → pekerjaan →
-                 alat → bisnis → laporan (di bawah) → administrasi. Bukti "tidak ada menu hilang":
-                 docs/humancapital/tools/snapshot-sidebar.php --}}
             @php
                 $sbSections = [
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
-                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
+                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
                     ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],
                     ['id' => 'Reporting', 'title' => 'Reporting',           'icon' => 'chart-histogram', 'keys' => ['reporting']],
-                    ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'approval', 'control_center']],
+                    ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'control_center']],
                 ];
             @endphp
 
@@ -1365,11 +1195,10 @@
                 @endif
             @endforeach
 
-            <!-- Divider -->
             <div class="my-6 border-t border-white border-opacity-10"></div>
             @php ob_start(); @endphp
             <div class="sb-sec-body sb-solo">
-            <!-- SETTINGS - Visible to all roles -->
+
             <div class="mb-2">
                 <a href="{{ route('settings.index') }}"
                     class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('settings*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
@@ -1383,9 +1212,9 @@
             @php echo \App\Support\SidebarIcons::apply(ob_get_clean()); @endphp
         </nav>
     @endif
-    </div>{{-- /#sidebarScroll --}}
+    </div>
     @unless($__env->hasSection('sidebar-nav'))
-    {{-- Pilihan tampilan: penuh <-> rail ikon (per perangkat; hanya layar lebar). Lihat sbApplyLayout(). --}}
+
     <div class="sb-footer">
         <button type="button" id="sidebarLayoutToggle" class="sb-footer-btn" onclick="toggleSidebarLayout()"
             aria-pressed="false" title="Collapse to icons" aria-label="Collapse to icons">
@@ -1397,8 +1226,6 @@
 </aside>
 
 <style>
-    /* HC: pencarian menu & gulir sidebar. ID (#sidebar) menang spesifisitas atas aturan
-       generik input dark mode di layout (`input { background:#374151 !important }`). */
     #sidebar #sidebarSearch {
         background-color: rgba(255, 255, 255, 0.12) !important;
         color: #ffffff !important;
@@ -1407,23 +1234,20 @@
     #sidebar #sidebarSearch::placeholder { color: rgba(255, 255, 255, 0.6) !important; }
     #sidebar #sidebarSearch::-webkit-search-cancel-button { display: none; }
     #sidebar .sb-hide { display: none !important; }
-    {{-- Ikon pin (dulu bintang) — HANYA tampilannya yang berganti, mekanisme
-         penyimpanan (tabel user_menu_favorites, HC-D25) tidak disentuh. --}}
+    #sidebar a.nav-link { position: relative; }
+    #sidebar a.nav-link > .nav-text { min-width: 0; overflow-wrap: anywhere; }
     #sidebar .sb-pin {
-        margin-left: auto; padding: 2px 4px; border-radius: 6px; font-size: 12px; line-height: 1;
+        flex: 0 0 auto; margin-left: auto; padding: 2px 4px; border-radius: 6px; font-size: 12px; line-height: 1;
         color: rgba(255, 255, 255, 0.75); opacity: 0; cursor: pointer; transition: opacity .15s;
     }
-    #sidebar a.nav-link { position: relative; }
-    #sidebar .sb-pin:not(.on) { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); margin: 0; }
     #sidebar a.nav-link:hover .sb-pin, #sidebar .sb-pin:focus, #sidebar .sb-pin.on { opacity: 1; }
     #sidebar .sb-pin.on { color: #fde047; }
     #sidebar .sb-pin:hover { background: rgba(255, 255, 255, 0.18); }
     @media (hover: none) { #sidebar .sb-pin { opacity: .55; } #sidebar .sb-pin.on { opacity: 1; } }
+    html[data-sb-layout="rail"] #sidebar .sb-pin { display: none; }
     #sidebarScroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.35) transparent; }
     #sidebarScroll::-webkit-scrollbar { width: 6px; }
     #sidebarScroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.35); border-radius: 9999px; }
-    /* Seksi berjudul yang bisa dilipat. Semua baris menu tingkat-seksi disamakan ukurannya di sini
-       (sebelumnya campur py-3/py-2.5, ikon w-4/w-5) tanpa menyentuh baris bersarang di dalam dropdown. */
     #sidebar .sb-sec { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid rgba(255, 255, 255, 0.08); }
     #sidebar .sb-sec-btn {
         display: flex; align-items: center; width: 100%; padding: .375rem 1rem; text-align: left;
@@ -1451,16 +1275,11 @@
     #sidebar .sb-sec-body > a.nav-link.text-opacity-70,
     #sidebar .sb-sec-body > div > a.nav-link.text-opacity-70,
     #sidebar .sb-sec-body > div > button.nav-link.text-opacity-70 { --tw-text-opacity: .8; }
-    /* Penanda menu AKTIF: tegas tetapi NETRAL (putih transparan + garis di tepi kiri) sehingga tetap serasi
-       di warna Accent / gaya sidebar apa pun. Bayangan berwarna-tema bawaan (.nav-link.active) dimatikan di
-       sini. Induk dropdown yang anaknya aktif dibuat lebih lembut agar HALAMAN yang dibuka paling menonjol. */
     #sidebar a.nav-link.active,
     #sidebar a.nav-link.bg-opacity-15 {
         position: relative; background-color: rgba(255, 255, 255, 0.24) !important;
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16) !important;
     }
-    /* Aksen emas HANYA sebagai penanda tipis (garis kiri + ikon aktif); teks tetap putih supaya kontras terjaga
-       (emas di atas teal hanya ±2,6:1, terlalu rendah untuk teks). Satu variabel untuk seluruh sidebar. */
     #sidebar { --sb-accent: #f2c14e; }
     #sidebar a.nav-link.active::before,
     #sidebar a.nav-link.bg-opacity-15::before {
@@ -1472,12 +1291,10 @@
     #sidebar a.nav-link.active .nav-text,
     #sidebar a.nav-link.bg-opacity-15 .nav-text { font-weight: 600; }
     #sidebar button.nav-link.active { background-color: rgba(255, 255, 255, 0.11) !important; box-shadow: none !important; }
-    /* Lencana angka "perlu tindakan" — satu gaya untuk CAR, Offering Letter, Ticket Validation. */
     #sidebar .sb-badge {
         background: #fde68a; color: #78350f; font-size: 10px; font-weight: 700; line-height: 1;
         padding: 3px 7px; border-radius: 9999px; min-width: 20px; text-align: center;
     }
-    /* Titik di judul seksi TERLIPAT yang di dalamnya ada lencana (supaya tindakan tak terlewat). */
     #sidebar .sb-dot {
         width: 6px; height: 6px; margin-right: .5rem; border-radius: 9999px; background: #fbbf24;
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.25); flex-shrink: 0;
@@ -1489,17 +1306,11 @@
     }
     #sidebar .sb-toggle-all:hover { color: #fff; background: rgba(255, 255, 255, 0.12); }
     #sidebar .sb-toggle-all:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.5); outline-offset: -2px; }
-    /* Ikon sidebar satu keluarga (outline, garis 1.75), mewarisi warna teks. UKURAN ditetapkan di sini sendiri
-       (bukan lewat kelas Tailwind): bila Tailwind dari CDN gagal dimuat (sinyal buruk) ikon tetap sebesar ikon,
-       tidak menjadi raksasa. Baris bersarang (kotak ikon w-3/w-4) memakai 1rem. */
     .sb-ico {
         display: block; flex-shrink: 0; width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor;
         stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round;
     }
     .nav-icon.w-3 > .sb-ico, .nav-icon.w-4 > .sb-ico { width: 1rem; height: 1rem; }
-    /* ===== Mode RAIL (ikon + panel kedua). Hanya layar lebar (>=1024px); layar kecil tetap laci penuh. =====
-       Lebar rail = 5rem (setara kelas w-20 yang sudah dipahami halaman Delivery untuk menggeser navigasi seksi).
-       Tombol hamburger di header tetap menyembunyikan/menampilkan sidebar seperti biasa. */
     .sb-sec-icon, .sb-rail-only { display: none; }
     .sb-footer { flex-shrink: 0; padding: .5rem .75rem; border-top: 1px solid rgba(255, 255, 255, 0.10); }
     .sb-footer-btn {
@@ -1514,7 +1325,6 @@
         html[data-sb-layout="rail"] #mainContent.lg\:ml-64 { margin-left: 5rem; }
         html[data-sb-layout="rail"] #sidebar #sidebarScroll { overflow: visible; }
         html[data-sb-layout="rail"] #sidebar #sidebarHeader { padding-left: .75rem; padding-right: .75rem; }
-        /* logo: tampilkan hanya lambang "E" di kiri */
         html[data-sb-layout="rail"] #sidebar .sidebar-logo > div { width: 2.35rem; padding: 0; margin: 0 auto; overflow: hidden; }
         html[data-sb-layout="rail"] #sidebar .sidebar-logo img { width: 7.5rem; max-width: none; max-height: none; }
         html[data-sb-layout="rail"] #sidebar .sb-search-row { display: none; }
@@ -1523,11 +1333,9 @@
             border-radius: .75rem; color: rgba(255, 255, 255, 0.8); transition: background-color .15s;
         }
         html[data-sb-layout="rail"] #sidebar .sb-rail-only:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
-        /* Dashboard & Settings: hanya ikon */
         html[data-sb-layout="rail"] #sidebar .sb-solo .nav-text,
         html[data-sb-layout="rail"] #sidebar .sb-solo .sb-pin { display: none; }
         html[data-sb-layout="rail"] #sidebar .sb-solo a.nav-link { justify-content: center; padding-left: 0; padding-right: 0; }
-        /* judul seksi -> tombol ikon */
         html[data-sb-layout="rail"] #sidebar .sb-sec { margin-top: .25rem; padding-top: .25rem; }
         html[data-sb-layout="rail"] #sidebar .sb-sec-btn {
             position: relative; justify-content: center; width: 3rem; height: 2.75rem; margin: 0 auto; padding: 0;
@@ -1542,11 +1350,8 @@
             content: ''; position: absolute; left: -.5rem; top: 22%; bottom: 22%; width: 3px; border-radius: 0 3px 3px 0; background: var(--sb-accent, #f2c14e);
         }
         html[data-sb-layout="rail"] #sidebar .sb-dot { position: absolute; top: .45rem; right: .55rem; margin: 0; }
-        /* panel kedua: isi seksi muncul di sebelah rail */
         html[data-sb-layout="rail"] #sidebar .sb-sec > .sb-sec-body { display: none !important; }
         html[data-sb-layout="rail"] #sidebar .sb-sec.rail-open > .sb-sec-body {
-            /* Panel ringkas: setinggi isinya dan sejajar dengan ikon yang diklik (top diisi sbToggleFlyout),
-               bukan memanjang selayar penuh. */
             display: block !important; position: absolute; left: calc(100% + .375rem); top: var(--fly-top, 0px); bottom: auto;
             width: 15.5rem; margin: 0; padding: .5rem; max-height: var(--fly-max, 80vh); overflow-y: auto; z-index: 60;
             background: var(--primary-surface); border: 1px solid rgba(255, 255, 255, 0.14);
@@ -1560,7 +1365,6 @@
         html[data-sb-layout="rail"] #sidebar .sb-footer-btn { justify-content: center; width: 3rem; margin: 0 auto; padding: .5rem 0; }
         html[data-sb-layout="rail"] #sidebar .sb-footer-label { display: none; }
     }
-    /* Label seksi (mis. HUMAN CAPITAL) */
     #sidebar .sb-label {
         font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
         color: rgba(255, 255, 255, 0.55); padding: 14px 16px 4px;
@@ -1568,15 +1372,8 @@
 </style>
 
 <script>
-    /**
-     * Seksi sidebar yang bisa dilipat (default terbuka). Keadaan lipat diingat per peramban (localStorage),
-     * terpisah dari dropdown (sessionStorage). Seksi yang memuat halaman AKTIF tidak pernah dilipat saat
-     * dimuat, supaya menu tempat pengguna berada tidak lenyap. Selama pencarian, kelas `hidden` seksi
-     * dibuka/dikembalikan oleh pencarian sendiri — tidak lewat fungsi ini, jadi tidak tersimpan.
-     */
     var SB_SEC_KEY = 'ecosystem:sidebar:sections:v1';
     function sbSecRead() { try { return JSON.parse(localStorage.getItem(SB_SEC_KEY)) || {}; } catch (e) { return {}; } }
-    // ---- Mode RAIL: pilihan per perangkat. Hanya berlaku di layar lebar (CSS) & halaman yang mengizinkan.
     var SB_LAYOUT_KEY = 'ecosystem:sidebar:layout:v1';
     function sbIsRail() { return document.documentElement.getAttribute('data-sb-layout') === 'rail'; }
     function sbRailAllowed() { var a = document.getElementById('sidebar'); return !!a && a.getAttribute('data-rail') !== 'off'; }
@@ -1597,8 +1394,6 @@
         sec.querySelector('.sb-sec-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
         if (open) { sbPlaceFlyout(sec); }
     }
-    // Sejajarkan panel dengan ikon yang diklik; bila isinya lebih tinggi dari sisa ruang di bawah, geser ke atas
-    // seperlunya (tidak pernah keluar layar) dan batasi tingginya.
     function sbPlaceFlyout(sec) {
         var body = sec.querySelector('.sb-sec-body'), btn = sec.querySelector('.sb-sec-btn'), aside = document.getElementById('sidebar');
         if (!body || !btn || !aside) { return; }
@@ -1615,7 +1410,6 @@
         if (rail) { document.documentElement.setAttribute('data-sb-layout', 'rail'); }
         else { document.documentElement.removeAttribute('data-sb-layout'); }
         sbCloseFlyouts();
-        // tooltip (judul seksi & item mandiri) hanya saat rail; di tampilan penuh teksnya sudah terlihat
         sbSections().forEach(function (sec) {
             var btn = sec.querySelector('.sb-sec-btn');
             var title = sec.querySelector('.sb-sec-title');
@@ -1659,7 +1453,6 @@
         } catch (e) { /* penyimpanan dinonaktifkan: lipat tetap bekerja, hanya tak diingat */ }
     }
     function sbSections() { return Array.prototype.slice.call(document.querySelectorAll('#sidebar .sb-sec')); }
-    // Titik "perlu tindakan" pada seksi terlipat + ikon/label tombol buka-tutup semua mengikuti keadaan seksi.
     function sbRefreshSections() {
         var anyOpen = false;
         sbSections().forEach(function (sec) {
@@ -1688,7 +1481,6 @@
             if (collapse) { c[sec.getAttribute('data-sec')] = 1; }
         });
         try { localStorage.setItem(SB_SEC_KEY, JSON.stringify(c)); } catch (e) { /* tak diingat saja */ }
-        // Setelah "tutup semua" tampilkan daftar dari atas (posisi gulir lama tak berlaku lagi).
         var sc = document.getElementById('sidebarScroll');
         if (collapse && sc) { sc.scrollTop = 0; }
     }
@@ -1699,8 +1491,6 @@
             if (body && !body.querySelector('a.nav-link.active, a.nav-link.bg-opacity-15')) { body.classList.add('hidden'); }
         });
         sbApplyLayout(sbIsRail(), false); // tooltip/tombol footer sesuai mode yang sudah dipasang lebih awal
-        // Segarkan setiap kali seksi dilipat/dibuka (klik, pencarian, "semua") atau lencana muncul/hilang
-        // (mis. badge Ticket Validation diperbarui skrip halaman lain lewat kelas `hidden`).
         if (window.MutationObserver) {
             var ob = new MutationObserver(sbRefreshSections);
             document.querySelectorAll('#sidebar .sb-sec-body, #sidebar .sb-badge').forEach(function (el) {
@@ -1711,14 +1501,6 @@
 </script>
 
 <script>
-    /**
-     * Pencarian menu sidebar. Menyaring tautan (`a.nav-link`) di dalam #sidebarScroll:
-     *  - yang cocok tetap tampil, induk dropdown-nya DIBUKA otomatis;
-     *  - blok tingkat atas tanpa tautan cocok disembunyikan (label seksi ikut);
-     *  - bila NAMA grup yang cocok (mis. "hr"), seluruh isi grup ditampilkan;
-     *  - dikosongkan / Esc → keadaan dropdown dikembalikan persis seperti sebelum mencari.
-     * Enter membuka tautan cocok pertama.
-     */
     (function () {
         var input = document.getElementById('sidebarSearch');
         var scroll = document.getElementById('sidebarScroll');
@@ -1753,9 +1535,6 @@
 
             function has(el) { return (el.textContent || '').toLowerCase().indexOf(q) !== -1; }
 
-            // Sebuah tautan cocok bila teksnya cocok, ATAU nama grup dropdown yang
-            // MEMBUNGKUSNYA cocok (tombol toggle = saudara sebelum wadah dropdown).
-            // Nama sub-grup hanya mencocokkan isinya sendiri, bukan grup induknya.
             function linkMatches(a) {
                 if (has(a)) { return true; }
                 for (var p = a.parentElement; p && p !== scroll; p = p.parentElement) {
@@ -1775,13 +1554,11 @@
                 }
             });
 
-            // Tombol toggle grup yang isinya tak ada yang cocok ikut disembunyikan.
             scroll.querySelectorAll('button.nav-link').forEach(function (b) {
                 var box = b.nextElementSibling;
                 if (box && !box.querySelector('a.nav-link:not(.sb-hide)')) { b.classList.add('sb-hide'); }
             });
 
-            // Blok tingkat atas (dan label seksi) tanpa satu pun tautan tampil disembunyikan.
             topBlocks().forEach(function (block) {
                 var shown = block.matches('a.nav-link')
                     ? !block.classList.contains('sb-hide')
@@ -1802,17 +1579,6 @@
         clearBtn.addEventListener('click', function () { input.value = ''; apply(); input.focus(); });
     })();
 
-    /**
-     * FAVORIT (HC-D25, kotak ringkasan dipindah ke Command Center di HC-D36).
-     * Ikon pin muncul saat menu di-hover/fokus (ikonnya sendiri diganti dari
-     * bintang ke thumbtack — lihat komentar makePin() di bawah); klik
-     * menyematkan/melepas menu lewat `/sidebar/favorites` (maks.
-     * window.__sidebarFavoritesMax). Tampilan daftar favorit sendiri kini
-     * HANYA di tab "Favorite" Command Center (Dashboard) — lihat
-     * `window.SidebarFavorites` di bawah, API yang dipakai halaman itu.
-     *  - Yang disimpan hanya JALUR URL; validasinya di server (lihat SidebarFavoriteService).
-     *  - Simpan ke server semantik "replace"; bila gagal, keadaan dikembalikan + pemberitahuan.
-     */
     (function () {
         var scroll = document.getElementById('sidebarScroll');
         if (!scroll || !window.__sidebarFavoritesEnabled) { return; }
@@ -1833,11 +1599,6 @@
 
         var links = Array.prototype.slice.call(scroll.querySelectorAll('a.nav-link')).filter(function (a) { return pathOf(a) !== null; });
 
-        // Ikon pin (bukan bintang) — permintaan pemilik sistem. SATU gaya ikon
-        // untuk kedua keadaan (fa-thumbtack TIDAK punya varian "regular"/garis
-        // di Font Awesome Free, beda dari fa-star yang punya), dibedakan lewat
-        // warna+opacity lewat class `.on` (lihat CSS `.sb-pin.on`) — bukan lewat
-        // ganti ikon, supaya tidak pernah menampilkan ikon yang hilang.
         function makePin(on) {
             var s = document.createElement('span');
             s.className = 'sb-pin' + (on ? ' on' : '');
@@ -1857,17 +1618,12 @@
         }
 
         function render() {
-            // Pin pada tautan utama — satu-satunya tampilan favorit yang tersisa
-            // di sidebar sendiri (HC-D36: kotak ringkasan pindah ke Command Center).
             links.forEach(function (a) {
                 var old = a.querySelector('.sb-pin');
                 if (old) { old.remove(); }
                 a.appendChild(makePin(favs.indexOf(pathOf(a)) !== -1));
             });
 
-            // Beri tahu bagian lain halaman (Command Center di Dashboard) bahwa
-            // daftar favorit berubah, supaya mereka menyegarkan tampilannya sendiri
-            // tanpa reload.
             window.dispatchEvent(new CustomEvent('sidebar:favorites-changed', { detail: { favorites: favs.slice() } }));
         }
 
@@ -1897,7 +1653,6 @@
             if (idx !== -1) {
                 favs.splice(idx, 1);
             } else {
-                // Buang dulu favorit yang tautannya sudah tak ada (izin dicabut) agar tidak memakan kuota diam-diam.
                 favs = favs.filter(existsInSidebar);
                 if (favs.length >= MAX) {
                     favs = previous;
@@ -1925,9 +1680,6 @@
             if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('sb-pin')) { pinClick(e); }
         }, true);
 
-        // HC-D36 — API publik minimal supaya Command Center (Dashboard) bisa
-        // menyematkan/melepas menu lewat jalur yang SAMA (kuota, simpan ke
-        // server, kembalikan keadaan bila gagal) tanpa menduplikasi logikanya.
         window.SidebarFavorites = {
             toggle: toggleFavorite,
             list: function () { return favs.slice(); },
@@ -1937,17 +1689,6 @@
         render();
     })();
 
-    /**
-     * Sidebar TIDAK kembali ke atas setelah pindah halaman. Halaman dimuat ulang penuh
-     * (bukan SPA), sehingga posisi gulir #sidebarScroll dan dropdown yang dibuka manual
-     * hilang setiap klik menu. Keadaan disimpan di sessionStorage (per tab; bersih saat
-     * tab ditutup) dan dipulihkan SINKRON sebelum browser melukis halaman — tanpa kedipan.
-     *  1. dropdown yang dibuka manual dibuka kembali;
-     *  2. posisi gulir dipulihkan;
-     *  3. item AKTIF dipastikan terlihat (mis. kunjungan pertama, atau membuka URL langsung).
-     * Posisi TIDAK disimpan selama kolom pencarian terisi (daftar sedang tersaring, jadi
-     * posisinya tidak berlaku pada daftar penuh di halaman berikutnya).
-     */
     (function () {
         var KEY = 'ecosystem:sidebar:v1';
         var scroll = document.getElementById('sidebarScroll');
@@ -1965,7 +1706,6 @@
 
         var state = load();
 
-        // 1. Buka kembali dropdown yang dibuka manual (server hanya membuka grup halaman aktif).
         var open = state.open || {};
         Object.keys(open).forEach(function (dropdownId) {
             var box = document.getElementById(dropdownId);
@@ -1975,10 +1715,8 @@
             if (chevron && !chevron.classList.contains('rotate-180')) { chevron.classList.add('rotate-180'); }
         });
 
-        // 2. Pulihkan posisi gulir.
         if (typeof state.scroll === 'number') { scroll.scrollTop = state.scroll; }
 
-        // 3. Pastikan item aktif terlihat.
         var active = scroll.querySelector('a.nav-link.bg-opacity-15, a.nav-link.active');
         if (active) {
             var r = active.getBoundingClientRect();
@@ -1996,8 +1734,6 @@
         }, { passive: true });
         window.addEventListener('pagehide', function () { if (!searching()) { save({ scroll: scroll.scrollTop }); } });
 
-        // Chevron milik sebuah dropdown = elemen ber-id `*Chevron` di tombol toggle-nya
-        // (saudara sebelum wadah dropdown).
         function chevronOf(box) {
             var btn = box.previousElementSibling;
             var ch = btn && btn.querySelector ? btn.querySelector('[id$="Chevron"]') : null;
@@ -2005,9 +1741,6 @@
         }
         var boxes = scroll.querySelectorAll('[id$="Dropdown"], [id$="Submenu"]');
 
-        // Catat setiap buka/tutup dropdown dengan MENGAMATI kelas `hidden` di DOM — cara ini
-        // menjangkau klik, pemulihan, maupun pencarian tanpa mengait ke satu fungsi toggle.
-        // Selama pencarian aktif perubahan diabaikan (pencarian membuka grup sementara).
         if (window.MutationObserver) {
             var observer = new MutationObserver(function (mutations) {
                 if (searching()) { return; }
@@ -2026,14 +1759,6 @@
 </script>
 
 <script>
-    /**
-     * Buka/tutup dropdown sidebar — SATU sumber kebenaran: kelas `hidden` pada wadah dropdown.
-     * Chevron (`rotate-180` bila terbuka) dan `aria-expanded` pada tombolnya DISINKRONKAN
-     * otomatis oleh pengamat di bawah, apa pun yang membuka/menutup wadah (klik, pemulihan
-     * sessionStorage, pencarian menu). Dulu tiap grup punya fungsi + variabel status sendiri
-     * di dashboard.blade.php yang menimpa fungsi di sini — chevron tidak berputar / terbalik.
-     * Argumen kedua (id chevron) dipertahankan agar pemanggil lama tetap valid; diabaikan.
-     */
     function toggleSidebarDropdown(dropdownId) {
         var box = document.getElementById(dropdownId);
         if (box) { box.classList.toggle('hidden'); }
@@ -2046,8 +1771,6 @@
     function toggleSlaDropdown() { toggleSidebarDropdown('slaDropdown'); }
     function toggleRpmoDropdown() { toggleSidebarDropdown('rpmoSubmenu'); }
     function toggleManajemenDropdown() { toggleSidebarDropdown('manajemenDropdown'); }
-    // D182 — SATU fungsi generik untuk SELURUH grup ESS yang admin buat lewat
-    // Management -> ESS Settings; jumlah dan nama grupnya ditentukan admin saat dipakai.
     function toggleEssGroupDropdown(groupId) { toggleSidebarDropdown('essGroup' + groupId + 'Dropdown'); }
     function toggleMasterMgmtDropdown() { toggleSidebarDropdown('masterMgmtDropdown'); }
 
@@ -2055,7 +1778,6 @@
         var scroll = document.getElementById('sidebarScroll');
         if (!scroll) { return; }
 
-        // Tombol pembuka = saudara SEBELUM wadah; chevron = elemen ber-id `*Chevron` di dalamnya.
         function sync(box) {
             var btn = box.previousElementSibling;
             if (!btn || !btn.querySelector) { return; }

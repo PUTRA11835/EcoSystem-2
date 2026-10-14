@@ -115,7 +115,7 @@
                         <th class="px-4 py-3">Attendance</th>
                         <th class="px-4 py-3">Reason</th>
                         <th class="px-4 py-3">Approval</th>
-                        @if($can('general.overtime.approve'))
+                        @if($canAct)
                         <th class="px-4 py-3 w-80">Action</th>
                         @endif
                     </tr>
@@ -233,7 +233,7 @@
                             @endforeach
                         </td>
 
-                        @if($can('general.overtime.approve'))
+                        @if($canAct)
                         <td class="px-4 py-3">
                             @if($request->isOpen() && $isMine)
                             <form method="POST" action="{{ route('general.overtime.approve', $request) }}"

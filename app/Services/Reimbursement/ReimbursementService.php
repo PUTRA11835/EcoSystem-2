@@ -40,8 +40,6 @@ use Illuminate\Support\Facades\Log;
  */
 class ReimbursementService
 {
-    public const DIRECTOR_STEP_NAME = 'Director Approval';
-
     public function __construct(private ReimbursementTotalService $totals)
     {
     }
@@ -68,15 +66,6 @@ class ReimbursementService
         }
 
         $currency = $this->resolveCurrency($payload['currency'] ?? null);
-
-        $approverId = $this->resolveApprover($payload['approver_id'] ?? null, $settings);
-        if ($approverId === false) {
-            return [
-                'allowed' => false,
-                'reason'  => 'Choose which director will approve this reimbursement.',
-                'request' => null,
-            ];
-        }
 
         $items = $this->normaliseItems($payload['items'] ?? [], $currency);
 
@@ -116,13 +105,29 @@ class ReimbursementService
             ];
         }
 
+        // Langkah yang dipilih pemohon WAJIB terisi, dengan kandidat langkahnya.
+        $choices = $this->resolveChoices($steps, $payload['step_approver'] ?? []);
+        if ($choices === null) {
+            return [
+                'allowed' => false,
+                'reason'  => 'Choose who will act on every step marked "chosen by requester".',
+                'request' => null,
+            ];
+        }
+
+        // Kolom "Approver" di rekap: orang yang dipilih pada langkah bertanda
+        // approver (atau langkah pilihan pertama bila tidak ada yang bertanda).
+        $approverStep = $steps->first(fn ($st) => isset($choices[$st->order_seq]) && $st->signs_as === ReimbursementApprovalStep::SIGNS_APPROVER)
+            ?? $steps->first(fn ($st) => isset($choices[$st->order_seq]));
+        $approverId = $approverStep ? $choices[$approverStep->order_seq] : null;
+
         $flags = $evaluated['flags'];
         if ($createdBy !== null && $createdBy !== $employeeId) {
             $flags[] = ReimbursementRequest::FLAG_CREATED_ON_BEHALF;
         }
 
         $request = DB::transaction(function () use (
-            $employeeId, $createdBy, $date, $payload, $items, $evaluated, $flags, $steps, $currency, $approverId
+            $employeeId, $createdBy, $date, $payload, $items, $evaluated, $flags, $steps, $currency, $approverId, $choices
         ) {
             $request = ReimbursementRequest::create([
                 'request_no'        => $this->nextRequestNo($date),
@@ -145,10 +150,16 @@ class ReimbursementService
             ]);
 
             $this->writeItems($request, $items);
-            $this->snapshotSteps($request, $steps, $approverId);
+            $this->snapshotSteps($request, $steps, $choices);
 
             return $request;
         });
+
+        // Tanda tangan pemohon dari master data, bila ada (tidak menghalangi).
+        $requesterSignature = $this->copySignature($employeeId, 'reimbursement-signatures/' . $request->id);
+        if ($requesterSignature !== null) {
+            $request->update(['requester_signature_path' => $requesterSignature]);
+        }
 
         $fresh = $request->fresh(['items', 'approvals']);
         $firstStep = $fresh->currentApproval();
@@ -385,7 +396,21 @@ class ReimbursementService
         /** @var ReimbursementRequestApproval $approval */
         $approval = $gate['approval'];
 
-        $completed = DB::transaction(function () use ($request, $approval, $actorId, $payload) {
+        // Menyetujui = menandatangani: tanda tangan aktor dari master data
+        // disalin ke langkah ini. Tanpa tanda tangan, tindakannya ditolak —
+        // dokumen yang dicetak tidak boleh memuat persetujuan tanpa tanda tangan.
+        $signature = $this->copySignature($actorId, 'reimbursement-signatures/' . $request->id);
+
+        if ($signature === null) {
+            return [
+                'allowed'   => false,
+                'reason'    => 'Your signature is not in the employee master data yet, so this document cannot be signed. '
+                             . 'Ask HR to upload it in your employee profile.',
+                'completed' => false,
+            ];
+        }
+
+        $completed = DB::transaction(function () use ($request, $approval, $actorId, $payload, $signature) {
             if ($actorId === (int) $request->employee_id) {
                 $this->addFlag($request, ReimbursementRequest::FLAG_SELF_APPROVED);
             }
@@ -399,6 +424,8 @@ class ReimbursementService
                 'acted_by' => $actorId,
                 'acted_at' => now(),
                 'notes'    => $payload['notes'] ?? null,
+                'signature_path' => $signature,
+                'signed_at'      => now(),
             ]);
 
             $next = $request->approvals()
@@ -595,10 +622,43 @@ class ReimbursementService
             'items.*.receipt_no'        => $settings->require_receipt_no
                                             ? ['required', 'string', 'max:50']
                                             : ['nullable', 'string', 'max:50'],
-            'items.*.receipt_date_from' => ['required', 'date'],
+            'items.*.receipt_date_from' => ['required', 'date', $this->receiptDateRule($settings, $input)],
             'items.*.receipt_date_to'   => ['nullable', 'date', $this->dateOrderRule($input)],
             'items.*.amount'            => ['required', 'numeric', 'min:0.01'],
         ];
+    }
+
+    /**
+     * Tanggal nota terhadap tanggal pengajuan: tidak boleh SETELAH tanggal
+     * pengajuan (biaya yang belum terjadi tidak punya nota), dan — bila
+     * pengaturannya `block` — tidak boleh lebih tua dari batas hari.
+     * Bila pengaturannya `flag`, nota tua tetap diterima dan hanya ditandai
+     * (lihat ReimbursementTotalService).
+     */
+    private function receiptDateRule(ReimbursementSetting $settings, array $input): \Closure
+    {
+        return function (string $attribute, $value, \Closure $fail) use ($settings, $input) {
+            $requestDate = $input['request_date'] ?? null;
+
+            if (!$value || !$requestDate || !strtotime((string) $requestDate)) {
+                return;
+            }
+
+            $receipt = Carbon::parse($value)->startOfDay();
+            $request = Carbon::parse($requestDate)->startOfDay();
+
+            if ($receipt->greaterThan($request)) {
+                $fail('The receipt date cannot be later than the request date.');
+                return;
+            }
+
+            if ($settings->blocksOldReceipt()
+                && $receipt->lessThan($request->copy()->subDays($settings->receipt_max_age_days))) {
+
+                $fail('The receipt is older than ' . $settings->receipt_max_age_days
+                    . ' days before the request date, which is not accepted.');
+            }
+        };
     }
 
     /** Tanggal akhir nota tidak boleh mendahului tanggal awalnya. */
@@ -623,35 +683,127 @@ class ReimbursementService
      * Dipakai bersama oleh halaman cetak dan berkas Excel, supaya keduanya tidak
      * pernah menampilkan nama yang berbeda untuk dokumen yang sama.
      *
-     * Kolom "Approved by" memakai penanda tangan dari pengaturan bila diisi, dan
-     * bila kosong jatuh ke penyetuju TERAKHIR YANG BENAR-BENAR MENYETUJUI —
-     * bukan sekadar langkah terakhir yang terdaftar (Keputusan D108).
+     * Accounting dan Cashier memakai pilihan pada dokumen, lalu bawaan Settings.
+     * Kolom "Approved by" memakai direktur yang dipilih pada dokumen, lalu
+     * penanda tangan dari pengaturan, dan bila keduanya kosong jatuh ke
+     * penyetuju TERAKHIR YANG BENAR-BENAR MENYETUJUI — bukan sekadar langkah
+     * terakhir yang terdaftar (Keputusan D108).
      *
      * @return array{requester: string, accounting: string, cashier: string, approver: string}
      */
     public function signatories(ReimbursementRequest $request): array
     {
-        $settings = ReimbursementSetting::current();
+        $name = fn (?Employee $e) => $e?->fullNameLabel() ?? '—';
 
-        $name = fn (?Employee $e) => $e?->basicData?->nick_name ?? $e?->eci ?? '—';
+        $signer = function (string $signsAs) use ($request, $name): string {
+            $approval = $request->approvals
+                ->where('signs_as', $signsAs)
+                ->sortByDesc('order_seq')
+                ->first();
 
-        $approver = $settings->approverSigner;
+            if (!$approval) {
+                return '—';
+            }
 
-        if (!$approver) {
+            if ($approval->actor) {
+                return $name($approval->actor);
+            }
+
+            // Belum bertindak: bila langkahnya menyebut SATU orang, tampilkan dia.
+            $ids = array_map('intval', $approval->approver_employee_ids ?? []);
+
+            return count($ids) === 1
+                ? $name(Employee::with('basicData')->where('employee_id', $ids[0])->first())
+                : '—';
+        };
+
+        $approver = $signer(ReimbursementApprovalStep::SIGNS_APPROVER);
+
+        // Alur lama tanpa langkah bertanda approver: penyetuju TERAKHIR yang
+        // benar-benar menyetujui (Keputusan D108).
+        if ($approver === '—') {
             $lastApproved = $request->approvals
                 ->where('status', ReimbursementRequestApproval::STATUS_APPROVED)
                 ->sortByDesc('order_seq')
                 ->first();
 
-            $approver = $lastApproved?->actor;
+            $approver = $name($lastApproved?->actor);
         }
 
         return [
             'requester'  => $name($request->employee),
-            'accounting' => $name($settings->accountingSigner),
-            'cashier'    => $name($settings->cashierSigner),
-            'approver'   => $name($approver),
+            'accounting' => $signer(ReimbursementApprovalStep::SIGNS_ACCOUNTING),
+            'cashier'    => $signer(ReimbursementApprovalStep::SIGNS_CASHIER),
+            'approver'   => $approver,
         ];
+    }
+
+    /**
+     * Gambar tanda tangan untuk cetakan: kolom => data URI atau null.
+     *
+     * Berasal dari SALINAN yang dibuat saat bertindak, bukan dari master data
+     * hari ini — dokumen tetap seperti saat ditandatangani.
+     *
+     * @return array{requester: ?string, accounting: ?string, cashier: ?string, approver: ?string}
+     */
+    public function signatureImages(ReimbursementRequest $request): array
+    {
+        $of = function (string $signsAs) use ($request): ?string {
+            $approval = $request->approvals
+                ->where('signs_as', $signsAs)
+                ->whereNotNull('signature_path')
+                ->sortByDesc('order_seq')
+                ->first();
+
+            return $approval ? $this->dataUri($approval->signature_path) : null;
+        };
+
+        $approver = $of(ReimbursementApprovalStep::SIGNS_APPROVER);
+
+        // Alur lama tanpa langkah bertanda approver: penyetuju terakhir.
+        if ($approver === null) {
+            $last = $request->approvals
+                ->where('status', ReimbursementRequestApproval::STATUS_APPROVED)
+                ->whereNotNull('signature_path')
+                ->sortByDesc('order_seq')
+                ->first();
+
+            $approver = $last ? $this->dataUri($last->signature_path) : null;
+        }
+
+        return [
+            'requester'  => $request->requester_signature_path ? $this->dataUri($request->requester_signature_path) : null,
+            'accounting' => $of(ReimbursementApprovalStep::SIGNS_ACCOUNTING),
+            'cashier'    => $of(ReimbursementApprovalStep::SIGNS_CASHIER),
+            'approver'   => $approver,
+        ];
+    }
+
+    /** Salin tanda tangan master data karyawan ke folder dokumen; null bila belum ada. */
+    private function copySignature(int $employeeId, string $folder): ?string
+    {
+        $source = \App\Models\EmployeeHrProfile::signaturePathOf($employeeId);
+
+        if (!$source) {
+            return null;
+        }
+
+        $extension = pathinfo($source, PATHINFO_EXTENSION) ?: 'png';
+        $target    = $folder . '/signature-' . $employeeId . '-' . now()->format('YmdHisv') . '.' . $extension;
+
+        $content = \Illuminate\Support\Facades\Storage::disk(\App\Models\EmployeeHrProfile::FILE_DISK)->get($source);
+        \Illuminate\Support\Facades\Storage::disk('local')->put($target, $content);
+
+        return $target;
+    }
+
+    private function dataUri(string $path): ?string
+    {
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+
+        return $disk->exists($path)
+            ? 'data:' . $disk->mimeType($path) . ';base64,' . base64_encode($disk->get($path))
+            : null;
     }
 
     /**
@@ -676,26 +828,58 @@ class ReimbursementService
     }
 
     /**
-     * Direktur yang dapat dipilih pemohon, sesuai daftar di Settings.
+     * Langkah aktif yang orangnya dipilih pemohon, beserta kandidatnya.
      *
+     * @return Collection<int, array{step: ReimbursementApprovalStep, options: Collection}>
+     */
+    public function choiceSteps(): Collection
+    {
+        return $this->activeSteps()
+            ->filter(fn (ReimbursementApprovalStep $step) => $step->requester_selectable)
+            ->map(fn (ReimbursementApprovalStep $step) => [
+                'step'    => $step,
+                'options' => $this->employeeOptions($step->candidateEmployeeIds() ?: [0]),
+            ])
+            ->values();
+    }
+
+    /**
+     * Langkah aktif yang orangnya TETAP (wajib / mandatory): pada form hanya
+     * ditampilkan — tanda tangan, posisi, dan nama — tidak dapat diubah pemohon.
+     *
+     * @return Collection<int, array{signs_as: string, position: ?string, names: array<string>}>
+     */
+    public function fixedSteps(): Collection
+    {
+        return $this->activeSteps()
+            ->reject(fn (ReimbursementApprovalStep $step) => $step->requester_selectable)
+            ->map(fn (ReimbursementApprovalStep $step) => [
+                'signs_as' => ReimbursementApprovalStep::SIGNS_AS_LABELS[$step->signs_as] ?? $step->name,
+                'position' => $step->role?->name,
+                'names'    => $step->approver_type === ReimbursementApprovalStep::TYPE_EMPLOYEE
+                    ? $this->employeeOptions($step->candidateEmployeeIds() ?: [0])->pluck('label')->all()
+                    : [],
+            ])
+            ->values();
+    }
+
+    /**
+     * Karyawan aktif sebagai {id, label} dengan NAMA LENGKAP, terurut.
+     *
+     * @param  array<int>  $ids  Kosong = semua karyawan aktif.
      * @return Collection<int, array{id: int, label: string}>
      */
-    public function directorOptions(): Collection
+    public function employeeOptions(array $ids = []): Collection
     {
-        $ids = ReimbursementSetting::current()->directorIds();
-
-        if ($ids === []) {
-            return collect();
-        }
-
-        return Employee::with('basicData:basic_data_id,employee_id,nick_name')
-            ->whereIn('employee_id', $ids)
+        return Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name')
+            ->where('is_active', 1)
+            ->when($ids !== [], fn ($q) => $q->whereIn('employee_id', $ids))
             ->get(['employee_id', 'eci'])
             ->map(fn (Employee $e) => [
                 'id'    => (int) $e->employee_id,
-                'label' => $e->basicData?->nick_name ?? $e->eci,
+                'label' => $e->fullNameLabel(),
             ])
-            ->sortBy('label')
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();
     }
 
@@ -730,23 +914,32 @@ class ReimbursementService
     }
 
     /**
-     * Direktur penyetuju yang sah untuk dokumen baru.
+     * Pilihan pemohon per langkah, divalidasi terhadap kandidat langkahnya.
      *
-     * @return int|null|false  id direktur; null bila daftar direktur belum
-     *                         dikonfigurasi (alur lama); false bila wajib tetapi
-     *                         tidak diisi atau bukan salah satu direktur.
+     * @param  Collection  $steps  langkah aktif
+     * @param  array       $raw    [step_id => employee_id]
+     * @return array<int,int>|null order_seq => employee_id; null bila ada
+     *                             langkah pilihan yang kosong atau tidak sah.
      */
-    private function resolveApprover($approverId, ReimbursementSetting $settings): int|null|false
+    private function resolveChoices(Collection $steps, array $raw): ?array
     {
-        $directors = $settings->directorIds();
+        $choices = [];
 
-        if ($directors === []) {
-            return null;
+        foreach ($steps as $step) {
+            if (!$step->requester_selectable) {
+                continue;
+            }
+
+            $picked = (int) ($raw[$step->id] ?? 0);
+
+            if ($picked <= 0 || !in_array($picked, $step->candidateEmployeeIds(), true)) {
+                return null;
+            }
+
+            $choices[$step->order_seq] = $picked;
         }
 
-        $approverId = (int) $approverId;
-
-        return in_array($approverId, $directors, true) ? $approverId : false;
+        return $choices;
     }
 
     /** @return array{allowed: bool, reason: string} */
@@ -832,6 +1025,11 @@ class ReimbursementService
             'max_request_amount' => $isDefault ? (float) $settings->max_request_amount : 0.0,
             'min_item_amount'    => $isDefault ? (float) $settings->min_item_amount : 0.0,
             'has_supporting_url' => trim((string) ($payload['supporting_url'] ?? '')) !== '',
+
+            // Hanya penanda: kebijakan `block` sudah menolak di validasi.
+            'receipt_max_age_days' => $settings->hasReceiptAgeLimit() && !$settings->blocksOldReceipt()
+                ? (int) $settings->receipt_max_age_days : 0,
+            'request_date'         => $payload['request_date'] ?? null,
         ];
     }
 
@@ -981,6 +1179,7 @@ class ReimbursementService
                     'approver_type'            => $step->approver_type,
                     'approver_role_id'         => $step->approver_role_id,
                     'approver_employee_ids'    => $step->approver_employee_ids,
+                    'signs_as'                 => $step->signs_as,
                     'status'                   => ReimbursementRequestApproval::STATUS_WAITING,
                 ]);
 
@@ -1006,31 +1205,25 @@ class ReimbursementService
         return ['applied' => count($applied), 'request_nos' => $applied];
     }
 
-    private function snapshotSteps(ReimbursementRequest $request, Collection $steps, ?int $approverId = null): void
+    /**
+     * @param  array<int,int>  $choices  order_seq langkah => employee_id pilihan pemohon
+     */
+    private function snapshotSteps(ReimbursementRequest $request, Collection $steps, array $choices = []): void
     {
         foreach ($steps as $step) {
+            $chosen = $choices[$step->order_seq] ?? null;
+
+            // Langkah pilihan pemohon dikunci ke SATU orang dan ikut disalin ke
+            // dokumen, sehingga mengubah konfigurasi kelak tidak menggeser dokumen
+            // yang berjalan.
             ReimbursementRequestApproval::create([
                 'reimbursement_request_id' => $request->id,
                 'order_seq'                => $step->order_seq,
                 'step_name'                => $step->name,
-                'approver_type'            => $step->approver_type,
-                'approver_role_id'         => $step->approver_role_id,
-                'approver_employee_ids'    => $step->approver_employee_ids,
-                'status'                   => ReimbursementRequestApproval::STATUS_WAITING,
-            ]);
-        }
-
-        // Direktur pilihan pemohon menjadi langkah TERAKHIR, dan hanya dia yang
-        // dapat bertindak padanya. Langkah ini ikut disalin ke dokumen sehingga
-        // mengganti daftar direktur kelak tidak mengubah dokumen yang berjalan.
-        if ($approverId !== null) {
-            ReimbursementRequestApproval::create([
-                'reimbursement_request_id' => $request->id,
-                'order_seq'                => ((int) $steps->max('order_seq')) + 1,
-                'step_name'                => self::DIRECTOR_STEP_NAME,
-                'approver_type'            => ReimbursementApprovalStep::TYPE_EMPLOYEE,
-                'approver_role_id'         => null,
-                'approver_employee_ids'    => [$approverId],
+                'approver_type'            => $chosen ? ReimbursementApprovalStep::TYPE_EMPLOYEE : $step->approver_type,
+                'approver_role_id'         => $chosen ? null : $step->approver_role_id,
+                'approver_employee_ids'    => $chosen ? [$chosen] : $step->approver_employee_ids,
+                'signs_as'                 => $step->signs_as,
                 'status'                   => ReimbursementRequestApproval::STATUS_WAITING,
             ]);
         }

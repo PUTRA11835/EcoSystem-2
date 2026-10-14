@@ -55,9 +55,8 @@
                 @foreach([
                     'Document No.' => $request->request_no,
                     'Date'         => $request->request_date->format('d M Y'),
-                    'Requester'    => $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—',
+                    'Requester'    => $request->employee?->fullNameLabel() ?? '—',
                     'Employee No.' => $request->employee?->eci ?? '—',
-                    'Charged To'   => $request->charged_to_label ?? '—',
                     'Title'        => $request->title,
                 ] as $label => $value)
                 <div class="flex gap-3">
@@ -92,7 +91,7 @@
                 <div class="flex gap-3">
                     <dt class="w-32 shrink-0 text-gray-500">Created by</dt>
                     <dd class="text-gray-600">
-                        {{ $request->creator?->basicData?->nick_name ?? $request->creator?->eci ?? '—' }}
+                        {{ $request->creator?->fullNameLabel() ?? '—' }}
                         <span class="text-xs text-gray-400">(on behalf)</span>
                     </dd>
                 </div>
@@ -126,7 +125,7 @@
                 <input type="hidden" name="notes" value="">
                 <button type="submit"
                         class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-all">
-                    <i class="fas fa-circle-check"></i> Approve
+                    <i class="fas fa-signature"></i> Approve &amp; Sign
                 </button>
             </form>
 
@@ -174,7 +173,7 @@
                         <p class="text-xs text-gray-500">
                             {{ ucfirst($approval->status) }}
                             @if($approval->actor)
-                                · {{ $approval->actor->basicData?->nick_name ?? $approval->actor->eci }}
+                                · {{ $approval->actor->fullNameLabel() }}
                             @else
                                 · {{ $approval->approverLabel() }}
                             @endif
@@ -311,10 +310,15 @@
 @push('scripts')
 <script>
     const rejectToggle = document.getElementById('rejectToggle');
-    if (rejectToggle) {
+    const rejectForm   = document.getElementById('rejectForm');
+    if (rejectToggle && rejectForm) {
         rejectToggle.addEventListener('click', function () {
-            document.getElementById('rejectForm').classList.toggle('hidden');
+            rejectForm.classList.toggle('hidden');
+            if (!rejectForm.classList.contains('hidden')) rejectForm.querySelector('textarea').focus();
         });
+
+        // Old links ended in #reject: open the reason box straight away.
+        if (location.hash === '#reject') rejectToggle.click();
     }
 
     document.querySelectorAll('.js-approve-form').forEach(function (form) {
@@ -323,10 +327,10 @@
             event.preventDefault();
 
             const ok = await showConfirm(
-                'Approve this reimbursement?',
-                'Approve Reimbursement',
+                'Approving signs this reimbursement with your signature from the employee master data. Continue?',
+                'Approve & Sign',
                 'warning',
-                { okText: 'Approve', cancelText: 'Cancel' }
+                { okText: 'Approve & Sign', cancelText: 'Cancel' }
             );
 
             if (!ok) return;

@@ -53,18 +53,37 @@ use Illuminate\Validation\Rule;
 class CashAdvanceSettingController extends Controller
 {
     /**
-     * 🔴 D180 — `caSteps`/`carSteps`/`caOpenCount`/`carOpenCount`/
-     * `roleCandidates` DIPINDAH ke ApprovalWorkflowController::cashAdvance()/
-     * cashAdvanceReport() — keduanya HANYA dipakai editor langkah, yang sudah
-     * tidak ada di halaman ini. `roles`/`employees` TETAP diambil: BAGIAN 3/4
-     * (Aturan Dokumen & Tanda Tangan Cetakan) yang tersisa masih memakainya
-     * (dropdown fallback reviewer, dropdown penanda tangan Accounting/Cashier).
+     * Editor alur CA dan CAR (slug `management.approval-workflow.cash-advance`
+     * dan `...cash-advance-report`, terpisah satu sama lain) hidup di halaman
+     * Settings ini bersama Aturan (slug `management.cash-advance-settings`).
+     * View hanya merender bagian yang slug-nya dipegang pengguna.
      */
-    public function edit()
+    public function edit(CashAdvanceService $ca, CashAdvanceReportService $car)
     {
-        return view('hr-general.settings.cash-advance', [
+        $caSteps  = CashAdvanceApprovalStep::query()
+            ->forModule(CashAdvanceApprovalStep::MODULE_CA)
+            ->with('role')->orderBy('order_seq')->get();
+
+        $carSteps = CashAdvanceApprovalStep::query()
+            ->forModule(CashAdvanceApprovalStep::MODULE_CAR)
+            ->with('role')->orderBy('order_seq')->get();
+
+        return view('hr-general.cash-advance.settings', [
             'settings' => CashAdvanceSetting::current(),
             'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
+
+            'caSteps'       => $caSteps,
+            'carSteps'      => $carSteps,
+            'caOpenCount'   => $ca->countOpenRequestsBefore((int) $caSteps->max('order_seq') + 1),
+            'carOpenCount'  => $car->countOpenReportsBefore((int) $carSteps->max('order_seq') + 1),
+
+            // Berapa karyawan yang memegang tiap posisi — kolom Reference pada
+            // editor langkah. Satu kueri berkelompok; definisinya sama dengan
+            // scope withRole() supaya angka yang tampil = kandidat sebenarnya.
+            'roleCandidates' => DB::table('employee_role_assignment')
+                ->select('role_id', DB::raw('COUNT(DISTINCT employee_id) AS total'))
+                ->groupBy('role_id')
+                ->pluck('total', 'role_id'),
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 207 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.

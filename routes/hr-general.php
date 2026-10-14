@@ -5,7 +5,6 @@ use App\Http\Controllers\HR_General\AttendanceCorrectionController;
 use App\Http\Controllers\HR_General\AttendanceRecapController;
 use App\Http\Controllers\HR_General\AttendanceSettingController;
 use App\Http\Controllers\HR_General\AttendanceSourceController;
-use App\Http\Controllers\HR_General\BranchController;
 use App\Http\Controllers\HR_General\CashAdvanceController;
 use App\Http\Controllers\HR_General\CashAdvanceReportController;
 use App\Http\Controllers\HR_General\CashAdvanceSettingController;
@@ -28,6 +27,7 @@ use App\Http\Controllers\HR_General\MyOvertimeController;
 use App\Http\Controllers\HR_General\MyPurchaseRequestController;
 use App\Http\Controllers\HR_General\DataTransferController;
 use App\Http\Controllers\HR_General\MyReimbursementController;
+use App\Http\Controllers\HR_General\PurchaseOrderController;
 use App\Http\Controllers\HR_General\PurchaseRequestController;
 use App\Http\Controllers\HR_General\PurchaseRequestSettingController;
 use App\Http\Controllers\HR_General\OnboardingController;
@@ -179,24 +179,6 @@ Route::prefix('general')
         // URL LAMA (general/settings/branches, .../shifts, .../attendance)
         // TETAP HIDUP sebagai redirect — lihat blok "ALIAS URL LAMA" di bawah.
 
-        // ── Branches ─────────────────────────────────────────────────────────
-        Route::prefix('attendance/branches')->name('attendance.branches.')->group(function () {
-
-            Route::get('/', [BranchController::class, 'index'])
-                ->name('index')
-                ->middleware('menu:general.settings.branches');
-
-            // Membuat / mengubah / menghapus dilindungi slug terpisah dari
-            // sekadar melihat daftar.
-            Route::middleware('menu:general.settings.branches.manage')->group(function () {
-                Route::get('/create', [BranchController::class, 'create'])->name('create');
-                Route::post('/', [BranchController::class, 'store'])->name('store');
-                Route::get('/{branch}/edit', [BranchController::class, 'edit'])->name('edit');
-                Route::post('/{branch}/update', [BranchController::class, 'update'])->name('update');
-                Route::post('/{branch}/delete', [BranchController::class, 'destroy'])->name('destroy');
-            });
-        });
-
         // ── Shifts ───────────────────────────────────────────────────────────
         Route::prefix('attendance/shifts')->name('attendance.shifts.')->group(function () {
 
@@ -246,9 +228,9 @@ Route::prefix('general')
         // dibuka lewat bookmark atau diketik manual. Rute POST (store/update/
         // delete) tidak perlu dialiaskan — begitu view-nya diganti, tidak ada
         // form lama yang tersisa menembak URL lama.
-        Route::get('/settings/branches', fn () => redirect()->route('general.attendance.branches.index'));
-        Route::get('/settings/branches/create', fn () => redirect()->route('general.attendance.branches.create'));
-        Route::get('/settings/branches/{branch}/edit', fn ($branch) => redirect()->route('general.attendance.branches.edit', $branch));
+        Route::get('/settings/branches', fn () => redirect()->route('management.branches.index'));
+        Route::get('/settings/branches/create', fn () => redirect()->route('management.branches.create'));
+        Route::get('/settings/branches/{branch}/edit', fn ($branch) => redirect()->route('management.branches.edit', $branch));
 
         Route::get('/settings/shifts', fn () => redirect()->route('general.attendance.shifts.index'));
         Route::get('/settings/shifts/create', fn () => redirect()->route('general.attendance.shifts.create'));
@@ -285,9 +267,11 @@ Route::prefix('general')
         // =====================================================================
         Route::prefix('overtime')->name('overtime.')->group(function () {
 
+            // Terbuka bagi pemegang slug ATAU karyawan yang ditunjuk sebagai
+            // penyetuju pada alur persetujuan (lihat CheckMenuOrDesignatedApprover).
             Route::get('/', [OvertimeReviewController::class, 'index'])
                 ->name('index')
-                ->middleware('menu:general.overtime');
+                ->middleware('menu.approver:overtime,general.overtime');
 
             // Didaftarkan SEBELUM rute berparameter agar tidak tertimpa.
             Route::get('/export', [OvertimeReviewController::class, 'export'])
@@ -297,7 +281,7 @@ Route::prefix('general')
             // Menyetujui/menolak dilindungi slug TERPISAH dari sekadar melihat
             // daftar. Slug ini hanya gerbang HALAMAN; siapa yang berwenang pada
             // sebuah pengajuan tetap ditentukan langkah persetujuannya.
-            Route::middleware('menu:general.overtime.approve')->group(function () {
+            Route::middleware('menu.approver:overtime,general.overtime.approve')->group(function () {
                 Route::post('/{overtimeRequest}/approve', [OvertimeReviewController::class, 'approve'])->name('approve');
                 Route::post('/{overtimeRequest}/reject', [OvertimeReviewController::class, 'reject'])->name('reject');
             });
@@ -308,12 +292,21 @@ Route::prefix('general')
         // =====================================================================
         // Sama seperti Attendance di atas: URI & nama rute pindah ke bawah
         // `overtime/*`, slug izin (`general.settings.overtime`) tidak berubah.
+        // 🔴 Halaman Settings memuat DUA bagian dengan hak terpisah: Aturan
+        // (`general.settings.overtime`) dan Alur Persetujuan
+        // (`general.approval-workflow.overtime`). Membukanya cukup salah satu;
+        // view hanya merender bagian yang slug-nya dipegang, dan POST
+        // penyimpanan masing-masing dijaga slug-nya sendiri.
         Route::prefix('overtime/settings')
             ->name('overtime.settings.')
-            ->middleware('menu:general.settings.overtime')
             ->group(function () {
-                Route::get('/', [OvertimeSettingController::class, 'edit'])->name('edit');
-                Route::post('/update', [OvertimeSettingController::class, 'update'])->name('update');
+                Route::get('/', [OvertimeSettingController::class, 'edit'])
+                    ->name('edit')
+                    ->middleware('menu:general.settings.overtime,general.approval-workflow.overtime');
+
+                Route::post('/update', [OvertimeSettingController::class, 'update'])
+                    ->name('update')
+                    ->middleware('menu:general.settings.overtime');
             });
 
         // 🔴 D180 — Rute langkah persetujuan DIPISAH dari grup Settings di atas,
@@ -602,12 +595,18 @@ Route::prefix('general')
         // SLUG middleware TIDAK berubah: `general.settings.reimbursement` tetap
         // sama, supaya hak yang sudah diberikan ke role mana pun tidak perlu
         // diberikan ulang.
+        // Membukanya cukup salah satu dari slug Aturan atau slug Alur Persetujuan;
+        // view hanya merender bagian yang slug-nya dipegang (lihat Overtime).
         Route::prefix('reimbursement/settings')
             ->name('reimbursement.settings.')
-            ->middleware('menu:general.settings.reimbursement')
             ->group(function () {
-                Route::get('/', [ReimbursementSettingController::class, 'edit'])->name('edit');
-                Route::post('/update', [ReimbursementSettingController::class, 'update'])->name('update');
+                Route::get('/', [ReimbursementSettingController::class, 'edit'])
+                    ->name('edit')
+                    ->middleware('menu:general.settings.reimbursement,general.approval-workflow.reimbursement');
+
+                Route::post('/update', [ReimbursementSettingController::class, 'update'])
+                    ->name('update')
+                    ->middleware('menu:general.settings.reimbursement');
             });
 
         // 🔴 D180 — sama seperti Overtime di atas: rute langkah dipisah, dijaga
@@ -616,10 +615,8 @@ Route::prefix('general')
             ->name('reimbursement.settings.')
             ->middleware('menu:general.approval-workflow.reimbursement')
             ->group(function () {
-                Route::post('/steps', [ReimbursementSettingController::class, 'storeStep'])->name('steps.store');
-                Route::post('/steps/{step}/update', [ReimbursementSettingController::class, 'updateStep'])->name('steps.update');
-                Route::post('/steps/{step}/delete', [ReimbursementSettingController::class, 'destroyStep'])->name('steps.destroy');
-                Route::post('/steps/{step}/move', [ReimbursementSettingController::class, 'moveStep'])->name('steps.move');
+                // Satu simpan untuk seluruh alur (tambah / ubah / hapus / urutan).
+                Route::post('/steps/sync', [ReimbursementSettingController::class, 'syncSteps'])->name('steps.sync');
             });
 
         // URL lama — dipertahankan sebagai alias GET (D177), pola sama dengan D175.
@@ -641,10 +638,14 @@ Route::prefix('general')
         // layar. Slug middleware tidak berubah.
         Route::prefix('purchase-request/settings')
             ->name('purchase-request.settings.')
-            ->middleware('menu:general.settings.purchase-request')
             ->group(function () {
-                Route::get('/', [PurchaseRequestSettingController::class, 'edit'])->name('edit');
-                Route::post('/update', [PurchaseRequestSettingController::class, 'update'])->name('update');
+                Route::get('/', [PurchaseRequestSettingController::class, 'edit'])
+                    ->name('edit')
+                    ->middleware('menu:general.settings.purchase-request,general.approval-workflow.purchase-request');
+
+                Route::post('/update', [PurchaseRequestSettingController::class, 'update'])
+                    ->name('update')
+                    ->middleware('menu:general.settings.purchase-request');
             });
 
         // 🔴 D180 — sama seperti Overtime/Reimbursement di atas: rute langkah
@@ -674,6 +675,11 @@ Route::prefix('general')
 
             Route::get('/', [ReimbursementController::class, 'index'])
                 ->name('index')
+                ->middleware('menu:general.reimbursement');
+
+            // Statis: WAJIB mendahului /{reimbursementRequest}.
+            Route::get('/dashboard', [ReimbursementController::class, 'dashboard'])
+                ->name('dashboard')
                 ->middleware('menu:general.reimbursement');
 
             // Membuat atas nama karyawan. Slug terpisah dari `.manage`: yang
@@ -742,6 +748,45 @@ Route::prefix('general')
             Route::post('/{reimbursementRequest}/delete', [ReimbursementController::class, 'destroy'])
                 ->name('destroy')
                 ->middleware('menu:general.reimbursement.manage');
+        });
+
+        // =====================================================================
+        // PURCHASE ORDER — tab pada menu Purchase Management
+        // =====================================================================
+        // Rute statis (/create, /settings) WAJIB mendahului /{purchaseOrder}.
+        // Karyawan yang dipilih sebagai approver pada sebuah PO otomatis dapat
+        // membuka halamannya (menu.approver); keputusannya tetap diperiksa
+        // service terhadap approver_id dokumen.
+        Route::prefix('purchase-order')->name('purchase-order.')->group(function () {
+            $page = 'menu.approver:purchase-order,general.purchase-order';
+
+            Route::get('/', [PurchaseOrderController::class, 'index'])->name('index')->middleware($page);
+
+            Route::middleware('menu:general.purchase-order.create')->group(function () {
+                Route::get('/create', [PurchaseOrderController::class, 'create'])->name('create');
+                Route::post('/', [PurchaseOrderController::class, 'store'])->name('store');
+            });
+
+            Route::post('/settings', [PurchaseOrderController::class, 'updateSettings'])
+                ->name('settings.update')
+                ->middleware('menu:general.settings.purchase-request');
+
+            Route::get('/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('show')->middleware($page)->withTrashed();
+            Route::get('/{purchaseOrder}/print', [PurchaseOrderController::class, 'print'])->name('print')->middleware($page)->withTrashed();
+
+            Route::middleware('menu:general.purchase-order')->group(function () {
+                Route::get('/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])->name('edit');
+                Route::post('/{purchaseOrder}/update', [PurchaseOrderController::class, 'update'])->name('update');
+            });
+
+            Route::middleware($page)->group(function () {
+                Route::post('/{purchaseOrder}/approve', [PurchaseOrderController::class, 'approve'])->name('approve');
+                Route::post('/{purchaseOrder}/reject', [PurchaseOrderController::class, 'reject'])->name('reject');
+            });
+
+            Route::post('/{purchaseOrder}/delete', [PurchaseOrderController::class, 'destroy'])
+                ->name('destroy')
+                ->middleware('menu:general.purchase-order.manage');
         });
 
         // =====================================================================
@@ -824,37 +869,6 @@ Route::prefix('general')
         });
 
         // =====================================================================
-        // APPROVAL WORKFLOW — hub bertab lintas modul (Keputusan D180)
-        // =====================================================================
-        // Lima halaman GET, satu per modul. Setiap rute dijaga slug BARU-nya
-        // sendiri — lihat migrasi 2026_09_16_000001_add_approval_workflow_menus
-        // untuk alasan lengkap kenapa slug ini terpisah dari slug Settings.
-        // Rute POST (simpan/ubah/hapus/pindah langkah) TETAP hidup di bawah
-        // masing-masing prefix `*/settings` di atas — lihat komentar D180 di
-        // sana untuk kenapa middleware-nya sudah dipindah ke slug yang sama.
-        Route::prefix('approval-workflow')->name('approval-workflow.')->group(function () {
-            Route::get('/overtime', [ApprovalWorkflowController::class, 'overtime'])
-                ->name('overtime')
-                ->middleware('menu:general.approval-workflow.overtime');
-
-            Route::get('/reimbursement', [ApprovalWorkflowController::class, 'reimbursement'])
-                ->name('reimbursement')
-                ->middleware('menu:general.approval-workflow.reimbursement');
-
-            Route::get('/purchase-request', [ApprovalWorkflowController::class, 'purchaseRequest'])
-                ->name('purchase-request')
-                ->middleware('menu:general.approval-workflow.purchase-request');
-
-            Route::get('/cash-advance', [ApprovalWorkflowController::class, 'cashAdvance'])
-                ->name('cash-advance')
-                ->middleware('menu:management.approval-workflow.cash-advance');
-
-            Route::get('/cash-advance-report', [ApprovalWorkflowController::class, 'cashAdvanceReport'])
-                ->name('cash-advance-report')
-                ->middleware('menu:management.approval-workflow.cash-advance-report');
-        });
-
-        // =====================================================================
         // BLOK DASHBOARD — pemasok data untuk kartu Attendance di halaman utama
         // =====================================================================
         // SENGAJA TANPA middleware `menu:`, dan itu bukan kelalaian.
@@ -879,7 +893,7 @@ Route::prefix('general')
         // atas nama alamat IP kantor.
         Route::prefix('geo')
             ->name('geo.')
-            ->middleware('menu:general.settings.branches.manage')
+            ->middleware('menu:management.branches.manage')
             ->group(function () {
                 Route::get('/search', [GeoLookupController::class, 'search'])->name('search');
                 Route::get('/reverse', [GeoLookupController::class, 'reverse'])->name('reverse');
@@ -1379,10 +1393,18 @@ Route::prefix('general')
  */
 Route::prefix('management/cash-advance-settings')
     ->name('management.cash-advance-settings.')
-    ->middleware([CheckAuthToken::class, 'menu:management.cash-advance-settings'])
+    ->middleware([CheckAuthToken::class])
     ->group(function () {
-        Route::get('/', [CashAdvanceSettingController::class, 'edit'])->name('edit');
-        Route::post('/update', [CashAdvanceSettingController::class, 'update'])->name('update');
+        // Halaman memuat Aturan (`management.cash-advance-settings`) dan dua
+        // editor alur (CA / CAR) dengan slug sendiri-sendiri; membukanya cukup
+        // salah satu, dan view hanya merender bagian yang slug-nya dipegang.
+        Route::get('/', [CashAdvanceSettingController::class, 'edit'])
+            ->name('edit')
+            ->middleware('menu:management.cash-advance-settings,management.approval-workflow.cash-advance,management.approval-workflow.cash-advance-report');
+
+        Route::post('/update', [CashAdvanceSettingController::class, 'update'])
+            ->name('update')
+            ->middleware('menu:management.cash-advance-settings');
     });
 
 /**

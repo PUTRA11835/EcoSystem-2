@@ -31,32 +31,58 @@ use Illuminate\Validation\Rule;
 class ReimbursementSettingController extends Controller
 {
     /**
-     * 🔴 D180 — Sejak alur persetujuan pindah jadi halaman tersendiri (lihat
-     * ApprovalWorkflowController::reimbursement()), method ini TIDAK LAGI
-     * mengambil `openCount` — angka itu hanya dipakai kotak centang "apply to
-     * open" milik editor langkah, yang sudah tidak ada di halaman ini. `steps`,
-     * `roles`, dan `employees` TETAP diambil: BAGIAN 2 (Aturan) yang tersisa di
-     * halaman ini masih memakainya (dropdown fallback reviewer, peringatan
-     * self-approval dengan satu langkah aktif, dropdown penanda tangan).
+     * Halaman Settings memuat DUA bagian dengan hak akses terpisah (D180):
+     *   - Approval Workflow  — slug `general.approval-workflow.reimbursement`
+     *   - Reimbursement Rules — slug `general.settings.reimbursement`
+     * Keduanya kini satu halaman (tab Settings pada hub Reimbursement); view
+     * hanya merender bagian yang slug-nya dipegang pengguna.
      */
-    public function edit()
+    public function edit(ReimbursementService $reimbursement)
     {
         $steps = ReimbursementApprovalStep::forReimbursement()
             ->with('role')
             ->orderBy('order_seq')
             ->get();
 
-        return view('hr-general.settings.reimbursement', [
+        return view('hr-general.reimbursement.settings', [
             'settings' => ReimbursementSetting::current(),
             'steps'    => $steps,
             'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
 
+            // Berapa dokumen berjalan yang akan terkena bila langkah baru
+            // ditambahkan — disebut SEBELUM tombolnya ditekan.
+            'openCount' => $reimbursement->countOpenRequestsBefore(
+                (int) $steps->max('order_seq') + 1
+            ),
+
+            // Kop surat dari menu Letter Templates, untuk cetakan dokumen.
+            'letterheads' => \App\Models\Letterhead::orderBy('name')->get(['id', 'name']),
+
+            // karyawan => nama posisinya; ditampilkan di bawah kolom Position
+            // untuk nama yang dipilih.
+            'employeeRoles' => DB::table('employee_role_assignment')
+                ->join('employee_role', 'employee_role.id', '=', 'employee_role_assignment.role_id')
+                ->select('employee_role_assignment.employee_id', 'employee_role.name')
+                ->get()
+                ->groupBy('employee_id')
+                ->map(fn ($rows) => $rows->pluck('name')->unique()->values()->all())
+                ->all(),
+
+            // posisi => id karyawan pemegangnya; dipakai daftar nama langkah.
+            'roleMembers' => DB::table('employee_role_assignment')
+                ->select('role_id', 'employee_id')
+                ->get()
+                ->groupBy('role_id')
+                ->map(fn ($rows) => $rows->pluck('employee_id')->map(fn ($id) => (int) $id)->unique()->values()->all())
+                ->all(),
+
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 209 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
+            // Nama LENGKAP (first_name + last_name), bukan nama panggilan.
+            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name,department')
                 ->where('is_active', 1)
                 ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
+                ->sortBy(fn ($e) => mb_strtolower($e->fullNameLabel()))
                 ->values(),
         ]);
     }
@@ -101,109 +127,96 @@ class ReimbursementSettingController extends Controller
     // ── Alur persetujuan ────────────────────────────────────────────────────
 
     /**
-     * Tambah langkah persetujuan.
+     * Simpan SELURUH alur sekaligus: baris yang ada diperbarui, baris baru
+     * dibuat, baris yang hilang dari form dihapus, dan urutannya mengikuti
+     * urutan baris di layar.
      *
-     * Bila `apply_to_open` dicentang, langkah ini juga diterapkan ke dokumen
-     * yang SEDANG BERJALAN — lihat ReimbursementService::applyStepToOpenRequests()
-     * untuk aturan asimetrisnya. Sengaja berupa pilihan, bukan otomatis:
-     * perubahan yang menyentuh dokumen berjalan harus terlihat dan disengaja,
-     * bukan efek samping yang baru disadari belakangan.
+     * Satu tombol Save untuk semuanya — bukan satu per baris — supaya yang
+     * tersimpan selalu satu keadaan utuh. Dokumen yang sedang berjalan tidak
+     * terpengaruh: langkahnya sudah disalin ke dokumennya saat dibuat. Langkah
+     * BARU hanya menyentuhnya bila `apply_to_open` dicentang
+     * (ReimbursementService::applyStepToOpenRequests).
      */
-    public function storeStep(Request $request, ReimbursementService $reimbursement)
+    public function syncSteps(Request $request, ReimbursementService $reimbursement)
     {
-        $data = $this->validateStep($request);
+        $rows = array_values((array) $request->input('steps', []));
 
-        $data['module']    = ReimbursementApprovalStep::MODULE_REIMBURSEMENT;
-        $data['order_seq'] = (int) ReimbursementApprovalStep::forReimbursement()->max('order_seq') + 1;
-        $data['is_active'] = true;
-
-        $step = ReimbursementApprovalStep::create($data);
-
-        if (!$request->boolean('apply_to_open')) {
-            return back()->with('success', 'Approval step added. It applies to new documents only.');
+        if ($rows === []) {
+            return back()->withInput()->with('error', 'The workflow needs at least one step.');
         }
 
-        $result = $reimbursement->applyStepToOpenRequests($step, (int) session('user.id'));
+        $errors = [];
+        $built  = [];
 
-        if ($result['applied'] === 0) {
-            return back()->with('success', 'Approval step added. No document was in progress, so it applies to new documents only.');
+        foreach ($rows as $i => $row) {
+            $result = $this->stepData((array) $row);
+
+            if (is_string($result)) {
+                $errors['steps.' . $i] = 'Step ' . ($i + 1) . ': ' . $result;
+                continue;
+            }
+
+            $built[] = ['id' => (int) ($row['id'] ?? 0), 'data' => $result];
         }
 
-        return back()->with('success', 'Approval step added and applied to ' . $result['applied']
-            . ' document(s) still in progress: ' . implode(', ', array_slice($result['request_nos'], 0, 5))
-            . (count($result['request_nos']) > 5 ? ' …' : ''));
-    }
+        if ($errors !== []) {
+            return back()->withInput()->withErrors($errors);
+        }
 
-    public function updateStep(Request $request, ReimbursementApprovalStep $step)
-    {
-        $data = $this->validateStep($request);
-
-        $data['is_active'] = $request->boolean('is_active');
-
-        // Langkah terakhir yang aktif tidak boleh dimatikan. Tanpa satu pun
-        // langkah, dokumen baru akan lahir tanpa jalan keluar — tidak dapat
-        // disetujui maupun ditolak siapa pun.
-        if (!$data['is_active'] && $this->activeStepCount($step->id) === 0) {
-            return back()->with('error',
+        if (!collect($built)->contains(fn ($b) => $b['data']['is_active'])) {
+            return back()->withInput()->with('error',
                 'At least one approval step must stay active, otherwise new documents cannot be reviewed by anyone.');
         }
 
-        $step->update($data);
+        $created = collect();
 
-        return back()->with('success', 'Approval step updated.');
-    }
+        DB::transaction(function () use ($built, &$created) {
+            $existing = ReimbursementApprovalStep::forReimbursement()->get()->keyBy('id');
 
-    public function destroyStep(ReimbursementApprovalStep $step)
-    {
-        if ($this->activeStepCount($step->id) === 0) {
-            return back()->with('error',
-                'This is the only active approval step. Add another one before deleting it.');
-        }
+            // Pindahkan dulu ke rentang sementara supaya urutan baru tidak
+            // bentrok. Kolomnya TINYINT (maks. 255), jadi nilainya dibuat
+            // dari 200 ke atas — bukan dari id langkah.
+            $temp = 200;
+            foreach ($existing as $step) {
+                $step->update(['order_seq' => $temp++]);
+            }
 
-        DB::transaction(function () use ($step) {
-            $step->delete();
+            $keep = [];
 
-            // Rapatkan urutan supaya tidak ada nomor yang bolong. Dokumen yang
-            // sedang berjalan TIDAK terpengaruh — langkahnya sudah disalin ke
-            // reimbursement_request_approvals saat dokumen dibuat.
-            ReimbursementApprovalStep::forReimbursement()
-                ->orderBy('order_seq')
-                ->get()
-                ->each(fn ($s, $i) => $s->update(['order_seq' => $i + 1]));
+            foreach ($built as $index => $item) {
+                $payload = $item['data'] + ['order_seq' => $index + 1];
+
+                if ($item['id'] && $existing->has($item['id'])) {
+                    $existing[$item['id']]->update($payload);
+                    $keep[] = $item['id'];
+                } else {
+                    $created->push(ReimbursementApprovalStep::create($payload + [
+                        'module' => ReimbursementApprovalStep::MODULE_REIMBURSEMENT,
+                    ]));
+                }
+            }
+
+            // Baris yang dibuang dari form dihapus. Dokumen berjalan memegang
+            // salinannya sendiri, jadi tidak terpengaruh.
+            $existing->keys()->diff($keep)->each(fn ($id) => $existing[$id]->delete());
         });
 
-        return back()->with('success', 'Approval step deleted.');
-    }
+        $note = '';
 
-    /** Geser satu langkah ke atas atau ke bawah. */
-    public function moveStep(Request $request, ReimbursementApprovalStep $step)
-    {
-        $validated = $request->validate([
-            'direction' => ['required', Rule::in(['up', 'down'])],
-        ]);
+        if ($request->boolean('apply_to_open') && $created->isNotEmpty()) {
+            $applied = 0;
 
-        $neighbour = ReimbursementApprovalStep::forReimbursement()
-            ->when($validated['direction'] === 'up',
-                fn ($q) => $q->where('order_seq', '<', $step->order_seq)->orderByDesc('order_seq'),
-                fn ($q) => $q->where('order_seq', '>', $step->order_seq)->orderBy('order_seq'))
-            ->first();
+            foreach ($created as $step) {
+                $applied += $reimbursement->applyStepToOpenRequests($step, (int) session('user.id'))['applied'];
+            }
 
-        if (!$neighbour) {
-            return back()->with('error', 'That step is already at the end of the list.');
+            $note = $applied > 0 ? " The new step was also applied to {$applied} document(s) in progress." : '';
         }
 
-        DB::transaction(function () use ($step, $neighbour) {
-            $mine  = $step->order_seq;
-            $their = $neighbour->order_seq;
-
-            // Nilai sementara di luar jangkauan supaya indeks unik tidak bentrok
-            // saat kedua baris ditukar.
-            $step->update(['order_seq' => 0]);
-            $neighbour->update(['order_seq' => $mine]);
-            $step->update(['order_seq' => $their]);
-        });
-
-        return back()->with('success', 'Approval order updated.');
+        return redirect()
+            ->route('general.reimbursement.settings.edit')
+            ->with('success', 'Approval workflow saved successfully.' . $note)
+            ->with('workflow_saved', true);
     }
 
     // ── internal ────────────────────────────────────────────────────────────
@@ -220,12 +233,10 @@ class ReimbursementSettingController extends Controller
             'require_title_min_chars'       => ['required', 'integer', 'between:0,200'],
             'supporting_url_allowed_hosts'  => ['nullable', 'string', 'max:255'],
             'locked_period_policy'          => ['required', Rule::in(ReimbursementSetting::LOCK_POLICIES)],
+            'receipt_max_age_days'          => ['required', 'integer', 'between:0,3650'],
+            'receipt_age_policy'            => ['required', Rule::in(ReimbursementSetting::OVER_LIMIT_POLICIES)],
+            'letterhead_id'                 => ['nullable', 'integer', 'exists:letterheads,id'],
             'self_approval_fallback_role_id' => ['nullable', 'integer', 'exists:employee_role,id'],
-            'accounting_signer_employee_id' => ['nullable', 'integer', 'exists:employee,employee_id'],
-            'cashier_signer_employee_id'    => ['nullable', 'integer', 'exists:employee,employee_id'],
-            'approver_signer_employee_id'   => ['nullable', 'integer', 'exists:employee,employee_id'],
-            'director_employee_ids'         => ['nullable', 'array'],
-            'director_employee_ids.*'       => ['integer', 'exists:employee,employee_id'],
         ], [
             'max_backdate_days.between'      => 'The backdate window must be between 0 (unlimited) and 3650 days.',
             'max_items_per_request.between'  => 'The item limit must be between 0 (unlimited) and 255.',
@@ -235,9 +246,6 @@ class ReimbursementSettingController extends Controller
 
         // Checkbox yang tidak dicentang TIDAK dikirim browser sama sekali, jadi
         // nilainya harus ditetapkan di sini — bukan diambil dari $validated.
-        $validated['director_employee_ids']        = array_values(array_unique(
-            array_map('intval', $validated['director_employee_ids'] ?? [])
-        ));
         $validated['use_branch_name_in_header']    = $request->boolean('use_branch_name_in_header');
         $validated['allow_future_date']            = $request->boolean('allow_future_date');
         $validated['require_supporting_url']       = $request->boolean('require_supporting_url');
@@ -277,42 +285,74 @@ class ReimbursementSettingController extends Controller
             ->implode(',');
     }
 
-    private function validateStep(Request $request): array
+    /**
+     * Satu baris form menjadi atribut langkah, atau pesan galat (string).
+     *
+     * `mandatory` dicentang = orangnya TETAP (nama/posisi di baris ini yang
+     * bertindak, pemohon tidak memilih). Tidak dicentang = pemohon WAJIB memilih
+     * dari kandidat langkah ini. Disimpan sebagai `requester_selectable`.
+     *
+     * Orangnya: bila ada nama yang dicentang, langkah itu untuk nama-nama itu;
+     * bila tidak, untuk SEMUA pemegang posisi yang dipilih.
+     *
+     * @return array<string, mixed>|string
+     */
+    private function stepData(array $row)
     {
-        $validated = $request->validate([
-            'name'                    => ['required', 'string', 'max:100'],
-            // `direct_manager` sengaja TIDAK ada di daftar ini: nilainya sudah
-            // terdaftar di model supaya pengaktifannya nanti tidak memerlukan
-            // migrasi, tetapi belum dapat dipilih karena hierarki atasan belum
-            // ada di basis data.
-            'approver_type'           => ['required', Rule::in(ReimbursementApprovalStep::SELECTABLE_TYPES)],
-            'approver_role_id'        => ['nullable', 'integer', 'exists:employee_role,id',
-                                          'required_if:approver_type,' . ReimbursementApprovalStep::TYPE_ROLE],
-            'approver_employee_ids'   => ['nullable', 'array',
-                                          'required_if:approver_type,' . ReimbursementApprovalStep::TYPE_EMPLOYEE],
-            'approver_employee_ids.*' => ['integer', 'exists:employee,employee_id'],
-        ], [
-            'approver_role_id.required_if'      => 'Choose which role approves this step.',
-            'approver_employee_ids.required_if' => 'Choose at least one employee for this step.',
-        ]);
+        $signsAs = $row['signs_as'] ?? '';
 
-        // Bersihkan field yang tidak relevan dengan tipe yang dipilih, supaya
-        // tidak ada sisa nilai lama yang membingungkan saat tipenya diganti.
-        if ($validated['approver_type'] === ReimbursementApprovalStep::TYPE_ROLE) {
-            $validated['approver_employee_ids'] = null;
-        } else {
-            $validated['approver_role_id'] = null;
+        if (!array_key_exists($signsAs, ReimbursementApprovalStep::SIGNS_AS_LABELS)) {
+            return 'choose what it signs as — Accounting, Cashier or Approver.';
         }
 
-        return $validated;
-    }
+        $names = array_values(array_unique(array_filter(array_map('intval', (array) ($row['approver_employee_ids'] ?? [])))));
+        $role  = (int) ($row['approver_role_id'] ?? 0);
 
-    /** Jumlah langkah aktif SELAIN satu id yang sedang diperiksa. */
-    private function activeStepCount(int $exceptId): int
-    {
-        return ReimbursementApprovalStep::forReimbursement()
-            ->active()
-            ->where('id', '!=', $exceptId)
-            ->count();
+        if ($names !== [] && Employee::whereIn('employee_id', $names)->count() !== count($names)) {
+            return 'one of the chosen names no longer exists.';
+        }
+
+        if ($role && !EmployeeRole::whereKey($role)->exists()) {
+            return 'the chosen position no longer exists.';
+        }
+
+        if ($names === [] && !$role) {
+            return 'choose a position, or at least one name.';
+        }
+
+        // Nama dipilih tanpa posisi: bila semua orangnya berbagi TEPAT satu
+        // posisi, itulah posisi langkah ini — supaya kolom Position terisi.
+        if (!$role && $names !== []) {
+            $shared = null;
+
+            foreach ($names as $id) {
+                $mine   = DB::table('employee_role_assignment')->where('employee_id', $id)->pluck('role_id')->all();
+                $shared = $shared === null ? $mine : array_values(array_intersect($shared, $mine));
+            }
+
+            if (is_array($shared) && count($shared) === 1) {
+                $role = (int) $shared[0];
+            }
+        }
+
+        $selectable = empty($row['mandatory']);
+
+        if ($selectable && $names === []
+            && !DB::table('employee_role_assignment')->where('role_id', $role)->exists()) {
+
+            return 'nobody holds that position, so the requester would have nobody to choose.';
+        }
+
+        return [
+            'name'                  => ReimbursementApprovalStep::SIGNS_AS_LABELS[$signsAs],
+            'signs_as'              => $signsAs,
+            'requester_selectable'  => $selectable,
+            'approver_type'         => $names !== [] ? ReimbursementApprovalStep::TYPE_EMPLOYEE : ReimbursementApprovalStep::TYPE_ROLE,
+            // Posisi tetap disimpan walau nama dipilih, supaya layar Settings
+            // menampilkan kembali pilihan yang tersimpan.
+            'approver_role_id'      => $role ?: null,
+            'approver_employee_ids' => $names !== [] ? $names : null,
+            'is_active'             => !empty($row['is_active']),
+        ];
     }
 }

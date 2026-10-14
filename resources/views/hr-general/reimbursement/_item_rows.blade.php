@@ -90,13 +90,13 @@
                         @error("items.{$key}.description")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
 
                         <div class="flex items-center gap-1 mt-2">
-                            <input type="date" name="items[{{ $key }}][receipt_date_from]" required
-                                   title="Receipt date"
+                            <input type="text" name="items[{{ $key }}][receipt_date_from]" required data-date autocomplete="off"
+                                   title="Receipt date" placeholder="From date"
                                    value="{{ $row['receipt_date_from'] ?? '' }}"
                                    class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
                             <span class="text-xs text-gray-400 shrink-0">s.d</span>
-                            <input type="date" name="items[{{ $key }}][receipt_date_to]"
-                                   title="Leave empty for a single-day receipt"
+                            <input type="text" name="items[{{ $key }}][receipt_date_to]" data-date autocomplete="off"
+                                   title="Leave empty for a single-day receipt" placeholder="To date"
                                    value="{{ $row['receipt_date_to'] ?? '' }}"
                                    class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
                         </div>
@@ -107,6 +107,7 @@
 
                     <td class="px-3 py-3">
                         <select name="items[{{ $key }}][branch_id]" required
+                                data-searchable="true" data-search-placeholder="Search branch…"
                                 class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
                             <option value="">— choose a branch —</option>
                             @foreach($branches as $branch)
@@ -169,16 +170,19 @@
             <input type="text" name="items[__KEY__][description]" maxlength="200" required placeholder="e.g. Claude AI Subscription"
                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
             <div class="flex items-center gap-1 mt-2">
-                <input type="date" name="items[__KEY__][receipt_date_from]" required title="Receipt date"
+                <input type="text" name="items[__KEY__][receipt_date_from]" required data-date autocomplete="off"
+                       title="Receipt date" placeholder="From date"
                        class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
                 <span class="text-xs text-gray-400 shrink-0">s.d</span>
-                <input type="date" name="items[__KEY__][receipt_date_to]" title="Leave empty for a single-day receipt"
+                <input type="text" name="items[__KEY__][receipt_date_to]" data-date autocomplete="off"
+                       title="Leave empty for a single-day receipt" placeholder="To date"
                        class="min-w-0 flex-1 px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800">
             </div>
             <p class="text-xs text-gray-400 mt-1">Receipt date — leave the second date empty for a single-day receipt.</p>
         </td>
         <td class="px-3 py-3">
             <select name="items[__KEY__][branch_id]" required
+                    data-searchable="true" data-search-placeholder="Search branch…"
                     class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
                 <option value="">— choose a branch —</option>
                 @foreach($branches as $branch)

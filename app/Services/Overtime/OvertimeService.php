@@ -412,6 +412,39 @@ class OvertimeService
             ->all();
     }
 
+    /**
+     * Apakah karyawan ini DITUNJUK sebagai penyetuju — pada langkah aktif alur
+     * (lewat peran atau nama) atau pada langkah dokumen yang masih menunggu?
+     *
+     * Dipakai untuk membuka halaman peninjauan tanpa slug menu terpisah: alur
+     * persetujuan adalah satu-satunya sumber kebenaran tentang siapa penyetuju.
+     * Hasilnya di-cache per permintaan karena sidebar, tab, dan rute
+     * menanyakannya berulang.
+     */
+    public function isDesignatedApprover(int $employeeId): bool
+    {
+        static $memo = [];
+
+        if (isset($memo[$employeeId])) {
+            return $memo[$employeeId];
+        }
+
+        $roleIds = $this->roleIdsOf($employeeId);
+
+        $configured = OvertimeApprovalStep::forOvertime()->active()->get()
+            ->contains(function ($step) use ($employeeId, $roleIds) {
+                return match ($step->approver_type) {
+                    OvertimeApprovalStep::TYPE_ROLE
+                        => $step->approver_role_id !== null && in_array((int) $step->approver_role_id, $roleIds, true),
+                    OvertimeApprovalStep::TYPE_EMPLOYEE
+                        => in_array($employeeId, array_map('intval', $step->approver_employee_ids ?? []), true),
+                    default => false,
+                };
+            });
+
+        return $memo[$employeeId] = $configured || $this->pendingIdsFor($employeeId) !== [];
+    }
+
     // =======================================================================
     // PERHITUNGAN — dipakai juga oleh tampilan
     // =======================================================================

@@ -44,29 +44,33 @@ use Illuminate\Validation\Rule;
 class PurchaseRequestSettingController extends Controller
 {
     /**
-     * 🔴 D180 — sama seperti ReimbursementSettingController: `openCount`
-     * dipindah ke ApprovalWorkflowController::purchaseRequest(), sementara
-     * `steps`/`roles`/`employees` TETAP diambil karena BAGIAN 2 (Aturan) yang
-     * tersisa masih memakainya.
+     * Alur persetujuan (slug `general.approval-workflow.purchase-request`) dan
+     * Aturan (slug `general.settings.purchase-request`) hidup di satu halaman
+     * dengan hak terpisah; view hanya merender bagian yang slug-nya dipegang.
+     * `openCount` dipakai kotak centang "apply to open" milik editor alur.
      */
-    public function edit()
+    public function edit(PurchaseRequestService $purchaseRequest)
     {
         $steps = PurchaseRequestApprovalStep::forPurchaseRequest()
             ->with('role')
             ->orderBy('order_seq')
             ->get();
 
-        return view('hr-general.settings.purchase-request', [
+        return view('hr-general.purchase-request.settings', [
             'settings' => PurchaseRequestSetting::current(),
             'steps'    => $steps,
+            'poSettings' => \App\Models\PurchaseOrder\PurchaseOrderSetting::current(),
+            'openCount' => $purchaseRequest->countOpenRequestsBefore(
+                (int) $steps->max('order_seq') + 1
+            ),
             'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 210 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
+            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name,department')
                 ->where('is_active', 1)
                 ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
+                ->sortBy(fn ($e) => mb_strtolower($e->fullNameLabel()))
                 ->values(),
         ]);
     }
