@@ -39,6 +39,12 @@ use Symfony\Component\HttpFoundation\Response;
  *     'delete'  hapus rekaman   (flag Delete pada baris employee.section.{key}.view)
  *
  * Untuk profil SENDIRI ketiganya tetap mengikuti satu slug my-profile.section.{key}.update.
+ *
+ * JENIS TARGET (13 Okt 2026): untuk orang lain, keluarga slug dipilih menurut jenis karyawan targetnya —
+ *   target Internal -> employee.section.{key}.*   (HR, Master Employee)
+ *   target External -> external.section.{key}.*   (RPMO, External → Consultants)
+ * sehingga siapa pun tidak dapat menjangkau jenis lain lewat ID di URL/API, dan Admin mengatur keduanya terpisah di Menu Access.
+ * Tab yang tidak berlaku bagi External (family, contract, payment, salary, compensation) ditolak untuk target External.
  */
 class CheckEmployeeSectionAccess
 {
@@ -58,10 +64,16 @@ class CheckEmployeeSectionAccess
 
         if ($isSelf) {
             $allowed = $this->allows($selfId, "my-profile.section.{$sectionKey}." . ($writes ? 'update' : $ability));
-        } elseif (in_array($ability, ['create', 'delete'], true)) {
-            $allowed = $this->allowsFlag($selfId, "employee.section.{$sectionKey}.view", $ability);
         } else {
-            $allowed = $this->allows($selfId, "employee.section.{$sectionKey}.{$ability}");
+            $prefix = self::scopePrefix($targetId, $sectionKey);
+            if ($prefix === null) {
+                return $this->deny($request, 'Data ini tidak berlaku untuk konsultan External.', 403);
+            }
+            if (in_array($ability, ['create', 'delete'], true)) {
+                $allowed = $this->allowsFlag($selfId, "{$prefix}.{$sectionKey}.view", $ability);
+            } else {
+                $allowed = $this->allows($selfId, "{$prefix}.{$sectionKey}.{$ability}");
+            }
         }
 
         if (!$allowed) {
@@ -97,6 +109,23 @@ class CheckEmployeeSectionAccess
         }
 
         return $next($request);
+    }
+
+    /** Tab yang berlaku bagi konsultan External (sama dengan migrasi external_section_permissions). */
+    public const EXTERNAL_TABS = ['basic_data', 'address', 'identification', 'education', 'qualification', 'bank', 'attachment', 'hr_profile', 'engagement', 'engagement_rate'];
+
+    /**
+     * Awalan slug untuk target orang lain: `employee.section` (Internal), `external.section` (External), atau null bila tab
+     * itu tidak berlaku bagi External. Jenis dibaca dari employee_basic_data (kosong = Internal).
+     */
+    public static function scopePrefix(int $targetId, string $sectionKey): ?string
+    {
+        $type = \Illuminate\Support\Facades\DB::table('employee_basic_data')->where('employee_id', $targetId)->value('employee_type');
+        if ($type !== 'External') {
+            return 'employee.section';
+        }
+
+        return in_array($sectionKey, self::EXTERNAL_TABS, true) ? 'external.section' : null;
     }
 
     /**

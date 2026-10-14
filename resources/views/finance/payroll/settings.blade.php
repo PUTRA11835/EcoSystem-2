@@ -168,6 +168,20 @@
             <h3 class="text-sm font-bold text-gray-900">Earnings</h3>
             <div>{!! $sw('overtime_enabled', 'Enable overtime calculation', 'Approved overtime requests in the period are paid at PP 35/2021 multipliers on 1/173 of (base salary + fixed allowances).') !!}</div>
             <div>{!! $sw('include_reimbursement', 'Include reimbursement in payroll', 'Reimbursements approved inside the period (IDR) are added as non-taxable earnings, once only.') !!}</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Overtime wage basis</label>
+                    <select name="overtime_wage_basis" @disabled($dis) class="{{ $input }}">
+                        <option value="base_fixed" @selected($v('overtime_wage_basis') !== 'base_only')>Basic salary + fixed allowance</option>
+                        <option value="base_only" @selected($v('overtime_wage_basis') === 'base_only')>Basic salary only</option></select>
+                    <p class="text-xs text-gray-500 mt-1">Whether fixed allowances are included in the 1/173 overtime wage base.</p></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Minimum overtime minutes</label>
+                    <select name="overtime_min_minutes" @disabled($dis) class="{{ $input }}">@foreach([0, 15, 30, 45, 60] as $m)<option value="{{ $m }}" @selected((int) $v('overtime_min_minutes') === $m)>{{ $m }} minutes</option>@endforeach</select>
+                    <p class="text-xs text-gray-500 mt-1">An overtime request shorter than this is not paid.</p></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Overtime minute rounding</label>
+                    <select name="overtime_round_minutes" @disabled($dis) class="{{ $input }}"><option value="0" @selected((int) $v('overtime_round_minutes') === 0)>No rounding</option>@foreach([5, 10, 15, 30, 60] as $m)<option value="{{ $m }}" @selected((int) $v('overtime_round_minutes') === $m)>To {{ $m }} minutes</option>@endforeach</select></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Overtime rounding method</label>
+                    <select name="overtime_round_method" @disabled($dis) class="{{ $input }}">@foreach(['nearest' => 'Nearest', 'up' => 'Round up', 'down' => 'Round down'] as $k => $l)<option value="{{ $k }}" @selected($v('overtime_round_method') === $k)>{{ $l }}</option>@endforeach</select></div>
+            </div>
         </div>
 
         {{-- BPJS & tax --}}
@@ -177,6 +191,41 @@
             <div>{!! $sw('pph21_enabled', 'Enable PPh 21 deduction', 'Rates and PTKP are in PPh 21 → Settings.') !!}</div>
             <div>{!! $sw('deduct_bpjs_tk_before_pph21', 'Deduct BPJS TK before PPh 21 calculation', 'Takes the employee’s JHT and JP off the monthly TER base (BPJS Health excluded). Not the PMK 168/2023 default — TER normally applies to gross income. Leave off unless Accounting asks for it.') !!}</div>
             <div>{!! $sw('apply_no_npwp_surcharge', 'Add 20% to PPh 21 when the employee has no NPWP/NIK', 'Based on whether an NPWP number is on file in Master → Employee → Identification.') !!}</div>
+            <div class="md:w-1/2"><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Monthly TER tax-base rounding</label>
+                <select name="ter_base_rounding" @disabled($dis) class="{{ $input }}">@foreach(\App\Support\Payroll\PayrollRounding::MODES as $k => $l)<option value="{{ $k }}" @selected($v('ter_base_rounding') === $k)>{{ $l }}{{ $k === 'none' ? ' (recommended)' : ' to Rp 1.000' }}</option>@endforeach</select>
+                <p class="text-xs text-gray-500 mt-1">Applies only to the January–November monthly TER base, after the BPJS TK deduction when enabled. Example: Rp 9.687.800 stays as is with no rounding, or becomes Rp 9.687.000 when rounded down. The December annual calculation is not affected.</p></div>
+        </div>
+
+        {{-- Net pay rounding --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+            <h3 class="text-sm font-bold text-gray-900">Net pay rounding</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Net pay rounding</label>
+                    <select name="net_rounding_mode" @disabled($dis) class="{{ $input }}">@foreach(\App\Support\Payroll\PayrollRounding::MODES as $k => $l)<option value="{{ $k }}" @selected($v('net_rounding_mode') === $k)>{{ $l }}</option>@endforeach</select></div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Rounding increment</label>
+                    <select name="net_rounding_increment" @disabled($dis) class="{{ $input }}">@foreach([100, 500, 1000, 5000] as $n)<option value="{{ $n }}" @selected((int) $v('net_rounding_increment') === $n)>{{ $n }}</option>@endforeach</select></div>
+            </div>
+            <p class="text-xs text-gray-500">The rounding difference is recorded as its own “Net pay rounding” line on the payslip, so the totals stay auditable.</p>
+        </div>
+
+        {{-- Cut-off, timesheet, loans --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
+            <div><h3 class="text-sm font-bold text-gray-900">Cut-off, timesheet &amp; loans</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Switches the people in charge can turn on or off. Items marked <span class="font-semibold">not connected yet</span> are saved and ready, but have no effect on a payslip until their source module is linked.</p></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                <div>{!! $sw('cutoff_enabled', 'Enable payroll processing cut-off', 'New periods get a default cut-off date. Workdays after the cut-off are treated as fully present and corrected in the next payroll (Payroll corrections).') !!}</div>
+                <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Payroll processing cut-off date (day of month)</label>
+                    <input type="number" min="1" max="31" name="cutoff_day" value="{{ $v('cutoff_day') }}" @disabled($dis) class="{{ $input }}">
+                    <p class="text-xs text-gray-500 mt-1">Months shorter than this use their last day. You can still change the cut-off on each period.</p></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>{!! $sw('timesheet_allowance_enabled', 'Include timesheet and project allowances in payroll', 'Not connected yet — switch for the future Timesheet → Payroll link. Off by default.') !!}</div>
+                <div>{!! $sw('tax_timesheet_allowance', 'Tax project and timesheet allowances', 'When on, those allowances will count as monthly TER gross income. Not connected yet.') !!}</div>
+                <div>{!! $sw('loan_deduction_enabled', 'Enable loan installment deduction', 'Not connected yet — will take loan / cash advance installments off take-home pay once a source is linked.') !!}</div>
+            </div>
+            <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Internal payroll notes</label>
+                <textarea name="internal_notes" rows="2" maxlength="2000" @disabled($dis) placeholder="e.g. This month’s payroll follows a 10-minute late tolerance." class="{{ $input }}">{{ $v('internal_notes') }}</textarea></div>
+            <p class="text-xs text-gray-500"><i class="fas fa-lightbulb mr-1"></i>Tip: choose Calendar proration if payroll must follow the exact working days of each month, or Fixed divisor if your company uses a constant monthly policy.</p>
         </div>
 
         {{-- Payslip --}}

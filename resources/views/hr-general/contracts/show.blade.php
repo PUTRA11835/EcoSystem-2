@@ -202,10 +202,10 @@
                         @foreach($settable as $s)<option value="{{ $s }}">{{ $statuses[$s] }}</option>@endforeach
                     </select><p class="text-[10px] text-gray-400 mt-1">Active freezes the template text. “Expired” follows the end date by itself.</p></div>
                 <div><label class="{{ $label }}" for="fDept">Department</label>
-                    <select id="fDept" name="department" class="{{ $input }}"><option value="">Follow employee data</option>
+                    <select id="fDept" name="department" data-searchable="true" data-search-placeholder="Search department…" class="{{ $input }}"><option value="">Follow employee data</option>
                         @foreach($departments as $d)<option value="{{ $d }}">{{ $d }}</option>@endforeach</select></div>
                 <div><label class="{{ $label }}" for="fPos">Position</label>
-                    <select id="fPos" name="position" class="{{ $input }}"><option value="">Follow employee data</option>
+                    <select id="fPos" name="position" data-searchable="true" data-search-placeholder="Search position…" class="{{ $input }}"><option value="">Follow employee data</option>
                         @foreach($positions as $p)<option value="{{ $p }}">{{ $p }}</option>@endforeach</select></div>
                 <div><label class="{{ $label }}" for="fLoc">Work location</label><input id="fLoc" name="work_location" maxlength="255" placeholder="Follow employee data" class="{{ $input }}"></div>
                 <div id="fVolumeWrap" class="hidden"><label class="{{ $label }}" for="fVolume">Work volume</label><input id="fVolume" name="work_volume" maxlength="100" placeholder="e.g. 20,00 mandays" class="{{ $input }}"><p class="text-[10px] text-gray-400 mt-1">Printed as “Jumlah waktu pelaksanaan” in a consultant contract.</p></div>
@@ -221,6 +221,7 @@
                     <div class="md:col-span-2 border-t border-gray-100 pt-4">
                         <label class="{{ $label }}" for="fSalary">Contract basic salary</label>
                         <input id="fSalary" name="salary" inputmode="decimal" placeholder="e.g. 4.500.000" class="{{ $input }} md:w-1/2">
+                        <p id="fSalaryHint" class="hidden text-[11px] text-indigo-700 mt-1"><i class="fas fa-circle-info mr-1"></i>Pre-filled from the employee’s current Salary Components (offering letter or previous contract). Change it for a raise; saving an Active contract updates the Salary Components.</p>
                         <div class="mt-3 flex items-center justify-between"><span class="{{ $label }} mb-0">Allowances</span>
                             <button type="button" onclick="addComponent()" class="text-[11px] font-semibold text-indigo-700 hover:underline"><i class="fas fa-plus mr-1"></i>Add allowance</button></div>
                         <div id="fComponents" class="mt-2 space-y-2"></div>
@@ -251,6 +252,7 @@
     const editId = {{ (int) $editId }};
     const activeLocked = {{ $activeLocked ? 'true' : 'false' }};
     const canSalary = {{ $canSalary ? 'true' : 'false' }};
+    const salaryDefaults = @json($salaryDefaults ?? null);   // gaji berlaku di Salary Components → isian awal kontrak baru
     const $ = id => document.getElementById(id);
 
     function money(n) { return 'Rp ' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
@@ -329,7 +331,13 @@
             if (canSalary) { $('fSalary').value = c.salary ?? ''; (c.components || []).forEach(r => addComponent(r.name, r.amount)); }
         } else {
             $('fStatus').value = 'draft';
+            if (canSalary && salaryDefaults) {
+                $('fSalary').value = salaryDefaults.salary;
+                salaryDefaults.components.forEach(r => addComponent(r.name, r.amount));
+            }
         }
+        const hint = $('fSalaryHint');
+        if (hint) hint.classList.toggle('hidden', edit || !(canSalary && salaryDefaults));
         // A new contract cannot be set to Active while the employee data is incomplete (the server checks it again).
         const activeOpt = $('fStatus').querySelector('option[value="active"]');
         activeOpt.disabled = activeLocked && !(edit && c.isActive);

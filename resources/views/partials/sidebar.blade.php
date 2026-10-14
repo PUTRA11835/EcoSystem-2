@@ -433,7 +433,22 @@
             @endif
 @php $sb['contracts'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-
+            {{-- External (konsultan eksternal) — six pages, each with its own Menu Access slug; the section shows only when one passes. --}}
+            @foreach([
+                ['general.external.consultants', 'general.external.consultants.index', 'general/external/consultants*', 'fas fa-user-tie', 'External Consultants'],
+                ['general.external.timesheet', 'general.external.timesheet.index', 'general/external/timesheet*', 'fas fa-clock', 'Timesheet & Payment'],
+                ['general.external.contracts', 'general.external.contracts.index', 'general/external/contracts*', 'fas fa-file-contract', 'External Contract'],
+                ['general.external.assignment-letters', 'general.external.assignment-letters.index', 'general/external/assignment-letters*', 'fas fa-briefcase', 'Assignment Letter'],
+                ['general.external.employment-certificates', 'general.external.employment-certificates.index', 'general/external/employment-certificates*', 'fas fa-file-circle-check', 'Employment Certificate'],
+                ['general.external.reference-letters', 'general.external.reference-letters.index', 'general/external/reference-letters*', 'fas fa-file-signature', 'Reference Letter'],
+            ] as [$extSlug, $extRoute, $extActive, $extIcon, $extLabel])
+                @if($can($extSlug))
+                    @include('partials.ess-nav-item', ['href' => route($extRoute), 'icon' => $extIcon, 'label' => $extLabel, 'active' => Request::is($extActive), 'nested' => false])
+                @endif
+            @endforeach
+@php $sb['external'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
             @if($can('finance.pph21.settings') || $can('finance.pph21.report'))
                 <div class="mb-2">
                     <a href="{{ route('finance.pph21.index') }}"
@@ -1175,6 +1190,8 @@
                 $sbSections = [
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
+                    ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
+                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
                     ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],

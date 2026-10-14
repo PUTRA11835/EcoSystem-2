@@ -52,6 +52,7 @@ class EmployeeContract extends Model
         'signed_file_at',
         'signed_file_by',
         'stamp_method',
+        'page_json',
     ];
 
     // Teks template beku bisa panjang; tidak ikut JSON seksi Contract di Master Employee.
@@ -65,6 +66,7 @@ class EmployeeContract extends Model
         'is_active' => 'boolean',
         'signed_date' => 'date',
         'signed_file_at' => 'datetime',
+        'page_json' => 'array',
         'salary_components' => 'array',
         'contract_date' => 'datetime',
     ];

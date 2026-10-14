@@ -9,8 +9,10 @@ use App\Models\Letters\LetterSetting;
 use App\Models\Position;
 use App\Services\Letters\LetterService;
 use App\Services\Contracts\ContractService;
+use App\Support\Contracts\ContractHtmlSanitizer;
 use App\Support\Contracts\ContractPlaceholders;
 use App\Support\Contracts\ContractRules;
+use App\Support\Contracts\PageSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -116,14 +118,45 @@ class ContractTemplateController extends Controller
             'html'       => ContractRules::render($template->body_html, ContractService::sampleValues($template->contract_type)),
             'letterhead' => $template->use_letterhead ? Letterhead::forLetter(ContractService::LETTER_TYPE) : null,
         ];
+        $doc['page'] = PageSettings::resolve(ContractService::templatePage($template), $doc['letterhead'] !== null);
 
-        return Pdf::loadView('hr-general.contracts.pdf', ['doc' => $doc])->setPaper('a4')->stream('template-' . $template->id . '.pdf');
+        return Pdf::loadView('hr-general.contracts.pdf', ['doc' => $doc])->setPaper(PageSettings::paper($doc))->stream('template-' . $template->id . '.pdf');
+    }
+
+    /**
+     * The text exactly as it is being edited (not yet saved) as the real PDF, with sample values and the letterhead of
+     * "Employment Contract" — the editor's Preview. Reads nothing from the database about employees.
+     */
+    public function previewDraft(Request $request)
+    {
+        $data = $request->validate([
+            'body_html'      => 'required|string|max:300000',
+            'contract_type'  => ['required', Rule::in(array_keys(ContractRules::TYPES))],
+            'use_letterhead' => 'nullable|boolean',
+            ...$this->pageRules(),
+        ]);
+        $html = ContractHtmlSanitizer::clean($data['body_html']);
+        $doc = [
+            'title'      => 'Preview',
+            'number'     => 'PREVIEW',
+            'html'       => ContractRules::render($html, ContractService::sampleValues($data['contract_type'])),
+            'letterhead' => ($data['use_letterhead'] ?? true) ? Letterhead::forLetter(ContractService::LETTER_TYPE) : null,
+        ];
+        $stored = ContractService::pageColumns($data);
+        $doc['page'] = PageSettings::resolve(PageSettings::store($stored['page_size'], $stored['page_orientation'], ['top' => $stored['margin_top'], 'right' => $stored['margin_right'], 'bottom' => $stored['margin_bottom'], 'left' => $stored['margin_left']]), $doc['letterhead'] !== null);
+
+        return Pdf::loadView('hr-general.contracts.pdf', ['doc' => $doc])->setPaper(PageSettings::paper($doc))->stream('preview.pdf');
     }
 
     private function form(ContractTemplate $template)
     {
         return view('hr-general.contracts.template-form', [
             'template'     => $template,
+            'letterheadUri' => Letterhead::forLetter(ContractService::LETTER_TYPE)?->backgroundDataUri(),
+            'pageSizes'    => PageSettings::sizeOptions(),
+            'page'         => ['size' => $template->page_size ?: 'A4', 'orientation' => $template->page_orientation ?: 'portrait',
+                'margins' => ['top' => $template->margin_top, 'right' => $template->margin_right, 'bottom' => $template->margin_bottom, 'left' => $template->margin_left]],
+            'pageDefaults' => ['plain' => PageSettings::defaultMarginsCm(false), 'letterhead' => PageSettings::defaultMarginsCm(true)],
             'types'        => ContractRules::TYPES,
             'placeholders' => ['employee' => ContractPlaceholders::EMPLOYEE, 'external' => ContractPlaceholders::EXTERNAL],
             'positions'    => Position::options(),
@@ -143,6 +176,15 @@ class ContractTemplateController extends Controller
             'use_letterhead' => 'nullable|boolean',
             'signatory_employee_id' => 'nullable|integer',
             'status'         => ['nullable', Rule::in(['active', 'inactive'])],
+            ...$this->pageRules(),
         ];
+    }
+
+    private function pageRules(): array
+    {
+        $m = 'nullable|numeric|min:' . PageSettings::MARGIN_MIN_CM . '|max:' . PageSettings::MARGIN_MAX_CM;
+
+        return ['page_size' => ['nullable', Rule::in(array_keys(PageSettings::SIZES))], 'page_orientation' => ['nullable', Rule::in(['portrait', 'landscape'])],
+            'margin_top' => $m, 'margin_right' => $m, 'margin_bottom' => $m, 'margin_left' => $m];
     }
 }

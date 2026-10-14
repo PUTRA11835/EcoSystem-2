@@ -36,8 +36,8 @@
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="PASSPORT">Passport</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="NPWP">Tax ID (NPWP)</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="DRIVER_LICENSE">Driver License (SIM)</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KESEHATAN">BPJS Kesehatan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KETENAGAKERJAAN">BPJS Ketenagakerjaan</button>
+                        <button type="button" class="js-internal-only custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KESEHATAN">BPJS Kesehatan</button>
+                        <button type="button" class="js-internal-only custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KETENAGAKERJAAN">BPJS Ketenagakerjaan</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAS">KITAS</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAP">KITAP</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="OTHER">Other</button>

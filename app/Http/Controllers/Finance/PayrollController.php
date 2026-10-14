@@ -328,6 +328,9 @@ class PayrollController extends Controller
             'start' => $d->copy()->startOfMonth()->toDateString(),
             'end' => $d->copy()->endOfMonth()->toDateString(),
             'pay' => $d->copy()->endOfMonth()->toDateString(),
+            // Cut-off bawaan dari Payroll Settings (bila dinyalakan), dipotong ke panjang bulan.
+            'cutoff' => ($cfg = PayrollSetting::current())->cutoff_enabled
+                ? $d->copy()->startOfMonth()->addDays(min((int) $cfg->cutoff_day, $d->daysInMonth) - 1)->toDateString() : '',
         ];
     }
 

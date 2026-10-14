@@ -21,7 +21,8 @@ class PayrollSetting extends Model
 
     protected $guarded = ['id'];
 
-    protected $casts = ['module_enabled' => 'boolean', 'enabled_at' => 'datetime', 'attendance_enabled' => 'boolean', 'attendance_effective_from' => 'date'];
+    protected $casts = ['module_enabled' => 'boolean', 'enabled_at' => 'datetime', 'attendance_enabled' => 'boolean', 'attendance_effective_from' => 'date',
+        'cutoff_enabled' => 'boolean', 'timesheet_allowance_enabled' => 'boolean', 'tax_timesheet_allowance' => 'boolean', 'loan_deduction_enabled' => 'boolean'];
 
     /** Baris tunggal; dibuat bila belum ada (migrasi sudah membuatnya). */
     public static function current(): self

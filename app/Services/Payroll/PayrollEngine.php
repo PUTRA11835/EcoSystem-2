@@ -68,6 +68,19 @@ class PayrollEngine
             'deduct_bpjs_tk_before_pph21' => (bool) $r->deduct_bpjs_tk_before_pph21,
             'pph21_enabled'               => (bool) $r->pph21_enabled,
             'apply_no_npwp_surcharge'     => (bool) $r->apply_no_npwp_surcharge,
+            'overtime_wage_basis'         => $r->overtime_wage_basis === 'base_only' ? 'base_only' : 'base_fixed',
+            'overtime_min_minutes'        => (int) $r->overtime_min_minutes,
+            'overtime_round_minutes'      => (int) $r->overtime_round_minutes,
+            'overtime_round_method'       => (string) $r->overtime_round_method,
+            'ter_base_rounding'           => (string) $r->ter_base_rounding,
+            'net_rounding_mode'           => (string) $r->net_rounding_mode,
+            'net_rounding_increment'      => max(1, (int) $r->net_rounding_increment),
+            'cutoff_enabled'              => (bool) $r->cutoff_enabled,
+            'cutoff_day'                  => (int) $r->cutoff_day,
+            'timesheet_allowance_enabled' => (bool) $r->timesheet_allowance_enabled,
+            'tax_timesheet_allowance'     => (bool) $r->tax_timesheet_allowance,
+            'loan_deduction_enabled'      => (bool) $r->loan_deduction_enabled,
+            'internal_notes'              => $r->internal_notes,
         ];
     }
 

@@ -9,6 +9,30 @@
 <script>
 const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }};
 </script>
+@php
+    // Kartu ringkasan (gaya sama dengan External → Consultants): klik kartu = terapkan filter pada daftar di bawah.
+    $tones = ['blue' => 'bg-blue-50 text-blue-600', 'green' => 'bg-green-50 text-green-600', 'amber' => 'bg-amber-50 text-amber-600', 'red' => 'bg-red-50 text-red-600', 'gray' => 'bg-gray-100 text-gray-500'];
+    $cards = [
+        ['all', 'Total employees', $summary['total'] ?? 0, 'users', 'blue', []],
+        ['active', 'Active', $summary['active'] ?? 0, 'user-check', 'green', ['status' => 'active']],
+        ['blocked', 'Blocked', $summary['blocked'] ?? 0, 'user-lock', 'red', ['status' => 'blocked']],
+        ['internship', 'Internship', $summary['internship'] ?? 0, 'graduation-cap', 'amber', ['employee_group' => ['INTERNSHIP']]],
+        ['locked', 'Profile locked', $summary['locked'] ?? 0, 'lock', 'gray', ['lock' => 'locked']],
+    ];
+@endphp
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
+    @foreach($cards as [$key, $label, $count, $icon, $tone, $patch])
+        <button type="button" data-card="{{ $key }}" data-patch='@json($patch)' onclick="applyCardFilter(this)"
+                class="emp-card text-left bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3 hover:shadow transition">
+            <span class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 {{ $tones[$tone] }}"><i class="fas fa-{{ $icon }}"></i></span>
+            <span class="min-w-0">
+                <span class="block text-2xl font-bold text-gray-800 leading-none">{{ number_format($count) }}</span>
+                <span class="block text-[11px] text-gray-500 mt-1">{{ $label }}</span>
+            </span>
+        </button>
+    @endforeach
+</div>
+
 <div class="bg-white rounded-xl p-6 shadow-sm">
     <!-- Page Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
@@ -48,7 +72,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         @include('master.employee.components.header-filter', ['key' => 'employee', 'label' => 'Full Name', 'type' => 'search', 'placeholder' => 'Search by ECI or name…', 'thStyle' => 'min-width:200px;'])
                         @include('master.employee.components.header-filter', ['key' => 'position', 'label' => 'Position', 'type' => 'checkboxes', 'options' => array_combine($positionOptions ?? [], $positionOptions ?? [])])
                         @include('master.employee.components.header-filter', ['key' => 'modules', 'label' => 'Module', 'type' => 'checkboxes', 'dynamic' => true])
-                        @include('master.employee.components.header-filter', ['key' => 'employee_group', 'label' => 'Employee Group', 'type' => 'checkboxes', 'options' => array_combine($employeeGroupOptions ?? [], $employeeGroupOptions ?? []), 'thStyle' => 'min-width:130px;'])
+                        @include('master.employee.components.header-filter', ['key' => 'employee_group', 'label' => 'Employee Group', 'type' => 'checkboxes', 'options' => array_combine(array_values(array_diff($employeeGroupOptions ?? [], ['EXTERNAL'])), array_values(array_diff($employeeGroupOptions ?? [], ['EXTERNAL']))), 'thStyle' => 'min-width:130px;'])
                         @include('master.employee.components.header-filter', ['key' => 'division', 'label' => 'Division', 'type' => 'checkboxes', 'options' => array_combine($divisionOptions ?? [], $divisionOptions ?? [])])
                         @include('master.employee.components.header-filter', ['key' => 'department', 'label' => 'Department', 'type' => 'checkboxes', 'options' => array_combine($departmentOptions ?? [], $departmentOptions ?? []), 'thStyle' => 'min-width:220px;'])
                         @include('master.employee.components.header-filter', ['key' => 'home_base', 'label' => 'Home Base', 'type' => 'checkboxes', 'options' => array_combine(\App\Enums\HomeBase::options(), \App\Enums\HomeBase::options())])
@@ -762,6 +786,24 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         };
     }
 
+    // Klik kartu ringkasan: ganti filter daftar dengan filter kartu itu (kartu "Total" = tanpa filter).
+    function applyCardFilter(btn) {
+        const patch = JSON.parse(btn.dataset.patch || '{}');
+        ehfResetAll();
+        Object.assign(window.EMP_F, patch);
+        ehfSyncAll();
+        currentPage = 1;
+        toggleResetFilters();
+        fetchEmployees(getCurrentFilters(), 1);
+        markActiveCard(btn.dataset.card);
+    }
+    function markActiveCard(key) {
+        document.querySelectorAll('.emp-card').forEach(c => {
+            const on = c.dataset.card === key && key !== 'all';
+            c.classList.toggle('border-red-300', on); c.classList.toggle('ring-2', on); c.classList.toggle('ring-red-200', on);
+        });
+    }
+
     function toggleResetFilters() {
         const any = Object.values(getCurrentFilters()).some(v => v !== '');
         document.getElementById('employeeResetFilters')?.classList.toggle('hidden', !any);
@@ -1240,9 +1282,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             const data = await response.json();
             
             if (data.success) {
+                const toExternal = (employeeData.employee_group || '') === 'EXTERNAL';
                 showNotification(currentEmployeeId ? 'Employee updated successfully!' : 'Employee created successfully!', 'success');
                 closeModal();
-                fetchEmployees();
+                if (toExternal) {
+                    // Konsultan eksternal tidak tampil di daftar ini — lanjutkan ke halaman External → Consultants.
+                    setTimeout(() => { window.location.href = '{{ route("general.external.consultants.index") }}'; }, 900);
+                } else {
+                    fetchEmployees();
+                }
             } else {
                 showApiErrors(data, 'Failed to save employee record');
             }
@@ -1309,6 +1357,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     }
 
     function resetFilters() {
+        markActiveCard('all');
         ehfResetAll();
         currentPage = 1;
         toggleResetFilters();
@@ -1581,6 +1630,14 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         toggleResetFilters();
 
         fetchEmployees(getCurrentFilters(), currentPage);
+
+        // Dari External → Consultants → Add Consultant (?create=external): buka formulir dengan Employee Group = EXTERNAL.
+        if (new URLSearchParams(location.search).get('create') === 'external' && typeof openCreateModal === 'function') {
+            openCreateModal();
+            document.getElementById('modalTitle').textContent = 'Create External Consultant';
+            if (typeof setCustomDropdownValue === 'function') setCustomDropdownValue('employeeGroup', 'EXTERNAL');
+            document.getElementById('employeeGroup').value = 'EXTERNAL';
+        }
 
         // Teleport menu ke body agar tidak ter-clip oleh overflow-x-hidden pada <main>
         const menu = document.getElementById('floatingEmpMenu');
