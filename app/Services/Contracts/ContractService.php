@@ -55,6 +55,19 @@ class ContractService
                         ->where('i.identification_type', 'KTP')
                         ->where('i.identification_number', 'like', $like)));
             })
+            // Column filters (header funnels of Management → Employee → Contract)
+            ->when(($filters['employee'] ?? '') !== '', function ($q) use ($filters) {
+                $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['employee']) . '%';
+                $q->where(fn ($s) => $s
+                    ->whereRaw("CONCAT_WS(' ', b.first_name, b.last_name) like ?", [$like])
+                    ->orWhere('b.nick_name', 'like', $like)
+                    ->orWhere('e.eci', 'like', $like));
+            })
+            ->when(($filters['number'] ?? '') !== '', fn ($q) => $q->where('c.contract_number', 'like',
+                '%' . str_replace(['%', '_'], ['\\%', '\\_'], $filters['number']) . '%'))
+            ->when(($filters['department'] ?? '') !== '', fn ($q) => $q->where('b.department', $filters['department']))
+            ->when(($filters['end_from'] ?? '') !== '', fn ($q) => $q->where('c.end_date', '>=', $filters['end_from']))
+            ->when(($filters['end_to'] ?? '') !== '', fn ($q) => $q->where('c.end_date', '<=', $filters['end_to']))
             ->when(isset(ContractRules::TYPES[$filters['type'] ?? '']), fn ($q) => $q
                 ->whereIn(DB::raw('UPPER(c.contract_type)'), $this->typeAliases($filters['type'])))
             ->tap(fn ($q) => $this->applyStatusFilter($q, $filters['status'] ?? '', $today))
@@ -64,6 +77,72 @@ class ContractService
         $page->getCollection()->transform(fn ($row) => $this->decorate($row, $today));
 
         return $page;
+    }
+
+    /** Departments of the active employees, for the Department filter. @return array<string,string> */
+    public function departments(): array
+    {
+        return $this->baseQuery(false)->whereNotNull('b.department')->where('b.department', '<>', '')
+            ->distinct()->orderBy('b.department')->pluck('b.department', 'b.department')->all();
+    }
+
+    /**
+     * Figures of the Contract dashboard — one pass over every active employee's latest contract, so the numbers
+     * agree with the list and its status filter.
+     *
+     * @param  int  $window  days ahead that count as "ending soon" (30 / 60 / 90)
+     */
+    public function dashboard(int $window = 30): array
+    {
+        $window = in_array($window, [30, 60, 90], true) ? $window : 30;
+        $today = now()->toDateString();
+        $until = fn (int $days) => now()->addDays($days)->toDateString();
+
+        $rows = $this->baseQuery()->orderBy('b.first_name')->get()->map(fn ($r) => $this->decorate($r, $today));
+        $running = $rows->where('effective_status', ContractRules::STATUS_ACTIVE);
+        $endingIn = fn (int $days) => $running->filter(fn ($r) => $r->end_date && $r->end_date >= $today && $r->end_date <= $until($days));
+
+        $ending = $endingIn($window)->sortBy('end_date')->values()->each(function ($r) {
+            $r->days_left = (int) now()->startOfDay()->diffInDays(Carbon::parse($r->end_date)->startOfDay());
+        });
+
+        $expired = $rows->where('effective_status', ContractRules::STATUS_EXPIRED)->sortByDesc('end_date')->values();
+        $none = $rows->where('effective_status', 'none')->values();
+
+        $count = fn ($collection, string $by, string $fallback) => $collection
+            ->groupBy(fn ($r) => ($r->{$by} ?? '') !== '' ? $r->{$by} : $fallback)->map->count()->sortDesc();
+
+        $months = collect(range(0, 5))->map(function ($ahead) use ($running) {
+            $start = now()->startOfMonth()->addMonths($ahead);
+
+            return [
+                'label' => $start->format('M Y'),
+                'count' => $running->filter(fn ($r) => $r->end_date && substr($r->end_date, 0, 7) === $start->format('Y-m'))->count(),
+            ];
+        });
+
+        return [
+            'window'  => $window,
+            'cards'   => [
+                'employees' => $rows->count(),
+                'active'    => $running->count(),
+                'permanent' => $running->filter(fn ($r) => !$r->end_date)->count(),
+                'ending30'  => $endingIn(30)->count(),
+                'ending60'  => $endingIn(60)->count(),
+                'ending90'  => $endingIn(90)->count(),
+                'expired'   => $expired->count(),
+                'none'      => $none->count(),
+                'draft'     => $rows->where('effective_status', ContractRules::STATUS_DRAFT)->count(),
+            ],
+            'ending'  => $ending,
+            'recent'  => $rows->where('has_contract', true)->sortByDesc('contract_id')->take(10)->values(),
+            'records' => $rows->where('has_contract', true)->count(),
+            'expired' => $expired->take(8),
+            'none'    => $none->take(8),
+            'byType'  => $count($rows->where('has_contract', true), 'type', 'Other'),
+            'byDept'  => $count($running, 'employee_department', 'No department')->take(8),
+            'months'  => $months,
+        ];
     }
 
     /** Hitungan untuk kartu ringkasan di atas daftar. */

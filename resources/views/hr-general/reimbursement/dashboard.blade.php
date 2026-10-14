@@ -2,7 +2,7 @@
 
 @section('title', 'Reimbursement — Dashboard')
 @section('page-title', 'Reimbursement')
-@section('page-subtitle', 'Where reimbursement stands this month, and what needs you')
+@section('page-subtitle', 'Where reimbursement stands for the period you pick, and what needs you')
 
 @section('content')
 @php
@@ -14,16 +14,46 @@
     $statusTone  = ['Open' => 'bg-blue-500', 'Approved' => 'bg-green-500', 'Rejected' => 'bg-red-500'];
 @endphp
 
-@include('hr-general.reimbursement.hub-tabs-reimbursement')
+@include('hr-general.reimbursement.components.hub-tabs')
 
 <div class="space-y-5">
+
+    {{-- Period: the figures, trend, status mix and top requesters follow it; the queues on the left of the
+         bottom row are always "right now". --}}
+    <form method="GET" action="{{ route('general.reimbursement.dashboard') }}" id="rbPeriodForm"
+          class="bg-white rounded-xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-end gap-3">
+        <div class="sm:w-60">
+            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1" for="rbPeriod">Period</label>
+            <select name="period" id="rbPeriod" onchange="rbPeriodChange()">
+                @foreach($periods as $value => $text)
+                    <option value="{{ $value }}" @selected($period['key'] === $value)>{{ $text }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div id="rbMonthBox" class="sm:w-44 {{ $period['key'] === 'month' ? '' : 'hidden' }}">
+            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1" for="rbMonth">Month</label>
+            <input type="month" name="month" id="rbMonth" value="{{ $period['month'] }}" onchange="this.form.requestSubmit()"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+        </div>
+        <div id="rbYearBox" class="sm:w-32 {{ $period['key'] === 'year' ? '' : 'hidden' }}">
+            <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1" for="rbYear">Year</label>
+            <select name="year" id="rbYear" onchange="this.form.requestSubmit()">
+                @for($y = now()->year + 1; $y >= now()->year - 5; $y--)
+                    <option value="{{ $y }}" @selected($period['year'] === $y)>{{ $y }}</option>
+                @endfor
+            </select>
+        </div>
+        <p class="sm:ml-auto text-xs text-gray-500">Showing <span class="font-semibold text-gray-800">{{ $period['label'] }}</span>
+            @if($period['from']) <span class="text-gray-400">· {{ $period['from']->format('d M Y') }} – {{ $period['to']->format('d M Y') }}</span>@endif
+        </p>
+    </form>
 
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         @foreach([
             ['Waiting for You', $cards['mine'], 'fa-hourglass-half', 'text-red-800', route('general.reimbursement.index', ['scope' => 'mine']), 'Documents at your step'],
             ['Open Documents', $cards['pending'], 'fa-clock', 'text-amber-600', route('general.reimbursement.index'), $rupiah($cards['pendingAmount']) . ' pending'],
-            [$monthLabel, $cards['month'], 'fa-calendar-days', 'text-gray-900', route('general.reimbursement.index', ['month' => now()->format('Y-m'), 'status' => 'all']), $rupiah($cards['monthAmount']) . ' requested'],
-            ['Avg. Approval Time', $cards['avgDays'] !== null ? $cards['avgDays'] . ' d' : '—', 'fa-stopwatch', 'text-green-600', null, 'Approved in the last 90 days'],
+            [$monthLabel, $cards['month'], 'fa-calendar-days', 'text-gray-900', $period['from'] && in_array($period['key'], ['month', 'this_month', 'last_month'], true) ? route('general.reimbursement.index', ['month' => $period['from']->format('Y-m'), 'status' => 'all']) : null, $rupiah($cards['monthAmount']) . ' requested'],
+            ['Avg. Approval Time', $cards['avgDays'] !== null ? $cards['avgDays'] . ' d' : '—', 'fa-stopwatch', 'text-green-600', null, $period['from'] ? 'Approved documents of ' . $period['label'] : 'Approved in the last 90 days'],
         ] as [$label, $value, $icon, $tone, $href, $sub])
             @if($href)<a href="{{ $href }}" class="block bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-all">@else<div class="bg-white rounded-xl p-5 shadow-sm">@endif
                 <div class="flex items-center justify-between">
@@ -39,8 +69,8 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {{-- Trend --}}
         <div class="lg:col-span-2 bg-white rounded-xl p-6 shadow-sm">
-            <h3 class="text-sm font-bold text-gray-800">Last 6 Months</h3>
-            <p class="text-[11px] text-gray-400 mb-4">Requested amount (IDR) and number of documents, by request date.</p>
+            <h3 class="text-sm font-bold text-gray-800">{{ $trend->count() }}-Month Trend</h3>
+            <p class="text-[11px] text-gray-400 mb-4">Requested amount (IDR) and number of documents per month, by request date.</p>
 
             <div class="space-y-2.5">
                 @foreach($trend as $row)
@@ -59,7 +89,7 @@
         {{-- Status mix --}}
         <div class="bg-white rounded-xl p-6 shadow-sm">
             <h3 class="text-sm font-bold text-gray-800">Status Mix</h3>
-            <p class="text-[11px] text-gray-400 mb-4">All documents.</p>
+            <p class="text-[11px] text-gray-400 mb-4">Documents of {{ $period['label'] }}.</p>
 
             <div class="flex h-3 rounded-full overflow-hidden bg-gray-100 mb-4">
                 @foreach($statusRows as $name => $n)
@@ -127,9 +157,20 @@
                     <span class="text-xs font-semibold text-gray-800 whitespace-nowrap">{{ $rupiah($row->amount) }}</span>
                 </div>
             @empty
-                <p class="text-sm text-gray-400 py-6 text-center">No request this month.</p>
+                <p class="text-sm text-gray-400 py-6 text-center">No request in {{ $period['label'] }}.</p>
             @endforelse
         </div>
     </div>
 </div>
+
+<script>
+    // "Choose a month" / "Annual" reveal their value box; every other period applies at once.
+    function rbPeriodChange() {
+        const form = document.getElementById('rbPeriodForm');
+        const key = document.getElementById('rbPeriod').value;
+        document.getElementById('rbMonthBox').classList.toggle('hidden', key !== 'month');
+        document.getElementById('rbYearBox').classList.toggle('hidden', key !== 'year');
+        form.requestSubmit();
+    }
+</script>
 @endsection

@@ -32,12 +32,8 @@
 @section('page-title', $isEdit ? 'Edit Purchase Order' : 'Create Purchase Order')
 @section('page-subtitle', $isEdit ? 'Document ' . $order->po_no : 'Create a purchase order manually or from an approved purchase request')
 
-@section('page-actions')
-    <a href="{{ $isEdit ? route('general.purchase-order.show', $order) : route('general.purchase-order.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Back</a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => $isEdit ? route('general.purchase-order.show', $order) : route('general.purchase-order.index'), 'backLabel' => 'Back'])
 @include('hr-general.reimbursement.components.date-picker')
 
 <form method="POST" action="{{ $action }}" class="bg-white rounded-xl p-6 shadow-sm space-y-6" id="poForm">

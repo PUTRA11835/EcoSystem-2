@@ -1,5 +1,5 @@
 {{--
-    Daftar tab hub Reimbursement — dua tab (D177). Lihat hub-tabs-attendance.blade.php
+    Daftar tab hub Reimbursement — dua tab (D177). Lihat components/hub-tabs.blade.php
     untuk penjelasan pola secara umum.
 --}}
 @php

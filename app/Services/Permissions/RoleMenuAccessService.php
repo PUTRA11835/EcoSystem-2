@@ -54,6 +54,9 @@ class RoleMenuAccessService
 
         $list = [];
         foreach ($menus as $m) {
+            if ($this->rules->isHidden($m->slug)) {
+                continue;
+            }
             $module = $this->rules->moduleOf($m->slug);
             $list[] = [
                 'id' => (int) $m->id, 'parent_id' => $m->parent_id ? (int) $m->parent_id : null,

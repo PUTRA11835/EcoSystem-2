@@ -26,7 +26,7 @@
 @section('content')
 @php use App\Models\Reimbursement\ReimbursementRequest; @endphp
 
-@include('hr-general.reimbursement.hub-tabs-reimbursement')
+@include('hr-general.reimbursement.components.hub-tabs')
 @include('hr-general.reimbursement.components.date-picker')
 
 <div class="space-y-5">

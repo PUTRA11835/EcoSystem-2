@@ -4,7 +4,6 @@
 @section('page-title', 'KPI Evaluation')
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'kpi.templates'])
 @php
     $user = session('user');
     $canCreate = $canCreate ?? ($canManage ?? false);
@@ -50,12 +49,15 @@
                     Pick an audience and an assessment type. Indicator weights must total 100%.
                 </p>
             </div>
-            @if($canCreate)
-            <a href="{{ route('general.kpi-evaluation.templates.create') }}"
-                class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-xl shadow hover:opacity-90 transition-all">
-                <i class="fas fa-plus text-xs"></i> New Template
-            </a>
-            @endif
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'kpi.templates', 'bare' => true])
+                @if($canCreate)
+                <a href="{{ route('general.kpi-evaluation.templates.create') }}"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg shadow-sm hover:opacity-90 transition-all">
+                    <i class="fas fa-plus text-xs"></i> New Template
+                </a>
+                @endif
+            </div>
         </div>
     </div>
 

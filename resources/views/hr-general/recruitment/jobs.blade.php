@@ -15,7 +15,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.jobs'])
 <div class="w-full space-y-6 px-1 lg:px-2">
 
     @include('hr-general.recruitment.components.hub-tabs')
@@ -30,6 +29,8 @@
                 <h3 class="text-sm font-bold text-gray-800">Job Postings</h3>
                 <p class="text-[10px] text-gray-400 mt-0.5">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter.</p>
             </div>
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'recruitment.jobs', 'bare' => true])
             <div class="flex items-center gap-2" data-live-region="toolbar">
                 @if($hasFilters)
                     <a href="{{ route('general.recruitment.jobs.index') }}"
@@ -43,6 +44,7 @@
                         <i class="fas fa-plus text-xs"></i> New Job Opening
                     </a>
                 @endif
+            </div>
             </div>
         </div>
 

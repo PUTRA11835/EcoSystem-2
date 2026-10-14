@@ -368,10 +368,10 @@ class PurchaseRequestController extends Controller
     /** Karyawan aktif untuk dropdown "New PR". */
     private function employeeOptions()
     {
-        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
+        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department,full_name')
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
-            ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
+            ->sortBy(fn ($e) => $e->basicData?->full_name ?? $e->eci)
             ->values();
     }
 
@@ -392,13 +392,13 @@ class PurchaseRequestController extends Controller
             return ['firstStep' => $first, 'chooseApprover' => false, 'approverCandidates' => []];
         }
 
-        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name')
+        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,full_name')
             ->whereIn('employee_id', $first->candidateEmployeeIds())
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
             ->map(fn (Employee $e) => [
                 'id'   => (int) $e->employee_id,
-                'name' => $e->basicData?->nick_name ?? $e->eci,
+                'name' => $e->basicData?->full_name ?? $e->eci,
             ])
             ->sortBy('name')
             ->values()
@@ -518,7 +518,7 @@ class PurchaseRequestController extends Controller
                     $inner->where('request_no', 'like', "%{$term}%")
                           ->orWhere('title', 'like', "%{$term}%")
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

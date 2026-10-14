@@ -87,10 +87,10 @@ class CashAdvanceSettingController extends Controller
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 207 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
+            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,department,full_name')
                 ->where('is_active', 1)
                 ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
+                ->sortBy(fn ($e) => $e->basicData?->full_name ?? $e->eci)
                 ->values(),
 
             // 🔴 Diberitahukan di layar, bukan didiamkan: tanpa cabang aktif,

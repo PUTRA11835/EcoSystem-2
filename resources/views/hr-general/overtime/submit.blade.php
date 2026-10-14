@@ -4,14 +4,8 @@
 @section('page-title', 'Submit Overtime')
 @section('page-subtitle', 'Fill in the overtime details you want to submit')
 
-@section('page-actions')
-    <a href="{{ route('general.my-overtime.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.my-overtime.index'), 'backLabel' => 'Back'])
 {{-- Lebar penuh (D152/D176) — sebelumnya max-w-5xl, kombinasi paling sempit
      di antara form Submit modul HR & General, sehingga di layar lebar
      separuh halaman kosong. Grid tiga kolom di bawah sudah responsif; yang

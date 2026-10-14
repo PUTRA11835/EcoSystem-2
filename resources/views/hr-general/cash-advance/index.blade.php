@@ -1,8 +1,8 @@
 @extends('dashboard')
 
-@section('title', 'Cash Advance (CA) — Management')
-@section('page-title', 'Cash Advance (CA)')
-@section('page-subtitle', 'Manage and process employee cash advance (CA) requests')
+@section('title', 'Cash Advance Management')
+@section('page-title', 'Cash Advance Management')
+@section('page-subtitle', 'Process employee cash advances (CA) and their settlement reports (CAR)')
 
 @section('content')
 @php
@@ -11,7 +11,7 @@
     $amounts = app(\App\Services\CashAdvance\CashAdvanceAmountService::class);
 @endphp
 
-@include('hr-general.cash-advance.hub-tabs-cash-advance')
+@include('hr-general.cash-advance.components.hub-tabs')
 
 <div class="space-y-5">
 
@@ -232,7 +232,7 @@
                         <td class="px-4 py-3">{{ $request->description }}</td>
 
                         <td class="px-4 py-3">
-                            {{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}
+                            {{ $request->employee?->basicData?->full_name ?? $request->employee?->eci ?? '—' }}
                         </td>
 
                         <td class="px-4 py-3">{{ $request->approverLabel() }}</td>

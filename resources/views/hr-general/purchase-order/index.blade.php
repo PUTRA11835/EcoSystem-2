@@ -22,7 +22,7 @@
 @endphp
 
 @section('content')
-@include('hr-general.purchase-request.hub-tabs-purchase-request')
+@include('hr-general.purchase-request.components.hub-tabs')
 @include('hr-general.reimbursement.components.date-picker')
 
 <div class="space-y-5">

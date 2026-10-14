@@ -13,7 +13,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'letters.requests'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
@@ -28,6 +27,8 @@
                     Opens on what is still waiting. Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to see the history.
                 </p>
             </div>
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'letters.requests', 'bare' => true])
             <div class="flex items-center gap-2" data-live-region="toolbar">
                 @if($hasFilters)
                     <a href="{{ route('general.letters.requests.index') }}"
@@ -35,6 +36,7 @@
                         <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
                     </a>
                 @endif
+            </div>
             </div>
         </div>
 

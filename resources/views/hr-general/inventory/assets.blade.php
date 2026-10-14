@@ -23,7 +23,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'inventory.assets'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.inventory.components.tabs')
 
@@ -39,6 +38,8 @@
                 <h3 class="text-sm font-bold text-gray-800">Assets</h3>
                 <p class="text-[10px] text-gray-400 mt-0.5">Use the <i class="fas fa-filter text-[9px]"></i> icon in a column header to search or filter; names, numbers and dates can also be sorted ↑ ↓.</p>
             </div>
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'inventory.assets', 'bare' => true])
             <div class="flex items-center gap-2" data-live-region="toolbar">
                 @if($hasFilters)
                     <a href="{{ route('general.inventory.assets.index') }}"
@@ -52,6 +53,7 @@
                         <i class="fas fa-plus text-xs"></i> New Asset
                     </button>
                 @endif
+            </div>
             </div>
         </div>
 

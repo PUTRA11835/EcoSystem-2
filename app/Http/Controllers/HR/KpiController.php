@@ -1084,8 +1084,8 @@ return redirect()->back()->with('error', 'Failed to create evaluations.');
         // Realtime filtering: return just the rows + pager for XHR replacement.
         if ($request->boolean('partial')) {
             return response()->json([
-                'rows'  => view('hr-general.kpi.partials._lead-project-rows', $viewData)->render(),
-                'pager' => view('hr-general.kpi.partials._lead-project-pager', $viewData)->render(),
+                'rows'  => view('hr-general.kpi.components.lead-project-rows', $viewData)->render(),
+                'pager' => view('hr-general.kpi.components.lead-project-pager', $viewData)->render(),
                 'total' => $employees->total(),
             ]);
         }

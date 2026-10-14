@@ -163,7 +163,7 @@
                     <div class="flex justify-between gap-4">
                         <dt class="text-gray-500 uppercase text-xs tracking-wide">Requester</dt>
                         <dd class="font-medium text-right">
-                            {{ $report->employee?->basicData?->nick_name ?? $report->employee?->eci ?? '—' }}
+                            {{ $report->employee?->basicData?->full_name ?? $report->employee?->eci ?? '—' }}
                         </dd>
                     </div>
                     <div class="flex justify-between gap-4">
@@ -272,7 +272,7 @@
                                 <p class="text-sm font-medium text-gray-900">{{ $approval->timelineLabel() }}</p>
                                 <p class="text-xs text-gray-500 mt-0.5">
                                     {{ $approval->acted_by
-                                        ? ($approval->actor?->basicData?->nick_name ?? $approval->actor?->eci ?? '—')
+                                        ? ($approval->actor?->basicData?->full_name ?? $approval->actor?->eci ?? '—')
                                         : $approval->approverLabel() }}
                                 </p>
                                 @if($approval->notes)

@@ -28,22 +28,8 @@
     $attention = $request->attentionFlags();
 @endphp
 
-@section('page-actions')
-    <div class="flex items-center gap-2">
-        @if($editRoute && $request->isEditable())
-        <a href="{{ $editRoute }}"
-           class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-            Edit Reimbursement
-        </a>
-        @endif
-        <a href="{{ $backRoute }}"
-           class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-            Back to List
-        </a>
-    </div>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => $backRoute, 'backLabel' => 'Back to List', 'edit' => ($editRoute && $request->isEditable()) ? $editRoute : null, 'editLabel' => 'Edit Reimbursement'])
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
 
     {{-- ── Kolom kiri ──────────────────────────────────────────────────── --}}

@@ -80,7 +80,7 @@ class CashAdvanceReportDocumentExport implements FromArray, WithEvents, WithTitl
             $push(['No', ':', $report->report_no]);
             $push(['Date', ':', $report->report_date->format('d.m.Y')]);
             $push(['Cash Advance', ':', $report->cashAdvance?->request_no ?? '—']);
-            $push(['Requester', ':', $report->employee?->basicData?->nick_name
+            $push(['Requester', ':', $report->employee?->basicData?->full_name
                 ?? $report->employee?->eci ?? '—']);
             $push(['Description', ':', $report->description]);
 

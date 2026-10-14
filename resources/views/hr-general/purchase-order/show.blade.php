@@ -6,18 +6,8 @@
 @section('page-title', 'Purchase Order')
 @section('page-subtitle', 'Document ' . $order->po_no)
 
-@section('page-actions')
-    <div class="flex items-center gap-2">
-        @if($canEdit)
-            <a href="{{ route('general.purchase-order.edit', $order) }}"
-               class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50">Edit</a>
-        @endif
-        <a href="{{ route('general.purchase-order.index') }}"
-           class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50">Back to List</a>
-    </div>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.purchase-order.index'), 'backLabel' => 'Back to List', 'edit' => $canEdit ? route('general.purchase-order.edit', $order) : null, 'editLabel' => 'Edit'])
 @php
     $tone = ['approved' => 'bg-green-100 text-green-700', 'rejected' => 'bg-red-100 text-red-700'][$order->status] ?? 'bg-amber-100 text-amber-700';
 @endphp

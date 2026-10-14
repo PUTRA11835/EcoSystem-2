@@ -67,7 +67,7 @@ class PurchaseRequestSettingController extends Controller
 
             // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
             // 210 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name,department')
+            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name,department,full_name')
                 ->where('is_active', 1)
                 ->get(['employee_id', 'eci'])
                 ->sortBy(fn ($e) => mb_strtolower($e->fullNameLabel()))

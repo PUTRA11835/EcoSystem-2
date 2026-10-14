@@ -1,7 +1,7 @@
 @extends('dashboard')
 
 @section('title', 'Cash Advance (CA) — Settings')
-@section('page-title', 'Cash Advance (CA)')
+@section('page-title', 'Cash Advance Management')
 @section('page-subtitle', 'Approval workflows, request rules and settlement rules')
 
 @section('content')
@@ -14,7 +14,7 @@
 {{-- 🔴 Lebar PENUH atas permintaan pemilik sistem (sudah begini sejak
      sebelum D177 — Reimbursement/Purchase Request Settings baru menyusul
      lebar penuh di D177). --}}
-@include('hr-general.cash-advance.hub-tabs-cash-advance')
+@include('hr-general.cash-advance.components.hub-tabs')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Cash Advance (CA)'])
@@ -332,7 +332,7 @@
                         @foreach($employees as $employee)
                             <option value="{{ $employee->employee_id }}"
                                     @selected((int) old('accounting_signer_employee_id', $settings->accounting_signer_employee_id) === (int) $employee->employee_id)>
-                                {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                                {{ $employee->basicData?->full_name ?? $employee->eci }}
                             </option>
                         @endforeach
                     </select>
@@ -346,7 +346,7 @@
                         @foreach($employees as $employee)
                             <option value="{{ $employee->employee_id }}"
                                     @selected((int) old('cashier_signer_employee_id', $settings->cashier_signer_employee_id) === (int) $employee->employee_id)>
-                                {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                                {{ $employee->basicData?->full_name ?? $employee->eci }}
                             </option>
                         @endforeach
                     </select>

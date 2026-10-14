@@ -131,7 +131,7 @@
                                     @foreach($employees as $employee)
                                         <option value="{{ $employee->employee_id }}"
                                             @selected(in_array($employee->employee_id, $step->approver_employee_ids ?? []))>
-                                            {{ $employee->basicData?->nick_name ?? $employee->eci }}
+                                            {{ $employee->basicData?->full_name ?? $employee->eci }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -222,7 +222,7 @@
                                 <select name="approver_employee_ids[]" form="newStepForm" multiple size="5"
                                         class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800 bg-white">
                                     @foreach($employees as $employee)
-                                        <option value="{{ $employee->employee_id }}">{{ $employee->basicData?->nick_name ?? $employee->eci }}</option>
+                                        <option value="{{ $employee->employee_id }}">{{ $employee->basicData?->full_name ?? $employee->eci }}</option>
                                     @endforeach
                                 </select>
                             </div>

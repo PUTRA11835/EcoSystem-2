@@ -5,7 +5,7 @@
 @section('page-subtitle', 'Company-wide rules for check-in, geofencing, and corrections')
 
 @section('content')
-@include('hr-general.attendance.hub-tabs-attendance')
+@include('hr-general.attendance.components.hub-tabs')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Attendance'])

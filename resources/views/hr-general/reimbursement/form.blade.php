@@ -21,14 +21,8 @@
       edit  : $signatories  (nama keempat peserta, hanya baca)
 --}}
 
-@section('page-actions')
-    <a href="{{ $backRoute }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => $backRoute, 'backLabel' => 'Back'])
 @include('hr-general.reimbursement.components.date-picker')
 <div class="w-full space-y-5">
 
@@ -131,7 +125,7 @@
             @error('supporting_url')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('hr-general.reimbursement._item_rows', ['existingItems' => $isEdit ? $request->items : null])
+        @include('hr-general.reimbursement.components.item-rows', ['existingItems' => $isEdit ? $request->items : null])
 
         @php
             $selectClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800';
@@ -195,5 +189,5 @@
 @endsection
 
 @push('scripts')
-@include('hr-general.reimbursement._item_rows_script')
+@include('hr-general.reimbursement.components.item-rows-script')
 @endpush

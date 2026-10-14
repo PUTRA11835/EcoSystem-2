@@ -1,5 +1,5 @@
 {{--
-    Daftar tab hub Overtime — dua tab (D175). Lihat hub-tabs-attendance.blade.php
+    Daftar tab hub Overtime — dua tab (D175). Lihat components/hub-tabs.blade.php
     untuk penjelasan pola secara umum.
 --}}
 @php

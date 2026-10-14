@@ -2,23 +2,6 @@
 
 @section('title', 'Menu Access — ' . $role->name)
 @section('page-title', 'Menu Access')
-
-{{--
-    Halaman penuh Menu Access per role (HC-D63/D64) — menggantikan modal sempit di daftar Role.
-
-    Cara kerja (ringkas):
-      - Perubahan hanya DRAF di peramban sampai "Review & Save" ditekan; server menulis semuanya sebagai SATU unit
-        (transaksi + riwayat + audit log) lewat /api/roles/{id}/menu-access/apply.
-      - Satu baris = satu HALAMAN atau TAB (matrix.rows, disusun MenuAccessLayout). Izin aksi ("Create Evaluation",
-        "Approve / Reject", "Update …") dilipat ke baris halamannya: Create/Edit/Delete jadi kotak centang di kolomnya,
-        aksi lain di kolom "Other actions". Tiap kotak tetap menulis ke slug-nya sendiri — data & penegakan tak berubah.
-      - Tab punya izin sendiri dan dikelompokkan di bawah judul hub, sehingga role bisa diberi sebagian tab saja.
-      - Flag C/E/D lama yang tak berfungsi tidak dihapus, hanya ditandai.
-      - Item "Global ESS" selalu diizinkan backend untuk semua karyawan → terkunci. Slug terlindung (EC Administrator)
-        tidak bisa dicabut dari sini.
-    Semua keputusan (teks, aturan) berasal dari server (config/menu_access.php); halaman ini hanya menampilkannya.
---}}
-
 @section('content')
 <div id="maRoot" class="space-y-4" data-role-id="{{ $role->id }}" data-role-name="{{ $role->name }}">
 
@@ -423,7 +406,7 @@
         const on = item.members.filter((r) => rowOn(r)).length;
         const pad = 16 + relDepth(item.row) * 18;
         return `<div class="ma-hub" style="padding-left:${pad}px"><i class="fas fa-table-columns text-[11px]"></i>
-            <strong>${esc(item.hub.label)}</strong><span class="text-indigo-500">· ${item.members.length} tabs, each with its own permission</span>
+            <strong>${esc(item.hub.label)}</strong><span class="text-indigo-500">· ${item.members.length} ${item.members.length === 1 ? 'tab' : 'tabs'}, each with its own permission</span>
             <span class="ma-count ml-auto">${on}/${item.members.length}</span></div>`;
     }
 

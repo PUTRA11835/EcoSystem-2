@@ -12,6 +12,7 @@ use App\Enums\RoleId;
 use App\Models\Department;
 use App\Models\Grade;
 use App\Models\Position;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\URL;
@@ -72,6 +73,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // <x-dropdown>, <x-nav-link>, ... of the Delivery Project layouts live in that module's own
+        // folder, not resources/views/components — without this `php artisan view:cache` cannot compile them.
+        Blade::anonymousComponentPath(resource_path('views/delivery/project/components'));
+
         // Scheme URL dipaksa ke https HANYA bila APP_URL memang https (produksi).
         //
         // Mengandalkan trustProxies + header X-Forwarded-Proto saja tidak cukup:

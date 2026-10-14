@@ -187,7 +187,7 @@
 
     @if($request->status === \App\Models\PurchaseRequest\PurchaseRequest::STATUS_APPROVED && $lastApproved)
     <div class="approved-line">
-        approved by: {{ $lastApproved->actor?->basicData?->nick_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
+        approved by: {{ $lastApproved->actor?->basicData?->full_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
         on: {{ optional($lastApproved->acted_at)->format('d/m/Y') }}
     </div>
     @endif

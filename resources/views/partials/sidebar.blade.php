@@ -114,7 +114,7 @@
                         'visible' => !empty($essConfig['paystub']),
                     ],
                     'purchase_request' => [
-                        'label'   => 'Purchase Request',
+                        'label'   => 'My Purchase Request',
                         'icon'    => 'fas fa-shopping-cart',
                         'href'    => route('general.my-purchase-request.index'),
                         'active'  => Request::is('general/my-purchase-request*'),
@@ -126,13 +126,6 @@
                         'href'    => route('general.my-cash-advance.index'),
                         'active'  => Request::is('general/my-cash-advance') || Request::is('general/my-cash-advance/*'),
                         'visible' => !empty($essConfig['advance_payment_ca']),
-                    ],
-                    'advance_payment_car' => [
-                        'label'   => 'Cash Advance Report',
-                        'icon'    => 'fas fa-file-contract',
-                        'href'    => route('general.my-cash-advance-report.index'),
-                        'active'  => Request::is('general/my-cash-advance-report*'),
-                        'visible' => !empty($essConfig['advance_payment_car']),
                     ],
                     'loans' => [
                         'label'   => 'My Loans',
@@ -600,7 +593,7 @@
                                 <span class="nav-text font-medium">Purchase Management</span>
                             </a>
                         @endif
-@php $sb['purchase_request'] = ob_get_clean(); @endphp
+@php $sb['purchase_management'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
 
                         @if($can('general.cash-advance') || $can('management.cash-advance-settings') || $can('management.approval-workflow.cash-advance') || $can('management.approval-workflow.cash-advance-report') || $can('general'))
@@ -1190,11 +1183,9 @@
                 $sbSections = [
                     ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
-                    ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
-                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
-                    ['id' => 'Finance',   'title' => 'Finance & Requests',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_request', 'cash_advance', 'car', 'financial']],
-                    ['id' => 'CommFin',   'title' => 'Commercial & Finance', 'icon' => 'building-bank', 'keys' => ['payroll', 'bpjs', 'pph21']],
+                    ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
+                    ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'car', 'payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
                     ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],

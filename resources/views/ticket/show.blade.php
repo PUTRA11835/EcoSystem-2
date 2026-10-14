@@ -31,8 +31,6 @@
 </span>
 @endsection
 
-@section('page-actions')
-@endsection
 
 {{-- Override sidebar with ticket inbox --}}
 @section('sidebar-nav')

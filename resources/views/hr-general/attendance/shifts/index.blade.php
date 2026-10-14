@@ -5,13 +5,12 @@
 @section('page-subtitle', 'Working hour patterns used to calculate lateness and working time')
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'attendance.shifts'])
 @php
     $dayLabels = [1 => 'Mon', 2 => 'Tue', 3 => 'Wed', 4 => 'Thu', 5 => 'Fri', 6 => 'Sat', 7 => 'Sun'];
 @endphp
 <div class="space-y-5">
 
-@include('hr-general.attendance.hub-tabs-attendance')
+@include('hr-general.attendance.components.hub-tabs')
 
 <div class="bg-white rounded-xl p-6 shadow-sm">
 
@@ -22,12 +21,15 @@
                 Employees without an explicit assignment follow the shift marked as default.
             </p>
         </div>
-        @if($can('general.settings.shifts.manage'))
-        <a href="{{ route('general.attendance.shifts.create') }}"
-           class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-            <i class="fas fa-plus"></i> Add Shift
-        </a>
-        @endif
+        <div class="flex flex-wrap items-center gap-2">
+            @include('hr-general.partials.data-transfer', ['dataset' => 'attendance.shifts', 'bare' => true])
+            @if($can('general.settings.shifts.manage'))
+            <a href="{{ route('general.attendance.shifts.create') }}"
+               class="inline-flex items-center gap-1.5 px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg shadow-sm hover:opacity-90 transition-all">
+                <i class="fas fa-plus text-xs"></i> Add Shift
+            </a>
+            @endif
+        </div>
     </div>
 
     <form method="GET" action="{{ route('general.attendance.shifts.index') }}"
