@@ -50,6 +50,7 @@ return [
         'finance.payroll', 'finance.payroll.*',
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
         'general.contracts.salary',
+        'general.contracts.signing',   // send / forward / release a contract for signature — Legal and RPMO
     ],
 
     'crud_enforced' => [
@@ -63,7 +64,9 @@ return [
         'general.letter-templates',
         'general.contracts.list',
         'general.contracts.templates',
+        'general.contracts.settings',            // Create = add a position type, Edit = rename / switch an option, Delete = delete an unused position type
         'general.external.contracts',            // Create = add a contract, Edit = edit / change status, Delete = delete a Draft
+        'general.external.contracts.settings',   // the same boxes, for the external contract forms
         'general.external.assignment-letters',   // Create = generate an assignment letter
         'general.external.employment-certificates', // Create = generate an employment certificate
         'general.external.reference-letters',    // Create = generate a reference letter
@@ -108,13 +111,13 @@ return [
         ['key' => 'overtime',       'label' => 'Overtime Management', 'tabs' => ['general.overtime', 'general.settings.overtime', 'general.approval-workflow.overtime']],
         ['key' => 'reimbursement',  'label' => 'Reimbursement Management', 'tabs' => ['general.reimbursement', 'general.settings.reimbursement', 'general.approval-workflow.reimbursement']],
         ['key' => 'purchase-req',   'label' => 'Purchase Management', 'tabs' => ['general.purchase-request', 'general.purchase-order', 'general.settings.purchase-request', 'general.approval-workflow.purchase-request']],
-        ['key' => 'cash-advance',   'label' => 'Cash Advance Management', 'tabs' => ['general.cash-advance', 'general.cash-advance-report', 'management.cash-advance-settings', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
+        ['key' => 'cash-advance',   'label' => 'Cash Advance Management', 'tabs' => ['general.cash-advance-dashboard', 'general.cash-advance', 'general.cash-advance-report', 'management.cash-advance-settings', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
         ['key' => 'my-cash-advance', 'label' => 'My Cash Advance',    'tabs' => ['general.my-cash-advance', 'general.my-cash-advance-report']],
         ['key' => 'recruitment',    'label' => 'Recruitment',         'tabs' => ['general.recruitment', 'general.recruitment.candidates', 'general.recruitment.schedule', 'general.recruitment.jobs', 'general.recruitment.settings']],
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
-        ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates']],
-        ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.contracts', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
+        ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates', 'general.contracts.settings']],
+        ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.contracts', 'general.external.contracts.settings', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
         ['key' => 'inventory',     'label' => 'Inventory & Assets',   'tabs' => ['general.inventory.overview', 'general.inventory.items', 'general.inventory.assets', 'general.inventory.settings']],
         ['key' => 'payroll',       'label' => 'Payroll',              'tabs' => ['finance.payroll.periods', 'finance.payroll.settings', 'finance.payroll.simulation']],
         ['key' => 'bpjs',          'label' => 'BPJS',                 'tabs' => ['finance.bpjs.settings', 'finance.bpjs.report', 'finance.bpjs.letters']],
@@ -149,6 +152,8 @@ return [
         'general.inventory.assets'            => ['c' => 'Add an asset', 'e' => 'Edit an asset / assign it to an employee', 'd' => 'Delete an asset'],
         'general.inventory.settings'          => ['c' => 'Add a dropdown option', 'e' => 'Rename / re-order / switch an option on or off', 'd' => 'Delete an option nobody uses'],
         'general.contracts.templates'         => ['c' => 'Add a template', 'e' => 'Edit a template', 'd' => 'Delete a template (not a system default)'],
+        'general.contracts.settings'          => ['c' => 'Add a position type', 'e' => 'Rename / switch a contract type or position type on or off', 'd' => 'Delete a position type nobody uses'],
+        'general.external.contracts.settings' => ['c' => 'Add a position type', 'e' => 'Rename / switch a contract type or position type on or off', 'd' => 'Delete a position type nobody uses'],
         'general.external.contracts'          => ['c' => 'Create an external contract', 'e' => 'Edit an external contract / change its status', 'd' => 'Delete a Draft external contract'],
         'general.external.assignment-letters' => ['c' => 'Generate an assignment letter'],
         'general.external.employment-certificates' => ['c' => 'Generate an employment certificate'],
@@ -218,7 +223,7 @@ return [
         // Finance
         ['key' => 'hr-reimb',    'label' => 'Finance · Reimbursement',   'group' => 'Finance', 'short' => 'Reimbursement', 'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*', 'general.approval-workflow.reimbursement']],
         ['key' => 'hr-pr',       'label' => 'Finance · Purchase Management', 'group' => 'Finance', 'short' => 'Purchase', 'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.purchase-order', 'general.purchase-order.*', 'general.settings.purchase-request*', 'general.approval-workflow.purchase-request']],
-        ['key' => 'hr-ca',       'label' => 'Finance · Cash Advance',    'group' => 'Finance', 'short' => 'Cash Advance', 'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
+        ['key' => 'hr-ca',       'label' => 'Finance · Cash Advance',    'group' => 'Finance', 'short' => 'Cash Advance', 'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-dashboard', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
         ['key' => 'finance',     'label' => 'Finance · Payroll, BPJS & PPh 21', 'group' => 'Finance', 'short' => 'Payroll, BPJS & PPh 21', 'match' => ['finance', 'finance.*']],
         // Master
         ['key' => 'employee',    'label' => 'Master · Employee',         'group' => 'Master', 'short' => 'Employee', 'match' => ['employee', 'employee.*', 'master.employee*']],

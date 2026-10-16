@@ -115,6 +115,10 @@
         </div>
     @endunless
 
+    @unless($masked || $external)
+        @include('hr-general.contracts.components.signing-panel')
+    @endunless
+
     @if($masked)
         <div class="overflow-x-auto pb-6"><div class="contract-text">{!! $doc['html'] !!}</div></div>
     @else

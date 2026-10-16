@@ -121,11 +121,12 @@
                         'visible' => !empty($essConfig['purchase_request']),
                     ],
                     'advance_payment_ca' => [
-                        'label'   => 'Cash Advance',
+                        'label'   => 'My Cash Advance',
                         'icon'    => 'fas fa-hand-holding-usd',
                         'href'    => route('general.my-cash-advance.index'),
-                        'active'  => Request::is('general/my-cash-advance') || Request::is('general/my-cash-advance/*'),
-                        'visible' => !empty($essConfig['advance_payment_ca']),
+                        'active'  => Request::is('general/my-cash-advance*'),
+                        // CA and CAR are two tabs of one page; the entry shows if either switch is on.
+                        'visible' => !empty($essConfig['advance_payment_ca']) || !empty($essConfig['advance_payment_car']),
                     ],
                     'loans' => [
                         'label'   => 'My Loans',
@@ -596,46 +597,39 @@
 @php $sb['purchase_management'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
 
-                        @if($can('general.cash-advance') || $can('management.cash-advance-settings') || $can('management.approval-workflow.cash-advance') || $can('management.approval-workflow.cash-advance-report') || $can('general'))
+                        @if($can('general.cash-advance-dashboard') || $can('general.cash-advance') || $can('general.cash-advance-report') || $can('management.cash-advance-settings') || $can('management.approval-workflow.cash-advance') || $can('management.approval-workflow.cash-advance-report') || $can('general'))
 
                             @php
+                                // Dashboard · Cash Advance (CA) · Cash Advance Report (CAR) · Settings are tabs of this one entry.
                                 $hrCaActive = Request::is('general/cash-advance')
                                     || Request::is('general/cash-advance/*')
+                                    || Request::is('general/cash-advance-report*')
                                     || Request::is('management/cash-advance-settings*');
-                                $cashAdvanceLanding = ($can('general.cash-advance') || $can('general'))
-                                    ? route('general.cash-advance.index')
-                                    : route('management.cash-advance-settings.edit');
+                                $cashAdvanceLanding = match (true) {
+                                    $can('general.cash-advance-dashboard')           => route('general.cash-advance.dashboard'),
+                                    $can('general.cash-advance') || $can('general')  => route('general.cash-advance.index'),
+                                    $can('general.cash-advance-report')              => route('general.cash-advance-report.index'),
+                                    default                                          => route('management.cash-advance-settings.edit'),
+                                };
+                                // What waits for this person, CA and CAR together.
+                                $caWaiting = ($can('general.cash-advance') || $can('general'))
+                                    ? count(app(\App\Services\CashAdvance\CashAdvanceService::class)->pendingIdsFor((int) session('user.id'))) : 0;
+                                $carWaiting = ($can('general.cash-advance-report') || $can('general'))
+                                    ? count(app(\App\Services\CashAdvance\CashAdvanceReportService::class)->pendingIdsFor((int) session('user.id'))) : 0;
+                                $caPending = $caWaiting + $carWaiting;
                             @endphp
                             <a href="{{ $cashAdvanceLanding }}"
                                 class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ $hrCaActive ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
                                 <span class="nav-icon w-5 h-5 flex items-center justify-center">
                                     <i class="fas fa-hand-holding-usd"></i>
                                 </span>
-                                <span class="nav-text font-medium">Cash Advance (CA)</span>
-                            </a>
-                        @endif
-@php $sb['cash_advance'] = ob_get_clean(); @endphp
-@php ob_start(); @endphp
-
-                        @if($can('general.cash-advance-report') || $can('general'))
-                            @php
-                                $carPending = count(app(\App\Services\CashAdvance\CashAdvanceReportService::class)
-                                    ->pendingIdsFor((int) session('user.id')));
-                            @endphp
-                            <a href="{{ route('general.cash-advance-report.index') }}"
-                                class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('general/cash-advance-report*') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                                <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                                    <i class="fas fa-file-invoice-dollar"></i>
-                                </span>
-                                <span class="nav-text font-medium flex-1">Cash Advance Report (CAR)</span>
-                                @if($carPending > 0)
-                                    <span class="nav-text sb-badge">
-                                        {{ $carPending > 99 ? '99+' : $carPending }}
-                                    </span>
+                                <span class="nav-text font-medium flex-1">Cash Advance Management</span>
+                                @if($caPending > 0)
+                                    <span class="nav-text sb-badge">{{ $caPending > 99 ? '99+' : $caPending }}</span>
                                 @endif
                             </a>
                         @endif
-@php $sb['car'] = ob_get_clean(); @endphp
+@php $sb['cash_advance'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
                         @if($can('general.kpi-evaluation') || $can('general'))
                             <a href="{{ route('general.kpi-evaluation.index') }}"
@@ -1185,7 +1179,7 @@
                     ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
                     ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
-                    ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'car', 'payroll', 'bpjs', 'pph21']],
+                    ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
                     ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],
@@ -1446,6 +1440,26 @@
         sbApplyLayout(false, true);
         var i = document.getElementById('sidebarSearch'); if (i) { i.focus(); }
     }
+    // Choosing a page collapses the sidebar to icons — but only AFTER the chosen page has opened: the click just leaves
+    // a short-lived note, and the next page folds the sidebar with the normal width transition once it has loaded.
+    // (Collapsing at click time would animate a sidebar that is about to be thrown away with the old page.)
+    // Desktop only; section toggles are buttons, not links, so they never leave the note.
+    var SB_AFTER_NAV_KEY = 'ecosystem:sidebar:collapse-after-nav';
+    document.addEventListener('click', function (e) {
+        var a = e.target.closest ? e.target.closest('#sidebar a.nav-link[href]') : null;
+        if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) { return; }
+        if (a.target === '_blank' || /^(#|javascript:)/i.test(a.getAttribute('href') || '')) { return; }
+        if (window.innerWidth < 1024 || !sbRailAllowed() || sbIsRail()) { return; }
+        try { sessionStorage.setItem(SB_AFTER_NAV_KEY, String(Date.now())); } catch (err) { /* no note: stays expanded */ }
+    });
+    function sbCollapseAfterNavigation() {
+        var at = 0;
+        try { at = parseInt(sessionStorage.getItem(SB_AFTER_NAV_KEY), 10) || 0; sessionStorage.removeItem(SB_AFTER_NAV_KEY); } catch (err) { return; }
+        // The note is for the page the click opened: a stale one (page never arrived, tab left idle) is ignored.
+        if (!at || Date.now() - at > 15000 || window.innerWidth < 1024 || !sbRailAllowed() || sbIsRail()) { return; }
+        var fold = function () { setTimeout(function () { if (!sbIsRail()) { sbApplyLayout(true, true); } }, 250); };
+        if (document.readyState === 'complete') { fold(); } else { window.addEventListener('load', fold, { once: true }); }
+    }
     document.addEventListener('click', function (e) { if (sbIsRail() && !(e.target.closest && e.target.closest('#sidebar'))) { sbCloseFlyouts(); } });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sbIsRail()) { sbCloseFlyouts(); } });
 
@@ -1499,6 +1513,7 @@
             if (body && !body.querySelector('a.nav-link.active, a.nav-link.bg-opacity-15')) { body.classList.add('hidden'); }
         });
         sbApplyLayout(sbIsRail(), false); // tooltip/tombol footer sesuai mode yang sudah dipasang lebih awal
+        sbCollapseAfterNavigation();
         if (window.MutationObserver) {
             var ob = new MutationObserver(sbRefreshSections);
             document.querySelectorAll('#sidebar .sb-sec-body, #sidebar .sb-badge').forEach(function (el) {

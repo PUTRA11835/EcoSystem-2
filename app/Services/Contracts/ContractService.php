@@ -10,6 +10,7 @@ use App\Support\Contracts\ContractHtmlSanitizer;
 use App\Support\Contracts\ContractPlaceholders;
 use App\Support\Contracts\ContractRules;
 use App\Support\Contracts\PageSettings;
+use App\Support\Contracts\SigningRules;
 use App\Support\External\ExternalRules;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -70,6 +71,8 @@ class ContractService
             ->when(($filters['end_to'] ?? '') !== '', fn ($q) => $q->where('c.end_date', '<=', $filters['end_to']))
             ->when(isset(ContractRules::TYPES[$filters['type'] ?? '']), fn ($q) => $q
                 ->whereIn(DB::raw('UPPER(c.contract_type)'), $this->typeAliases($filters['type'])))
+            // A custom contract type chosen in Settings is filed under its own code.
+            ->when(($filters['kind'] ?? '') !== '', fn ($q) => $q->where('c.contract_kind', $filters['kind']))
             ->tap(fn ($q) => $this->applyStatusFilter($q, $filters['status'] ?? '', $today))
             ->orderBy('b.first_name')->orderBy('e.employee_id')
             ->paginate($perPage)->withQueryString();
@@ -176,11 +179,13 @@ class ContractService
             ->leftJoin('employee_contract as c', 'c.contract_id', '=', 'lc.cid')
             ->where('e.is_active', 1)
             ->where(fn ($q) => $q->where('b.deletion_flag', 0)->orWhereNull('b.deletion_flag'))
+            // Internal and external people have separate contract menus: consultants live in External → External Contract.
+            ->where(fn ($q) => $q->whereNull('b.employee_type')->orWhere('b.employee_type', '<>', 'External'))
             ->when($columns, fn ($q) => $q->select([
                 'e.employee_id', 'e.eci', 'b.first_name', 'b.last_name', 'b.nick_name',
                 'b.position as employee_position', 'b.department as employee_department', 'b.employee_type',
                 'c.contract_id', 'c.contract_number', 'c.contract_type', 'c.start_date', 'c.end_date',
-                'c.is_active', 'c.lifecycle_status', 'c.position as contract_position', 'c.signed_file_path',
+                'c.is_active', 'c.lifecycle_status', 'c.position as contract_position', 'c.position_type', 'c.contract_kind', 'c.signed_file_path', 'c.sign_stage',
             ]));
     }
 
@@ -206,6 +211,8 @@ class ContractService
         return match ($type) {
             ContractRules::TYPE_PKWT     => ['PKWT', 'SPKWT'],
             ContractRules::TYPE_PKWTT    => ['PKWTT', 'SPKWTT', 'PERMANENT'],
+            ContractRules::TYPE_INTERNSHIP => ['INTERNSHIP', 'INTERN', 'MAGANG'],
+            ContractRules::TYPE_ADDENDUM => ['ADDENDUM', 'ADD'],
             default                      => ['EXTERNAL', 'EXT', 'PKS'],
         };
     }
@@ -402,13 +409,14 @@ class ContractService
             }
         }
 
-        $template = $this->resolveTemplate($d['template_id'] ?? null, $type, $d['position'] ?? null);
+        $template = $this->resolveTemplate($d['template_id'] ?? null, $type, $d['position'] ?? null, $d['position_type'] ?? null);
         if ($template === null) {
             throw new \DomainException('No active template exists for this contract type. Add one in the Templates tab first.');
         }
 
         $attrs = [
             'contract_type' => $type,
+            'contract_kind' => $this->nullable($d['contract_kind'] ?? null),
             'contract_name' => $template->name,
             'lifecycle_status' => $status,
             'is_active'     => ContractRules::isActiveFor($status),
@@ -417,20 +425,46 @@ class ContractService
             'signed_date'   => ($d['signed_date'] ?? '') !== '' ? $d['signed_date'] : null,
             'contract_date' => ($d['signed_date'] ?? '') !== '' ? $d['signed_date'] : $start,
             'position'      => $this->nullable($d['position'] ?? null),
+            'position_type' => $this->nullable($d['position_type'] ?? null),
             'department'    => $this->nullable($d['department'] ?? null),
             'work_location' => $this->nullable($d['work_location'] ?? null),
             'notes'         => $this->nullable($d['notes'] ?? null),
             'work_volume'   => $this->nullable($d['work_volume'] ?? null),
             'template_id'   => $template->id,
-            // Draft memakai teks template terkini; Active membekukannya (sekali, atau ulang bila template-nya diganti).
-            'body_html'     => $status === ContractRules::STATUS_ACTIVE
-                ? (($existing && $existing->body_html && (int) $existing->template_id === $template->id) ? $existing->body_html : $template->body_html)
-                : ($status === ContractRules::STATUS_DRAFT ? null : ($existing?->body_html)),
-            // Paper size, orientation and margins are frozen together with the text.
-            'page_json'     => $status === ContractRules::STATUS_ACTIVE
-                ? (($existing && $existing->body_html && $existing->page_json && (int) $existing->template_id === $template->id) ? $existing->page_json : self::templatePage($template))
-                : ($status === ContractRules::STATUS_DRAFT ? null : ($existing?->page_json)),
         ];
+
+        // The text of the document. Three cases:
+        //  · HR generated it and edited it by hand (body_html + body_customized sent): that text is kept as it is, with its paper
+        //    settings, whatever the status — a template change must not overwrite what Legal / HR / RPMO adjusted.
+        //  · an already hand-edited contract saved without the text (a status change, a date): the saved text stays.
+        //  · otherwise: a Draft follows the template; Active freezes it (once, or again when its template is replaced).
+        $sentBody = trim((string) ($d['body_html'] ?? ''));
+        if ($sentBody !== '' && !empty($d['body_customized'])) {
+            $clean = ContractHtmlSanitizer::clean($sentBody);
+            if (trim(strip_tags($clean)) === '') {
+                throw new \DomainException('The contract text cannot be empty.');
+            }
+            $attrs['body_html'] = $clean;
+            $attrs['body_customized'] = true;
+            $attrs['page_json'] = array_key_exists('page_size', $d) || array_key_exists('margin_top', $d)
+                ? PageSettings::store($d['page_size'] ?? null, $d['page_orientation'] ?? null, [
+                    'top' => $d['margin_top'] ?? null, 'right' => $d['margin_right'] ?? null, 'bottom' => $d['margin_bottom'] ?? null, 'left' => $d['margin_left'] ?? null,
+                ])
+                : ($existing?->page_json ?: self::templatePage($template));
+        } elseif ($existing && $existing->body_customized && $existing->body_html && empty($d['reset_body'])) {
+            $attrs['body_html'] = $existing->body_html;
+            $attrs['body_customized'] = true;
+            $attrs['page_json'] = $existing->page_json ?: self::templatePage($template);
+        } else {
+            $attrs['body_customized'] = false;
+            $attrs['body_html'] = $status === ContractRules::STATUS_ACTIVE
+                ? (($existing && !$existing->body_customized && $existing->body_html && (int) $existing->template_id === $template->id) ? $existing->body_html : $template->body_html)
+                : ($status === ContractRules::STATUS_DRAFT ? null : ($existing && !$existing->body_customized ? $existing->body_html : null));
+            // Paper size, orientation and margins are frozen together with the text.
+            $attrs['page_json'] = $status === ContractRules::STATUS_ACTIVE
+                ? (($existing && !$existing->body_customized && $existing->body_html && $existing->page_json && (int) $existing->template_id === $template->id) ? $existing->page_json : self::templatePage($template))
+                : ($status === ContractRules::STATUS_DRAFT ? null : ($existing && !$existing->body_customized ? $existing->page_json : null));
+        }
 
         // Nomor: dibuat sistem saat pembuatan; boleh dikoreksi HR selama tetap unik.
         if ($existing) {
@@ -490,7 +524,7 @@ class ContractService
     }
 
     /** Template terpilih manual (harus aktif dan sejenis) atau yang dipilih otomatis. */
-    public function resolveTemplate($templateId, string $type, ?string $position): ?ContractTemplate
+    public function resolveTemplate($templateId, string $type, ?string $position, ?string $positionType = null): ?ContractTemplate
     {
         if ($templateId !== null && $templateId !== '') {
             $t = ContractTemplate::find((int) $templateId);
@@ -503,7 +537,8 @@ class ContractService
         $picked = ContractRules::pickTemplate(
             ContractTemplate::where('status', ContractTemplate::STATUS_ACTIVE)->get()->map->toArray()->all(),
             $type,
-            $position
+            $position,
+            $positionType
         );
 
         return $picked ? ContractTemplate::find($picked['id']) : null;
@@ -538,7 +573,7 @@ class ContractService
     public function templatesFor(string $type)
     {
         return ContractTemplate::where('contract_type', $type)->where('status', ContractTemplate::STATUS_ACTIVE)
-            ->orderByDesc('is_system_default')->orderBy('name')->get(['id', 'name', 'position', 'is_system_default']);
+            ->orderByDesc('is_system_default')->orderBy('name')->get(['id', 'name', 'position', 'position_type', 'is_system_default']);
     }
 
     /** @throws \DomainException */
@@ -563,6 +598,7 @@ class ContractService
             'body_html'      => $body,
             'use_letterhead' => (bool) ($d['use_letterhead'] ?? false),
             'signatory_employee_id' => $this->templateSigner($d['signatory_employee_id'] ?? null),
+            'approver_employee_id'  => $this->templateSigner($d['approver_employee_id'] ?? null, 'The approver must be a signer'),
             ...self::pageColumns($d),
             'status'         => ($d['status'] ?? 'active') === 'inactive' ? ContractTemplate::STATUS_INACTIVE : ContractTemplate::STATUS_ACTIVE,
             'updated_by'     => $actorId,
@@ -575,6 +611,7 @@ class ContractService
             } else {
                 $attrs['contract_type'] = $type;
                 $attrs['position'] = $type === ContractRules::TYPE_EXTERNAL ? null : $this->nullable($d['position'] ?? null);
+                $attrs['position_type'] = $this->nullable($d['position_type'] ?? null);
             }
             $template->update($attrs);
 
@@ -583,6 +620,7 @@ class ContractService
 
         $attrs['contract_type'] = $type;
         $attrs['position'] = $type === ContractRules::TYPE_EXTERNAL ? null : $this->nullable($d['position'] ?? null);
+        $attrs['position_type'] = $this->nullable($d['position_type'] ?? null);
         $attrs['created_by'] = $actorId;
 
         return ContractTemplate::create($attrs);
@@ -608,13 +646,13 @@ class ContractService
     }
 
     /** @throws \DomainException */
-    private function templateSigner($id): ?int
+    private function templateSigner($id, string $what = 'The default signatory must be a signer'): ?int
     {
         if ($id === null || $id === '') {
             return null;
         }
         if (!LetterService::signatoryOptions()->contains('id', (int) $id)) {
-            throw new \DomainException('The default signatory must be a signer (Letter Templates → Settings → Signers).');
+            throw new \DomainException($what . ' (Letter Templates → Settings → Signers).');
         }
 
         return (int) $id;
@@ -667,11 +705,88 @@ class ContractService
     }
 
     /**
+     * Generate the contract text from what is typed in the form — nothing is saved. The result is what the editor shows
+     * under the form, so Legal / HR / RPMO can adjust it before the contract is stored.
+     *
+     * Every field is filled in except the live tokens (ContractRules::LIVE_TOKENS): the number is allocated on save and the
+     * signatures / stamp only appear once the contract is not a Draft, so they stay as {{tokens}} and are filled when the
+     * document is shown.
+     *
+     * @param  array<string,mixed>  $d       the form (as the controller validated it)
+     * @param  object|null          $terms   commercial terms typed on the external form (a contract that does not exist yet)
+     * @return array{html:string,template:ContractTemplate,type:string,use_letterhead:bool,page:array,warnings:string[]}
+     * @throws \DomainException
+     */
+    public function previewDocument(int $employeeId, array $d, bool $canSalary, ?object $terms = null): array
+    {
+        $type = ContractRules::normalizeType($d['contract_type'] ?? '');
+        if ($type === null) {
+            throw new \DomainException('Choose a contract type first.');
+        }
+        $start = $d['start_date'] ?? null;
+        $end = ($d['end_date'] ?? '') !== '' ? $d['end_date'] : null;
+        if ($error = ContractRules::dateError($type, $start, $end, (int) config('hc_contract.pkwt_max_months', 60))) {
+            throw new \DomainException($error);
+        }
+
+        $template = $this->resolveTemplate($d['template_id'] ?? null, $type, $d['position'] ?? null, $d['position_type'] ?? null);
+        if ($template === null) {
+            throw new \DomainException('No active template exists for this contract type and position type. Add one in the Templates tab first.');
+        }
+
+        // Company signatory: the one picked, else the default of the template.
+        $signerId = ($d['signatory_employee_id'] ?? '') !== '' ? (int) $d['signatory_employee_id'] : ($template->signatory_employee_id ? (int) $template->signatory_employee_id : null);
+        $person = $signerId ? LetterService::signatoryOptions()->firstWhere('id', $signerId) : null;
+
+        $contract = new EmployeeContract([
+            'employee_id'      => $employeeId,
+            'contract_number'  => $d['contract_number'] ?? null,
+            'contract_type'    => $type,
+            'lifecycle_status' => ContractRules::STATUS_DRAFT,
+            'is_active'        => false,
+            'start_date'       => $start,
+            'end_date'         => $end,
+            'signed_date'      => ($d['signed_date'] ?? '') !== '' ? $d['signed_date'] : null,
+            'position'         => $this->nullable($d['position'] ?? null),
+            'department'       => $this->nullable($d['department'] ?? null),
+            'work_location'    => $this->nullable($d['work_location'] ?? null),
+            'work_volume'      => $this->nullable($d['work_volume'] ?? null),
+            'notes'            => $this->nullable($d['notes'] ?? null),
+            'signatory_employee_id' => $person['id'] ?? null,
+            'signatory_name'   => $person['name'] ?? null,
+            'signatory_title'  => $person['position'] ?? null,
+        ]);
+        if ($canSalary && ($d['salary'] ?? '') !== '') {
+            $contract->salary = max(0, ContractRules::parseAmount($d['salary']));
+        }
+        if ($canSalary) {
+            $contract->salary_components = ContractRules::cleanComponents($d['components'] ?? []);
+        }
+
+        $values = $this->values($contract, $type, !$canSalary, $terms);
+        // The live tokens stay tokens; the contract number is one of them, so a not-yet-saved contract needs no fake number.
+        foreach (ContractRules::LIVE_TOKENS as $token) {
+            unset($values[$token]);
+        }
+
+        $source = $template->body_html;
+
+        return [
+            'html'           => ContractRules::render($source, $values, true),
+            'template'       => $template,
+            'type'           => $type,
+            'use_letterhead' => (bool) $template->use_letterhead,
+            'page'           => self::templatePage($template),
+            'warnings'       => ContractRules::unknownPlaceholders($source, ContractPlaceholders::keysFor($type)),
+        ];
+    }
+
+    /**
      * Nilai placeholder dari data kontrak + data induk karyawan. Hanya mengambil yang dibutuhkan.
      *
      * @return array<string,string|array{html:string}>
      */
-    public function values(EmployeeContract $c, string $type, bool $maskSalary): array
+    public function values(EmployeeContract $c, string $type, bool $maskSalary, ?object $terms = null): array
     {
         $id = (int) $c->employee_id;
         $basic = DB::table('employee_basic_data')->where('employee_id', $id)->first();
@@ -725,7 +840,7 @@ class ContractService
         if ($type === ContractRules::TYPE_EXTERNAL) {
             $eng = DB::table('employee_engagement')->where('employee_id', $id)->first();
             // Ketentuan komersial per kontrak (menu External → External Contract) menggantikan nilai engagement bila ada.
-            $terms = $c->contract_id ? DB::table('external_contract_terms')->where('contract_id', $c->contract_id)->first() : null;
+            $terms ??= $c->contract_id ? DB::table('external_contract_terms')->where('contract_id', $c->contract_id)->first() : null;
             $scheme = $terms->engagement_scheme ?? ($eng->engagement_scheme ?? null);
             $unit = match (ExternalRules::schemeKey($scheme)) {
                 'mandays' => 'per manday',
@@ -823,6 +938,7 @@ class ContractService
         if (($contract->lifecycle_status ?? '') === ContractRules::STATUS_DRAFT) {
             throw new \DomainException('A Draft cannot have a stamped copy. Set the contract to Active first.');
         }
+        $this->assertStampedCopyFree($contract);
 
         $old = $contract->signed_file_path;
         $path = $file->storeAs('contracts/' . $contract->contract_id, now()->format('YmdHis') . '-' . \Illuminate\Support\Str::random(8) . '.pdf', 'local');
@@ -840,8 +956,22 @@ class ContractService
         return $contract->refresh();
     }
 
+    /**
+     * The stamped PDF is what is being signed: while it is with the employee, Legal or the approver — or released — it stays.
+     * Withdraw it from signing, or wait for a revision request, to change it.
+     *
+     * @throws \DomainException
+     */
+    private function assertStampedCopyFree(EmployeeContract $contract): void
+    {
+        if (in_array($contract->sign_stage, [SigningRules::WITH_EMPLOYEE, SigningRules::WITH_LEGAL, SigningRules::WITH_APPROVER, SigningRules::APPROVED, SigningRules::RELEASED], true)) {
+            throw new \DomainException('This contract is in the signing process, so its stamped copy cannot be changed. Withdraw it from signing first.');
+        }
+    }
+
     public function removeSignedCopy(EmployeeContract $contract): void
     {
+        $this->assertStampedCopyFree($contract);
         if ($contract->signed_file_path) {
             \Illuminate\Support\Facades\Storage::disk('local')->delete($contract->signed_file_path);
         }

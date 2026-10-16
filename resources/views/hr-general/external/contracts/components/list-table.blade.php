@@ -41,7 +41,7 @@
                         @else <span class="text-gray-300">-</span> @endif
                     </td>
                     <td class="px-4 py-3">
-                        @if($row->scheme_label)<span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $schemeTone[$row->scheme_key] ?? 'bg-gray-100 text-gray-600' }}">{{ $row->scheme_label }}</span>
+                        @if($row->scheme_label)<span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $schemeTone[$row->scheme_key] ?? 'bg-gray-100 text-gray-600' }}">{{ $kindLabels[$row->contract_kind] ?? $row->scheme_label }}</span>
                         @else <span class="text-gray-300">-</span> @endif
                     </td>
                     <td class="px-4 py-3 whitespace-nowrap">

@@ -446,6 +446,17 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/my-profile/onboarding-progress', [ProfileController::class, 'myOnboardingProgress'])->name('profile.onboarding-progress');
     Route::post('/my-profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
+    // My Profile → Contract: review and sign my own contract, or approve the contracts forwarded to me. No menu slug:
+    // the contract itself (its employee / its approver) decides who may open it (App\Http\Controllers\MyContractController).
+    Route::get('/my-profile/contract-approvals', [\App\Http\Controllers\MyContractController::class, 'approvals'])->name('profile.contract-approvals');
+    Route::prefix('/my-profile/contracts/{contractId}')->whereNumber('contractId')->name('profile.contracts.')->group(function () {
+        Route::get('/', [\App\Http\Controllers\MyContractController::class, 'show'])->name('show');
+        Route::get('/file', [\App\Http\Controllers\MyContractController::class, 'file'])->name('file');
+        Route::get('/record', [\App\Http\Controllers\MyContractController::class, 'record'])->name('record');
+        Route::post('/sign', [\App\Http\Controllers\MyContractController::class, 'sign'])->name('sign')->middleware('throttle:20,1');
+        Route::post('/revision', [\App\Http\Controllers\MyContractController::class, 'revision'])->name('revision')->middleware('throttle:20,1');
+    });
+
     // ==================== PROJECT PLANNING ROUTES ====================
 
     // Planning index - list all projects

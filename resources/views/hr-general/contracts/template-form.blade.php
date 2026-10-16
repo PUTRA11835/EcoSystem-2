@@ -30,18 +30,25 @@
                 @if($locked)<p class="text-[10px] text-gray-400 mt-1">A system default is always active.</p>@endif</div>
 
             <div class="md:col-span-4"><label class="{{ $label }}" for="tType">Contract type</label>
-                <select id="tType" name="contract_type" class="{{ $input }}" @disabled($locked)>
+                <select id="tType" name="contract_type" data-searchable="true" data-search-placeholder="Search contract type…" class="{{ $input }}" @disabled($locked)>
                     @foreach($types as $value => $name)<option value="{{ $value }}" @selected($type === $value)>{{ $name }}</option>@endforeach
                 </select>
                 @if($locked)<input type="hidden" name="contract_type" value="{{ $template->contract_type }}">@endif</div>
-            <div class="md:col-span-8" id="tPositionWrap"><label class="{{ $label }}" for="tPosition">Position</label>
-                <select id="tPosition" name="position" class="{{ $input }}" @disabled($locked)>
+            <div class="md:col-span-4"><label class="{{ $label }}" for="tPositionType">Position type</label>
+                <select id="tPositionType" name="position_type" data-searchable="true" data-search-placeholder="Search position type…" class="{{ $input }}" @disabled($locked)>
+                    <option value="">All position types</option>
+                    @php $ptSet = $type === 'EXTERNAL' ? $positionTypeSets['external'] : $positionTypeSets['internal']; @endphp
+                    @foreach($ptSet as $pt)<option value="{{ $pt }}" @selected(old('position_type', $template->position_type) === $pt)>{{ $pt }}</option>@endforeach
+                </select>
+                <p class="text-[10px] text-gray-400 mt-1">A template written for a position type is used before a general one. Kept in the Settings tab of the menu.</p></div>
+            <div class="md:col-span-4" id="tPositionWrap"><label class="{{ $label }}" for="tPosition">Position</label>
+                <select id="tPosition" name="position" data-searchable="true" data-search-placeholder="Search position…" class="{{ $input }}" @disabled($locked)>
                     <option value="">All positions</option>
                     @foreach($positions as $p)<option value="{{ $p }}" @selected(old('position', $template->position) === $p)>{{ $p }}</option>@endforeach
                 </select>
-                <p class="text-[10px] text-gray-400 mt-1">A template for one position is used before a general one.</p></div>
+                <p class="text-[10px] text-gray-400 mt-1">An exact job title; used after the position type.</p></div>
             <div class="md:col-span-12 hidden" id="tExternalNote">
-                <div class="text-xs bg-sky-50 border border-sky-200 text-sky-900 rounded-lg px-4 py-2.5"><i class="fas fa-circle-info mr-1"></i> This template will appear in the template selector of an external consultant contract. Position does not apply.</div>
+                <div class="text-xs bg-sky-50 border border-sky-200 text-sky-900 rounded-lg px-4 py-2.5"><i class="fas fa-circle-info mr-1"></i> This template will appear in the template selector of an external consultant contract. A position type from the External Contract Settings can be set; Position does not apply.</div>
             </div>
 
             <div class="md:col-span-12"><label class="{{ $label }}" for="tDesc">Description</label>
@@ -53,6 +60,13 @@
                     @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) old('signatory_employee_id', $template->signatory_employee_id) === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
                 </select>
                 <p class="text-[10px] text-gray-400 mt-1">Used when a contract of this template does not pick a signer itself. People come from Letter Templates → Settings → Signers.</p></div>
+
+            <div class="md:col-span-6"><label class="{{ $label }}" for="tApprover">Approver</label>
+                <select id="tApprover" name="approver_employee_id" data-searchable="true" data-search-placeholder="Search approver…" class="{{ $input }}">
+                    <option value="">None — Legal picks one when forwarding</option>
+                    @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) old('approver_employee_id', $template->approver_employee_id) === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
+                </select>
+                <p class="text-[10px] text-gray-400 mt-1">Reviews and signs every contract made from this template after the employee has signed. Needs a signature in the master data.</p></div>
 
             <div class="md:col-span-12">
                 <input type="hidden" name="use_letterhead" value="0">
@@ -105,13 +119,25 @@
 <script>
 (function () {
     const typeSel = document.getElementById('tType');
+    const typeSets = @json($positionTypeSets);
+    const ptSel = document.getElementById('tPositionType');
+
+    // The position types offered follow the menu the contract type belongs to (internal / external).
+    function fillPositionTypes(ext) {
+        const keep = ptSel.value;
+        const names = typeSets[ext ? 'external' : 'internal'] || [];
+        ptSel.innerHTML = '<option value="">All position types</option>' + names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(/</g, '&lt;')}</option>`).join('');
+        ptSel.value = names.includes(keep) ? keep : '';
+    }
 
     // Consultants have no position; the Fields menu of the editor follows the type by itself.
     function syncType() {
         const ext = typeSel.value === 'EXTERNAL';
         document.getElementById('tPositionWrap').classList.toggle('hidden', ext);
         document.getElementById('tExternalNote').classList.toggle('hidden', !ext);
+        if (ptSel.dataset.ext !== String(ext)) { fillPositionTypes(ext); ptSel.dataset.ext = String(ext); }
     }
+    ptSel.dataset.ext = String(typeSel.value === 'EXTERNAL');
     typeSel.addEventListener('change', syncType);
     syncType();
 })();

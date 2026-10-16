@@ -17,7 +17,7 @@ return [
     'number' => [
         'unit_code' => '01',
         'digits'    => 4,
-        'prefixes'  => ['PKWT' => 'SPKWT', 'PKWTT' => 'SPKWTT', 'EXTERNAL' => 'PKS'],
+        'prefixes'  => ['PKWT' => 'SPKWT', 'PKWTT' => 'SPKWTT', 'INTERNSHIP' => 'SPM', 'ADDENDUM' => 'ADD', 'EXTERNAL' => 'PKS'],
     ],
 
     /*
@@ -40,6 +40,19 @@ return [
         'width_cm'      => 3.4,
         'height_cm'     => 2.2,
         'upload_max_kb' => 10240,
+    ],
+
+    /**
+     * Penandatanganan (setelah e-stamp): tanda tangan master data digambar di dasar SETIAP halaman PDF bermeterai.
+     * Ukuran dalam milimeter; tiap penandatangan mendapat satu kotak, disusun dari kanan.
+     * `remind_days` = berapa hari sebelum tenggat pengingat dikirim (command contracts:signing-reminders).
+     */
+    'signing' => [
+        'slot_width_mm'  => 30,
+        'slot_height_mm' => 11,
+        'bottom_mm'      => 14,
+        'right_mm'       => 10,
+        'remind_days'    => 2,
     ],
 
     /** Kontrak aktif yang berakhir dalam sekian hari ditandai "Ending soon" di daftar. */

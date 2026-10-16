@@ -9,6 +9,8 @@ use App\Http\Controllers\HR_General\CashAdvanceController;
 use App\Http\Controllers\HR_General\CashAdvanceReportController;
 use App\Http\Controllers\HR_General\CashAdvanceSettingController;
 use App\Http\Controllers\HR_General\ContractController;
+use App\Http\Controllers\HR_General\ContractSettingController;
+use App\Http\Controllers\HR_General\ContractSigningController;
 use App\Http\Controllers\HR_General\ContractTemplateController;
 use App\Http\Controllers\HR_General\DashboardAttendanceController;
 use App\Http\Controllers\HR_General\MyCashAdvanceController;
@@ -321,6 +323,8 @@ Route::prefix('general')
             ->name('overtime.settings.')
             ->middleware('menu:general.approval-workflow.overtime')
             ->group(function () {
+                // One Save for the whole workflow (shared editor).
+                Route::post('/steps/sync', [OvertimeSettingController::class, 'syncSteps'])->name('steps.sync');
                 Route::post('/steps', [OvertimeSettingController::class, 'storeStep'])->name('steps.store');
                 Route::post('/steps/{step}/update', [OvertimeSettingController::class, 'updateStep'])->name('steps.update');
                 Route::post('/steps/{step}/delete', [OvertimeSettingController::class, 'destroyStep'])->name('steps.destroy');
@@ -421,6 +425,12 @@ Route::prefix('general')
             Route::get('/', [CashAdvanceController::class, 'index'])
                 ->name('index')
                 ->middleware('menu:general.cash-advance');
+
+            // Tab Dashboard of Cash Advance Management: its own slug, so a role can be given the overview
+            // without the document lists (and the other way round).
+            Route::get('/dashboard', [CashAdvanceController::class, 'dashboard'])
+                ->name('dashboard')
+                ->middleware('menu:general.cash-advance-dashboard');
 
             // ── Rute STATIS, WAJIB mendahului rute berparameter ──────────────
             //
@@ -654,6 +664,8 @@ Route::prefix('general')
             ->name('purchase-request.settings.')
             ->middleware('menu:general.approval-workflow.purchase-request')
             ->group(function () {
+                // One Save for the whole workflow (shared editor).
+                Route::post('/steps/sync', [PurchaseRequestSettingController::class, 'syncSteps'])->name('steps.sync');
                 Route::post('/steps', [PurchaseRequestSettingController::class, 'storeStep'])->name('steps.store');
                 Route::post('/steps/{step}/update', [PurchaseRequestSettingController::class, 'updateStep'])->name('steps.update');
                 Route::post('/steps/{step}/delete', [PurchaseRequestSettingController::class, 'destroyStep'])->name('steps.destroy');
@@ -1217,8 +1229,24 @@ Route::prefix('general')
                 });
             });
 
+            // Settings tab: contract types (rename / on-off) and position types of the INTERNAL contract forms.
+            // The menu a settings route belongs to is a route default, never a request value.
+            Route::prefix('settings')->name('settings.')->middleware('menu:general.contracts.settings')->group(function () {
+                $can = fn (string $action) => "menu.can:general.contracts.settings,{$action}";
+
+                Route::get('/', [ContractSettingController::class, 'index'])->name('index')->defaults('scope', 'internal');
+                Route::post('/options', [ContractSettingController::class, 'store'])->name('store')->middleware($can('create'))->defaults('scope', 'internal');
+                Route::whereNumber('optionId')->group(function () use ($can) {
+                    Route::post('/options/{optionId}/update', [ContractSettingController::class, 'update'])->name('update')->middleware($can('edit'))->defaults('scope', 'internal');
+                    Route::post('/options/{optionId}/move', [ContractSettingController::class, 'move'])->name('move')->middleware($can('edit'))->defaults('scope', 'internal');
+                    Route::post('/options/{optionId}/delete', [ContractSettingController::class, 'destroy'])->name('destroy')->middleware($can('delete'))->defaults('scope', 'internal');
+                });
+            });
+
             Route::middleware($list)->group(function () use ($listCan) {
                 Route::get('/list/employee/{employeeId}', [ContractController::class, 'show'])->whereNumber('employeeId')->name('show');
+                // Generates the text from the form for the editor under it; saves nothing (the controller checks Create / Edit).
+                Route::post('/list/employee/{employeeId}/preview', [ContractController::class, 'preview'])->whereNumber('employeeId')->name('preview')->middleware('throttle:30,1');
                 Route::post('/list/employee/{employeeId}/store', [ContractController::class, 'store'])->whereNumber('employeeId')->name('store')->middleware($listCan('create'));
                 Route::whereNumber('contractId')->group(function () use ($listCan) {
                     Route::get('/list/{contractId}/document', [ContractController::class, 'document'])->name('document');
@@ -1228,6 +1256,16 @@ Route::prefix('general')
                     Route::post('/list/{contractId}/signed/delete', [ContractController::class, 'removeSigned'])->name('signed.remove')->middleware($listCan('edit'));
                     Route::post('/list/{contractId}/update', [ContractController::class, 'update'])->name('update')->middleware($listCan('edit'));
                     Route::post('/list/{contractId}/delete', [ContractController::class, 'destroy'])->name('destroy')->middleware($listCan('delete'));
+
+                    // Signing workflow after the e-stamp (Legal's side). The employee and the approver sign from My Profile.
+                    Route::get('/list/{contractId}/signing/record', [ContractSigningController::class, 'record'])->name('signing.record');
+                    Route::get('/list/{contractId}/signing/file', [ContractSigningController::class, 'file'])->name('signing.file');
+                    Route::middleware('menu:general.contracts.signing')->group(function () {
+                        Route::post('/list/{contractId}/signing/send', [ContractSigningController::class, 'send'])->name('signing.send');
+                        Route::post('/list/{contractId}/signing/forward', [ContractSigningController::class, 'forward'])->name('signing.forward');
+                        Route::post('/list/{contractId}/signing/release', [ContractSigningController::class, 'release'])->name('signing.release');
+                        Route::post('/list/{contractId}/signing/cancel', [ContractSigningController::class, 'cancel'])->name('signing.cancel');
+                    });
                 });
             });
         });
@@ -1434,6 +1472,8 @@ Route::prefix('management/cash-advance-settings')
         'menu:management.approval-workflow.cash-advance,management.approval-workflow.cash-advance-report',
     ])
     ->group(function () {
+        // One Save for the whole workflow of one module (shared editor); the module is posted with it.
+        Route::post('/steps/sync', [CashAdvanceSettingController::class, 'syncSteps'])->name('steps.sync');
         Route::post('/steps', [CashAdvanceSettingController::class, 'storeStep'])->name('steps.store');
         Route::post('/steps/{step}/update', [CashAdvanceSettingController::class, 'updateStep'])->name('steps.update');
         Route::post('/steps/{step}/delete', [CashAdvanceSettingController::class, 'destroyStep'])->name('steps.destroy');

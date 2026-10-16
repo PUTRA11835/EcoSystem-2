@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\HR_General\ExternalConsultantController;
+use App\Http\Controllers\HR_General\ContractSettingController;
 use App\Http\Controllers\HR_General\ExternalContractController;
 use App\Http\Controllers\HR_General\ExternalDocumentController;
 use App\Http\Controllers\HR_General\ExternalTimesheetController;
@@ -44,6 +45,19 @@ Route::prefix('general/external')
             ->middleware('menu:general.external.timesheet')->name('timesheet.index');
 
         // ── External Contract ────────────────────────────────────────────
+        // Settings tab (before the parameterised routes): contract types and position types of the EXTERNAL contract forms.
+        Route::prefix('contracts/settings')->name('contracts.settings.')->middleware('menu:general.external.contracts.settings')->group(function () {
+            $can = fn (string $action) => "menu.can:general.external.contracts.settings,{$action}";
+
+            Route::get('/', [ContractSettingController::class, 'index'])->name('index')->defaults('scope', 'external');
+            Route::post('/options', [ContractSettingController::class, 'store'])->name('store')->middleware($can('create'))->defaults('scope', 'external');
+            Route::whereNumber('optionId')->group(function () use ($can) {
+                Route::post('/options/{optionId}/update', [ContractSettingController::class, 'update'])->name('update')->middleware($can('edit'))->defaults('scope', 'external');
+                Route::post('/options/{optionId}/move', [ContractSettingController::class, 'move'])->name('move')->middleware($can('edit'))->defaults('scope', 'external');
+                Route::post('/options/{optionId}/delete', [ContractSettingController::class, 'destroy'])->name('destroy')->middleware($can('delete'))->defaults('scope', 'external');
+            });
+        });
+
         Route::prefix('contracts')->name('contracts.')->middleware('menu:general.external.contracts')->group(function () {
             $can = fn (string $action) => "menu.can:general.external.contracts,{$action}";
 
@@ -52,6 +66,8 @@ Route::prefix('general/external')
             Route::whereNumber('employeeId')->group(function () use ($can) {
                 Route::get('/consultant/{employeeId}', [ExternalContractController::class, 'manage'])->name('manage');
                 Route::post('/consultant/{employeeId}/store', [ExternalContractController::class, 'store'])->name('store')->middleware($can('create'));
+                // Generates the text from the form for the editor under it; saves nothing (the controller checks Create / Edit).
+                Route::post('/consultant/{employeeId}/preview', [ExternalContractController::class, 'preview'])->name('preview')->middleware('throttle:30,1');
             });
 
             Route::whereNumber('contractId')->group(function () use ($can) {

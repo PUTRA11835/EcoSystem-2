@@ -14,6 +14,7 @@
      ini yang masih sempit dibanding Branches/Shifts/Cash Advance Settings.
      Grid-grid di dalamnya sudah responsif (3/4/3/2 kolom per bagian). --}}
 @include('hr-general.overtime.components.hub-tabs')
+@include('hr-general.recruitment.components.unsaved-guard')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Overtime'])
