@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\HR_General;
 
 use App\Http\Controllers\Controller;
+use App\Models\ContractOption;
 use App\Models\ContractTemplate;
 use App\Models\Letterhead;
 use App\Models\Letters\LetterSetting;
 use App\Models\Position;
 use App\Services\Letters\LetterService;
+use App\Services\Contracts\ContractOptionService;
 use App\Services\Contracts\ContractService;
 use App\Support\Contracts\ContractHtmlSanitizer;
 use App\Support\Contracts\ContractPlaceholders;
@@ -25,7 +27,7 @@ use Illuminate\Validation\Rule;
  */
 class ContractTemplateController extends Controller
 {
-    public function __construct(private ContractService $contracts) {}
+    public function __construct(private ContractService $contracts, private ContractOptionService $options) {}
 
     public function index()
     {
@@ -157,7 +159,12 @@ class ContractTemplateController extends Controller
             'page'         => ['size' => $template->page_size ?: 'A4', 'orientation' => $template->page_orientation ?: 'portrait',
                 'margins' => ['top' => $template->margin_top, 'right' => $template->margin_right, 'bottom' => $template->margin_bottom, 'left' => $template->margin_left]],
             'pageDefaults' => ['plain' => PageSettings::defaultMarginsCm(false), 'letterhead' => PageSettings::defaultMarginsCm(true)],
-            'types'        => ContractRules::TYPES,
+            // The types switched on in each menu's Settings (a template being edited keeps its own even if it was switched off).
+            'types'        => $this->typeOptions($template->contract_type),
+            'positionTypeSets' => [
+                'internal' => $this->options->positionTypes(ContractOption::SCOPE_INTERNAL, $template->contract_type !== ContractRules::TYPE_EXTERNAL ? $template->position_type : null),
+                'external' => $this->options->positionTypes(ContractOption::SCOPE_EXTERNAL, $template->contract_type === ContractRules::TYPE_EXTERNAL ? $template->position_type : null),
+            ],
             'placeholders' => ['employee' => ContractPlaceholders::EMPLOYEE, 'external' => ContractPlaceholders::EXTERNAL],
             'positions'    => Position::options(),
             'signatories'  => LetterService::signatoryOptions(),
@@ -171,13 +178,24 @@ class ContractTemplateController extends Controller
             'name'           => 'required|string|max:150',
             'contract_type'  => ['required', Rule::in(array_keys(ContractRules::TYPES))],
             'position'       => 'nullable|string|max:255',
+            'position_type'  => 'nullable|string|max:100',
             'description'    => 'nullable|string|max:500',
             'body_html'      => 'required|string|max:300000',
             'use_letterhead' => 'nullable|boolean',
             'signatory_employee_id' => 'nullable|integer',
+            'approver_employee_id'  => 'nullable|integer',
             'status'         => ['nullable', Rule::in(['active', 'inactive'])],
             ...$this->pageRules(),
         ];
+    }
+
+    /** Internal types switched on in Settings, the external type, and (when editing) the type the template already has. */
+    private function typeOptions(?string $keep = null): array
+    {
+        $types = $this->options->options(ContractOption::SCOPE_INTERNAL, ContractOption::KIND_CONTRACT_TYPE, $keep);
+        $types[ContractRules::TYPE_EXTERNAL] = ContractRules::TYPES[ContractRules::TYPE_EXTERNAL];
+
+        return $types;
     }
 
     private function pageRules(): array

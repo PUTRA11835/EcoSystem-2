@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\HR_General;
 
+use App\Http\Controllers\HR_General\Concerns\SyncsApprovalWorkflow;
 use App\Http\Controllers\Controller;
 use App\Models\EmployeeRole;
 use App\Models\Overtime\OvertimeApprovalStep;
@@ -28,6 +29,8 @@ use Illuminate\Validation\Rule;
  */
 class OvertimeSettingController extends Controller
 {
+    use SyncsApprovalWorkflow;
+
     public function edit()
     {
         return view('hr-general.overtime.settings', [
@@ -36,15 +39,8 @@ class OvertimeSettingController extends Controller
                 ->with('role')
                 ->orderBy('order_seq')
                 ->get(),
-            'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
-
-            // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
-            // 209 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => \App\Models\Employee::with('basicData:basic_data_id,employee_id,nick_name,department')
-                ->where('is_active', 1)
-                ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => $e->basicData?->nick_name ?? $e->eci)
-                ->values(),
+            // roles · employees (full names) · roleMembers · employeeRoles — for the shared workflow editor
+            ...$this->workflowLookups(),
         ]);
     }
 
@@ -73,6 +69,22 @@ class OvertimeSettingController extends Controller
     }
 
     // ── Alur persetujuan ────────────────────────────────────────────────────
+
+    /**
+     * One Save for the whole workflow (shared editor). Overtime steps have a name, a position and/or names, and an
+     * Active switch — no signature role and no "chosen by requester".
+     */
+    public function syncSteps(Request $request)
+    {
+        return $this->syncWorkflow(
+            $request,
+            OvertimeApprovalStep::class,
+            OvertimeApprovalStep::MODULE_OVERTIME,
+            ['name' => true],
+            'general.overtime.settings.edit',
+            documents: 'requests',
+        );
+    }
 
     public function storeStep(Request $request)
     {

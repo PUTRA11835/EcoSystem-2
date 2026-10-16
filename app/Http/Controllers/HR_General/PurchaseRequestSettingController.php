@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\HR_General;
 
+use App\Http\Controllers\HR_General\Concerns\SyncsApprovalWorkflow;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\EmployeeRole;
@@ -43,6 +44,8 @@ use Illuminate\Validation\Rule;
  */
 class PurchaseRequestSettingController extends Controller
 {
+    use SyncsApprovalWorkflow;
+
     /**
      * Alur persetujuan (slug `general.approval-workflow.purchase-request`) dan
      * Aturan (slug `general.settings.purchase-request`) hidup di satu halaman
@@ -63,15 +66,8 @@ class PurchaseRequestSettingController extends Controller
             'openCount' => $purchaseRequest->countOpenRequestsBefore(
                 (int) $steps->max('order_seq') + 1
             ),
-            'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
-
-            // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
-            // 210 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name,department,full_name')
-                ->where('is_active', 1)
-                ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => mb_strtolower($e->fullNameLabel()))
-                ->values(),
+            // roles · employees (full names) · roleMembers · employeeRoles — for the shared workflow editor
+            ...$this->workflowLookups(),
         ]);
     }
 
@@ -137,6 +133,32 @@ class PurchaseRequestSettingController extends Controller
      * untuk aturan asimetrisnya. Sengaja berupa pilihan, bukan otomatis:
      * perubahan yang menyentuh dokumen berjalan harus terlihat dan disengaja.
      */
+    /**
+     * One Save for the whole workflow (shared editor). Purchase steps have a name, a position and/or names, the
+     * Mandatory switch (D126 — "chosen by requester") and Active. "Apply to open" applies only the NEW steps to
+     * documents in progress (asymmetric rule, see PurchaseRequestService::applyStepToOpenRequests()).
+     */
+    public function syncSteps(Request $request, PurchaseRequestService $purchaseRequest)
+    {
+        return $this->syncWorkflow(
+            $request,
+            PurchaseRequestApprovalStep::class,
+            PurchaseRequestApprovalStep::MODULE_PURCHASE_REQUEST,
+            ['name' => true, 'mandatory' => true],
+            'general.purchase-request.settings.edit',
+            applyNew: function ($created) use ($purchaseRequest) {
+                $applied = 0;
+
+                foreach ($created as $step) {
+                    $applied += $purchaseRequest->applyStepToOpenRequests($step, (int) session('user.id'))['applied'];
+                }
+
+                return $applied > 0 ? " The new step was also applied to {$applied} request(s) in progress." : '';
+            },
+            documents: 'requests',
+        );
+    }
+
     public function storeStep(Request $request, PurchaseRequestService $purchaseRequest)
     {
         $data = $this->validateStep($request);

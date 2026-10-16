@@ -8,13 +8,21 @@
                     <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-medium"><i class="fas fa-lock text-[10px]"></i> View Only</span>
                 @endif
             </div>
-            <div class="flex gap-2 js-section-action">
-                <button type="button" onclick="clearPaymentForm()" class="js-act-create inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
-                    New
-                </button>
-                <button type="button" onclick="savePayment()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-                    <span id="savePaymentButtonText">Save</span>
-                </button>
+            <div class="flex items-center gap-2">
+                {{-- Payroll is managed in Finance → Payroll; shown only to roles that may open it (Master page only). --}}
+                @if($canDo('finance.payroll.periods'))
+                    <a href="{{ route('finance.payroll.index') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                        <i class="fas fa-money-check-dollar text-xs"></i> Manage in Payroll
+                    </a>
+                @endif
+                <div class="flex gap-2 js-section-action">
+                    <button type="button" onclick="clearPaymentForm()" class="js-act-create inline-flex items-center px-4 py-2 bg-white text-gray-700 border border-gray-300 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all">
+                        New
+                    </button>
+                    <button type="button" onclick="savePayment()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
+                        <span id="savePaymentButtonText">Save</span>
+                    </button>
+                </div>
             </div>
         </div>
         

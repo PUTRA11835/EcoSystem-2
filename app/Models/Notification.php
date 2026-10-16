@@ -95,6 +95,12 @@ class Notification extends Model
             'attendance_correction_pending_approval' => $from . ' requested an attendance correction',
             'attendance_correction_approved'         => 'Your attendance correction was approved',
             'attendance_correction_rejected'         => 'Your attendance correction was rejected',
+            'contract_sign_request'        => 'A contract is waiting for your signature',
+            'contract_sign_forwarded'      => 'A contract needs your approval',
+            'contract_signed'              => 'A contract was signed',
+            'contract_revision'            => 'A change was requested on a contract',
+            'contract_released'            => 'Your contract is ready to download',
+            'contract_sign_reminder'       => 'Contract signing reminder',
             default                        => $from . ' sent you a notification',
         };
     }

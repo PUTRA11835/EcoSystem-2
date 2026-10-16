@@ -4,15 +4,21 @@ namespace App\Http\Controllers\HR_General;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\HR_General\Concerns\HandlesRecruitmentTables;
+use App\Models\ContractOption;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeContract;
 use App\Models\Position;
+use App\Services\Contracts\ContractOptionService;
 use App\Services\Contracts\ContractService;
+use App\Services\Contracts\ContractSigningService;
 use App\Services\Letters\LetterService;
 use App\Support\Contracts\ContractRules;
+use App\Support\Contracts\PageSettings;
+use App\Support\Contracts\SigningRules;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
@@ -26,7 +32,7 @@ class ContractController extends Controller
 {
     use HandlesRecruitmentTables;
 
-    public function __construct(private ContractService $contracts) {}
+    public function __construct(private ContractService $contracts, private ContractOptionService $options, private ContractSigningService $signing) {}
 
     /** Tab pertama yang boleh dibuka orang ini (tautan sidebar). */
     public function home()
@@ -59,12 +65,22 @@ class ContractController extends Controller
         ];
         $perPage = $this->perPage($request);
 
+        // A custom contract type (Settings) is filed under its own code; a built-in one filters by type as before.
+        $query = $filters;
+        if ($filters['type'] !== '' && $this->options->resolve(ContractOption::SCOPE_INTERNAL, $filters['type'])['kind']) {
+            $query['kind'] = $filters['type'];
+            $query['type'] = '';
+        }
+
         return view('hr-general.contracts.index', [
-            'rows'           => $this->contracts->listing($filters, $perPage),
+            'rows'           => $this->contracts->listing($query, $perPage),
+            'kindLabels'     => $this->options->labels(ContractOption::SCOPE_INTERNAL),
             'filters'        => $filters,
             'perPage'        => $perPage,
             'perPageOptions' => self::PER_PAGE_OPTIONS,
-            'types'          => ContractRules::TYPES,
+            // The types HR switched on in Settings, plus the legacy external one (an internal person can still hold it).
+            'types'          => $this->options->options(ContractOption::SCOPE_INTERNAL, ContractOption::KIND_CONTRACT_TYPE) + [ContractRules::TYPE_EXTERNAL => ContractRules::TYPES[ContractRules::TYPE_EXTERNAL]],
+            'canExternal'    => $this->employeeCanView('general.external.contracts'),
             'statuses'       => ContractRules::STATUS_LABELS + ['none' => 'No contract'],
             'departments'    => $this->contracts->departments(),
             'filterForm'     => 'contractFilters',
@@ -73,6 +89,14 @@ class ContractController extends Controller
 
     public function show(int $employeeId)
     {
+        // Consultants have their own menu; this one is for internal employees.
+        $employeeType = DB::table('employee_basic_data')->where('employee_id', $employeeId)->value('employee_type');
+        if ($employeeType === 'External') {
+            abort_unless($this->employeeCanView('general.external.contracts'), 404);
+
+            return redirect()->route('general.external.contracts.manage', $employeeId);
+        }
+
         $header = $this->contracts->employeeHeader($employeeId);
         abort_if($header === null, 404);
 
@@ -84,7 +108,9 @@ class ContractController extends Controller
             'readiness'     => $this->contracts->readiness($employeeId),
             'history'       => $history,
             'canSalary'     => $canSalary,
-            'types'         => ContractRules::TYPES,
+            // Contract types and position types come from Settings (switched-on ones, plus those an existing contract already holds).
+            'types'         => $this->typeOptions($history),
+            'positionTypes' => $this->positionTypeOptions($history),
             'statuses'      => ContractRules::STATUS_LABELS,
             'editId'        => (int) request()->query('edit_contract_id'),
             'settable'      => ContractRules::SETTABLE_STATUSES,
@@ -92,7 +118,11 @@ class ContractController extends Controller
             'positions'     => Position::options(),
             'departments'   => Department::options(),
             'signatories'   => LetterService::signatoryOptions(),
-            'defaultType'   => $header->employee_type === 'External' ? ContractRules::TYPE_EXTERNAL : ContractRules::TYPE_PKWT,
+            'defaultType'   => $this->options->defaultCode(ContractOption::SCOPE_INTERNAL, ContractOption::KIND_CONTRACT_TYPE) ?: ContractRules::TYPE_PKWT,
+            'defaultPositionType' => $this->options->defaultPositionType(ContractOption::SCOPE_INTERNAL),
+            'kindLabels'    => $this->options->labels(ContractOption::SCOPE_INTERNAL),
+            // option code → the built-in type its rules follow (a custom type behaves like its base)
+            'typeBase'      => collect($this->typeOptions($history))->keys()->mapWithKeys(fn ($code) => [$code => $this->options->resolve(ContractOption::SCOPE_INTERNAL, $code)['base']])->all(),
             'gate'          => ContractService::gate(),
             'pkwtMaxMonths' => (int) config('hc_contract.pkwt_max_months', 60),
             'salaryDefaults' => $canSalary ? $this->salaryDefaults($employeeId) : null,
@@ -121,7 +151,7 @@ class ContractController extends Controller
     public function store(Request $request, int $employeeId)
     {
         abort_if($this->contracts->employeeHeader($employeeId) === null, 404);
-        $data = $request->validate($this->rules());
+        $data = $this->withKind($request->validate($this->rules()));
 
         try {
             $contract = $this->contracts->create($employeeId, $data, (int) session('user.id'), $this->employeeCanView('general.contracts.salary'));
@@ -136,7 +166,7 @@ class ContractController extends Controller
     public function update(Request $request, int $contractId)
     {
         $contract = EmployeeContract::findOrFail($contractId);
-        $data = $request->validate($this->rules());
+        $data = $this->withKind($request->validate($this->rules($contract)));
 
         try {
             $this->contracts->update($contract, $data, $this->employeeCanView('general.contracts.salary'));
@@ -145,6 +175,35 @@ class ContractController extends Controller
         }
 
         return redirect()->route('general.contracts.show', $contract->employee_id)->with('success', "Contract {$contract->contract_number} saved." . ($this->contracts->salarySyncNote ? ' ' . $this->contracts->salarySyncNote : ''));
+    }
+
+    /**
+     * Generate the contract text from the form, without saving anything: what appears under the form for Legal / HR / RPMO to
+     * adjust. Needs the right to create or edit a contract; salary figures follow the "View Salary" permission as everywhere.
+     */
+    public function preview(Request $request, int $employeeId)
+    {
+        abort_unless($this->employeeCan('general.contracts.list', 'create') || $this->employeeCan('general.contracts.list', 'edit'), 403);
+        abort_if($this->contracts->employeeHeader($employeeId) === null, 404);
+
+        $data = $this->withKind($request->validate($this->rules()));
+        // The generated text is not stored by this call.
+        unset($data['body_html'], $data['body_customized']);
+
+        try {
+            $doc = $this->contracts->previewDocument($employeeId, $data, $this->employeeCanView('general.contracts.salary'));
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'success'        => true,
+            'html'           => $doc['html'],
+            'template'       => ['id' => $doc['template']->id, 'name' => $doc['template']->name, 'position_type' => $doc['template']->position_type],
+            'use_letterhead' => $doc['use_letterhead'],
+            'page'           => ['size' => $doc['page']['size'], 'orientation' => $doc['page']['orientation'], 'margins' => $doc['page']['margins']],
+            'warnings'       => $doc['warnings'],
+        ]);
     }
 
     public function destroy(int $contractId)
@@ -181,7 +240,35 @@ class ContractController extends Controller
             'doc'      => $this->contracts->document($contract, $mask),
             'masked'   => $mask,
             'back'     => route('general.contracts.show', $contract->employee_id),
+            'signing'  => $this->signingPanel($contract),
         ]);
+    }
+
+    /** What the Signing panel of the document page needs: the stage, the people, the trail. */
+    private function signingPanel(EmployeeContract $contract): array
+    {
+        $stage = $contract->sign_stage;
+        $approvers = LetterService::signatoryOptions();
+        $default = $contract->approver_employee_id ?: $this->signing->templateApprover($contract);
+
+        return [
+            'stage'       => $stage,
+            'label'       => SigningRules::LEGAL_LABELS[$stage] ?? 'Not sent for signing',
+            'badge'       => SigningRules::BADGES[$stage] ?? 'bg-gray-100 text-gray-600',
+            'can'         => $this->employeeCanView('general.contracts.signing'),
+            'hasStamped'  => $this->signing->hasStampedFile($contract),
+            'hasSigned'   => (bool) $contract->signed_pdf_path,
+            'approvers'   => $approvers,
+            'approverId'  => $default ? (int) $default : null,
+            'events'      => $this->signing->events($contract),
+            'allow'       => [
+                'send'    => SigningRules::can($stage, SigningRules::ACTION_SEND),
+                'forward' => SigningRules::can($stage, SigningRules::ACTION_FORWARD),
+                'release' => SigningRules::can($stage, SigningRules::ACTION_RELEASE),
+                'cancel'  => SigningRules::can($stage, SigningRules::ACTION_CANCEL),
+            ],
+            'daysLeft'    => $stage === SigningRules::WITH_EMPLOYEE ? SigningRules::daysLeft($contract->sign_deadline?->toDateString()) : null,
+        ];
     }
 
     // ── Salinan bermeterai (metode 1: unduh → tanda tangan + meterai → unggah) ──
@@ -242,10 +329,60 @@ class ContractController extends Controller
 
     // ── helpers ───────────────────────────────────────────────────────────
 
-    private function rules(): array
+    /** Types HR switched on for internal contracts, plus the ones the employee's existing contracts already hold. */
+    private function typeOptions(array $history = []): array
     {
+        $types = $this->options->options(ContractOption::SCOPE_INTERNAL, ContractOption::KIND_CONTRACT_TYPE);
+        $labels = $this->options->labels(ContractOption::SCOPE_INTERNAL);
+        foreach ($history as $c) {
+            // A contract holds its custom type when it has one, else the built-in type.
+            $key = ($c->contract_kind ?? null) ?: ($c->type_key ?? null);
+            if ($key && !isset($types[$key])) {
+                $types[$key] = $labels[$key] ?? (ContractRules::TYPES[$key] ?? $key);
+            }
+        }
+
+        return $types;
+    }
+
+    /** The form posts the option's code; the rules run on the built-in type it stands for, the custom code is kept beside it. */
+    private function withKind(array $data): array
+    {
+        $resolved = $this->options->resolve(ContractOption::SCOPE_INTERNAL, (string) $data['contract_type']);
+        $data['contract_type'] = $resolved['base'];
+        $data['contract_kind'] = $resolved['kind'];
+
+        return $data;
+    }
+
+    /** @return string[] position types switched on, plus the ones the employee's existing contracts hold */
+    private function positionTypeOptions(array $history = []): array
+    {
+        $names = $this->options->positionTypes(ContractOption::SCOPE_INTERNAL);
+        foreach ($history as $c) {
+            if ($c->position_type && !in_array($c->position_type, $names, true)) {
+                $names[] = $c->position_type;
+            }
+        }
+
+        return $names;
+    }
+
+    private function rules(?EmployeeContract $existing = null): array
+    {
+        $types = $this->typeOptions($existing ? [(object) ['type_key' => $existing->contract_kind ?: ContractRules::normalizeType($existing->contract_type)]] : []);
+        $positionTypes = $this->positionTypeOptions($existing ? [$existing] : []);
+        $margin = 'nullable|numeric|min:' . PageSettings::MARGIN_MIN_CM . '|max:' . PageSettings::MARGIN_MAX_CM;
+
         return [
-            'contract_type'            => ['required', Rule::in(array_keys(ContractRules::TYPES))],
+            'contract_type'            => ['required', Rule::in(array_keys($types))],
+            'position_type'            => ['nullable', 'string', 'max:100', Rule::in($positionTypes)],
+            'body_html'                => 'nullable|string|max:300000',
+            'body_customized'          => 'nullable|boolean',
+            'reset_body'               => 'nullable|boolean',
+            'page_size'                => ['nullable', Rule::in(array_keys(PageSettings::SIZES))],
+            'page_orientation'         => ['nullable', Rule::in(['portrait', 'landscape'])],
+            'margin_top'               => $margin, 'margin_right' => $margin, 'margin_bottom' => $margin, 'margin_left' => $margin,
             'status'                   => ['required', Rule::in(ContractRules::SETTABLE_STATUSES)],
             'contract_number'          => 'nullable|string|max:100',
             'template_id'              => 'nullable|integer',
@@ -270,6 +407,14 @@ class ContractController extends Controller
     {
         return back()->withInput()->withErrors(['contract' => $e->getMessage()])
             ->with('reopen_modal', ['mode' => $mode, 'id' => $contractId]);
+    }
+
+    /** One of the Create / Edit / Delete boxes of a slug, from the person's roles. */
+    private function employeeCan(string $slug, string $action): bool
+    {
+        $matrix = Employee::find(session('user.id'))?->allPermissionMatrix() ?? [];
+
+        return (bool) ($matrix[$slug][$action] ?? false);
     }
 
     private function employeeCanView(string $slug): bool

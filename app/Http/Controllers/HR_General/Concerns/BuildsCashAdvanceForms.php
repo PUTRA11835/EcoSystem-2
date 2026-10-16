@@ -55,7 +55,7 @@ trait BuildsCashAdvanceForms
             ];
         }
 
-        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,full_name')
+        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name')
             ->whereIn('employee_id', $first->candidateEmployeeIds())
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
@@ -92,7 +92,7 @@ trait BuildsCashAdvanceForms
      */
     private function employeeOptions()
     {
-        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department,full_name')
+        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department,first_name,last_name')
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
             ->sortBy(fn (Employee $e) => $e->basicData?->full_name ?? $e->eci)

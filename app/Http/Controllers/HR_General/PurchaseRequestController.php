@@ -368,7 +368,7 @@ class PurchaseRequestController extends Controller
     /** Karyawan aktif untuk dropdown "New PR". */
     private function employeeOptions()
     {
-        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department,full_name')
+        return Employee::with('basicData:basic_data_id,employee_id,nick_name,department,first_name,last_name')
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
             ->sortBy(fn ($e) => $e->basicData?->full_name ?? $e->eci)
@@ -392,7 +392,7 @@ class PurchaseRequestController extends Controller
             return ['firstStep' => $first, 'chooseApprover' => false, 'approverCandidates' => []];
         }
 
-        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,full_name')
+        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name')
             ->whereIn('employee_id', $first->candidateEmployeeIds())
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])
@@ -518,7 +518,7 @@ class PurchaseRequestController extends Controller
                     $inner->where('request_no', 'like', "%{$term}%")
                           ->orWhere('title', 'like', "%{$term}%")
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->whereRaw("CONCAT_WS(' ', first_name, last_name) like ?", ["%{$term}%"])->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

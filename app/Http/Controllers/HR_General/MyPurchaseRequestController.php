@@ -177,7 +177,7 @@ class MyPurchaseRequestController extends Controller
 
         $ids = $first->candidateEmployeeIds();
 
-        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,full_name')
+        $candidates = Employee::with('basicData:basic_data_id,employee_id,nick_name,first_name,last_name')
             ->whereIn('employee_id', $ids)
             ->where('is_active', 1)
             ->get(['employee_id', 'eci'])

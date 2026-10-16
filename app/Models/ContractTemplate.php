@@ -18,7 +18,7 @@ class ContractTemplate extends Model
     protected $table = 'contract_templates';
 
     protected $fillable = [
-        'name', 'contract_type', 'position', 'description', 'body_html', 'use_letterhead', 'signatory_employee_id', 'page_size', 'page_orientation', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left',
+        'name', 'contract_type', 'position', 'position_type', 'description', 'body_html', 'use_letterhead', 'signatory_employee_id', 'approver_employee_id', 'page_size', 'page_orientation', 'margin_top', 'margin_right', 'margin_bottom', 'margin_left',
         'is_system_default', 'status', 'created_by', 'updated_by',
     ];
 
@@ -33,8 +33,8 @@ class ContractTemplate extends Model
     /** Kosong = berlaku untuk semua Position. */
     public function appliesToLabel(): string
     {
-        return $this->contract_type === 'EXTERNAL'
-            ? 'External consultants'
-            : ($this->position ?: 'All positions');
+        $scope = $this->contract_type === 'EXTERNAL' ? 'External consultants' : 'All positions';
+
+        return $this->position_type ?: ($this->position ?: $scope);
     }
 }

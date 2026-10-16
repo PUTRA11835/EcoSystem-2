@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Contract — Dashboard')
 @section('page-title', 'Contract')
-@section('page-subtitle', 'Whose contract ends soon, and where contracts are missing or have lapsed.')
+@section('page-subtitle', 'Whose contract ends soon, and where contracts are missing or have lapsed — internal employees.')
 
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">

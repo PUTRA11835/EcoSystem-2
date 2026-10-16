@@ -12,14 +12,27 @@ class ContractRules
 {
     public const TYPE_PKWT = 'PKWT';
     public const TYPE_PKWTT = 'PKWTT';
+    public const TYPE_INTERNSHIP = 'INTERNSHIP';
+    public const TYPE_ADDENDUM = 'ADDENDUM';
     public const TYPE_EXTERNAL = 'EXTERNAL';
 
     /** @var array<string,string> */
     public const TYPES = [
-        self::TYPE_PKWT     => 'PKWT',
-        self::TYPE_PKWTT    => 'PKWTT',
-        self::TYPE_EXTERNAL => 'External consultant',
+        self::TYPE_PKWT        => 'PKWT',
+        self::TYPE_PKWTT       => 'PKWTT',
+        self::TYPE_INTERNSHIP  => 'Internship',
+        self::TYPE_ADDENDUM    => 'Addendum',
+        self::TYPE_EXTERNAL    => 'External consultant',
     ];
+
+    /** Types of the internal Contract menu; EXTERNAL belongs to External → External Contract. */
+    public const INTERNAL_TYPES = [self::TYPE_PKWT, self::TYPE_PKWTT, self::TYPE_INTERNSHIP, self::TYPE_ADDENDUM];
+
+    /**
+     * Tokens that stay as {{tokens}} in a generated (editable) document: they are filled when the document is shown, because
+     * the number is allocated on save and signatures / the stamp only appear once the contract is no longer a Draft.
+     */
+    public const LIVE_TOKENS = ['nomor_kontrak', 'meterai', 'meterai_tengah', 'meterai_kanan', 'tanda_tangan_penandatangan', 'tanda_tangan_karyawan', 'halaman_baru'];
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_ACTIVE = 'active';
@@ -44,8 +57,16 @@ class ContractRules
     private const TYPE_ALIASES = [
         'PKWT' => self::TYPE_PKWT, 'SPKWT' => self::TYPE_PKWT,
         'PKWTT' => self::TYPE_PKWTT, 'SPKWTT' => self::TYPE_PKWTT, 'PERMANENT' => self::TYPE_PKWTT,
+        'INTERNSHIP' => self::TYPE_INTERNSHIP, 'INTERN' => self::TYPE_INTERNSHIP, 'MAGANG' => self::TYPE_INTERNSHIP,
+        'ADDENDUM' => self::TYPE_ADDENDUM, 'ADD' => self::TYPE_ADDENDUM,
         'EXTERNAL' => self::TYPE_EXTERNAL, 'EXT' => self::TYPE_EXTERNAL, 'PKS' => self::TYPE_EXTERNAL,
     ];
+
+    /** Every spelling (upper case) that stands for a built-in type, for SQL filters on stored free text. @return string[] */
+    public static function aliasKeysOf(string $type): array
+    {
+        return array_keys(array_filter(self::TYPE_ALIASES, fn ($target) => $target === $type)) ?: [$type];
+    }
 
     /** Jenis kanonik dari teks bebas (data lama); null bila tak dikenali. */
     public static function normalizeType(?string $type): ?string
@@ -107,6 +128,9 @@ class ContractRules
         }
         if ($end !== null && $end !== '' && $end < $start) {
             return 'End date must be on or after the start date.';
+        }
+        if ($type === self::TYPE_INTERNSHIP && ($end === null || $end === '')) {
+            return 'An internship contract needs an end date.';
         }
         if ($type === self::TYPE_PKWT) {
             if ($end === null || $end === '') {
@@ -204,15 +228,24 @@ class ContractRules
     // ── Template ──────────────────────────────────────────────────────────
 
     /**
-     * Template yang dipakai otomatis: yang cocok dengan Position → template umum buatan HR (terbaru) → bawaan sistem.
-     * Hanya template aktif dengan jenis yang sama.
+     * Template yang dipakai otomatis: yang cocok dengan Position type → yang cocok dengan Position → template umum buatan HR
+     * (terbaru) → bawaan sistem. Hanya template aktif dengan jenis yang sama.
      *
-     * @param  array<int,array<string,mixed>>  $templates  baris contract_templates (id, contract_type, position, status, is_system_default, updated_at)
+     * @param  array<int,array<string,mixed>>  $templates  baris contract_templates (id, contract_type, position_type, position, status, is_system_default, updated_at)
      */
-    public static function pickTemplate(array $templates, string $type, ?string $position): ?array
+    public static function pickTemplate(array $templates, string $type, ?string $position, ?string $positionType = null): ?array
     {
         $pool = array_values(array_filter($templates, fn ($t) => ($t['contract_type'] ?? null) === $type && ($t['status'] ?? 'active') === 'active'));
         $position = strtolower(trim((string) $position));
+        $positionType = strtolower(trim((string) $positionType));
+
+        if ($positionType !== '') {
+            foreach ($pool as $t) {
+                if (strtolower(trim((string) ($t['position_type'] ?? ''))) === $positionType) {
+                    return $t;
+                }
+            }
+        }
 
         if ($position !== '') {
             foreach ($pool as $t) {
@@ -222,7 +255,7 @@ class ContractRules
             }
         }
 
-        $general = array_values(array_filter($pool, fn ($t) => trim((string) ($t['position'] ?? '')) === '' && empty($t['is_system_default'])));
+        $general = array_values(array_filter($pool, fn ($t) => trim((string) ($t['position'] ?? '')) === '' && trim((string) ($t['position_type'] ?? '')) === '' && empty($t['is_system_default'])));
         usort($general, fn ($a, $b) => strcmp((string) ($b['updated_at'] ?? ''), (string) ($a['updated_at'] ?? '')));
         if ($general) {
             return $general[0];
@@ -245,13 +278,16 @@ class ContractRules
      * Nilai kosong menjadi "-".
      *
      * @param  array<string,string|array{html:string}>  $values
+     * @param  bool  $keepPageBreaks  leave {{halaman_baru}} as a token (a generated, editable document turns it into a break when it is shown)
      */
-    public static function render(string $html, array $values): string
+    public static function render(string $html, array $values, bool $keepPageBreaks = false): string
     {
         // Page break (the editor's "Page break" button): a paragraph holding only {{halaman_baru}} becomes a real break.
-        $break = '<div style="page-break-after:always;height:0;line-height:0;margin:0"></div>';
-        $html = preg_replace('#<p\b[^>]*>\s*\{\{\s*halaman_baru\s*\}\}\s*</p>#i', $break, $html);
-        $html = preg_replace('/\{\{\s*halaman_baru\s*\}\}/i', $break, $html);
+        if (!$keepPageBreaks) {
+            $break = '<div style="page-break-after:always;height:0;line-height:0;margin:0"></div>';
+            $html = preg_replace('#<p\b[^>]*>\s*\{\{\s*halaman_baru\s*\}\}\s*</p>#i', $break, $html);
+            $html = preg_replace('/\{\{\s*halaman_baru\s*\}\}/i', $break, $html);
+        }
 
         return preg_replace_callback('/\{\{\s*([a-z0-9_]+)\s*\}\}/i', function ($m) use ($values) {
             $key = strtolower($m[1]);

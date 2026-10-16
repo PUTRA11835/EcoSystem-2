@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'External Contract')
 @section('page-title', 'External Contract')
-@section('page-subtitle', 'Manage external consultant agreements using the reusable contract templates.')
+@section('page-subtitle', 'Agreements of external consultants — a contract text for each contract type and position type, generated and adjusted here.')
 
 @php
     $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white';
@@ -12,6 +12,7 @@
 
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
+    @include('hr-general.external.contracts.components.tabs')
     @include('partials.accent-remap')
     @include('hr-general.recruitment.components.form-errors')
     @include('hr-general.contracts.components.confirm-forms')
@@ -54,13 +55,13 @@
                 <button type="button" id="extSearchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 {{ $filters['search'] === '' ? 'hidden' : '' }}" aria-label="Clear search"><i class="fas fa-xmark text-xs"></i></button>
             </div>
             <div class="md:col-span-3">
-                <select name="scheme" class="{{ $input }}" aria-label="Scheme">
-                    <option value="">All schemes</option>
+                <select name="scheme" data-searchable="true" data-search-placeholder="Search contract type…" class="{{ $input }}" aria-label="Contract type">
+                    <option value="">All contract types</option>
                     @foreach($schemes as $value => $label)<option value="{{ $value }}" @selected($filters['scheme'] === $value)>{{ $label }}</option>@endforeach
                 </select>
             </div>
             <div class="md:col-span-2">
-                <select name="status" class="{{ $input }}" aria-label="Status">
+                <select name="status" data-searchable="true" data-search-placeholder="Search status…" class="{{ $input }}" aria-label="Status">
                     <option value="">All statuses</option>
                     @foreach($statuses as $value => $label)<option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>@endforeach
                 </select>
@@ -80,7 +81,7 @@
 
 {{-- Add Contract: choose the consultant, then continue to the new-contract form of that consultant --}}
 @if($canCreate)
-<div id="extModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 items-center justify-center p-4" style="display: none;">
+<div id="extModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4" style="display: none;">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h3 class="text-sm font-bold text-gray-800">Add External Contract</h3>
@@ -88,7 +89,7 @@
         </div>
         <div class="px-5 py-4">
             <label for="extConsultant" class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">External consultant <span class="text-red-500">*</span></label>
-            <select id="extConsultant" class="{{ $input }}">
+            <select id="extConsultant" data-searchable="true" data-search-placeholder="Search consultant…" class="{{ $input }}">
                 <option value="">Select a consultant</option>
                 @foreach($consultants as $opt)
                     <option value="{{ $opt['id'] }}">{{ $opt['eci'] }} — {{ $opt['name'] }}@if($opt['role']) — {{ $opt['role'] }}@endif</option>

@@ -16,6 +16,10 @@
         'label' => 'Templates', 'icon' => 'file-lines', 'route' => 'general.contracts.templates.index',
         'is' => 'general/contracts/templates*', 'gate' => 'general.contracts.templates', 'strict' => true,
     ],
+    [
+        'label' => 'Settings', 'icon' => 'sliders', 'route' => 'general.contracts.settings.index',
+        'is' => 'general/contracts/settings*', 'gate' => 'general.contracts.settings', 'strict' => true,
+    ],
 ]])
 
 {{-- Accent colour + unsaved-changes warning, the same as the Letter Templates hub. --}}

@@ -45,6 +45,8 @@ class ExternalContractService
             })
             ->when(in_array($filters['scheme'] ?? '', ['mandays', 'monthly', 'fixed_price', 'hourly'], true),
                 fn ($q) => $q->where('t.engagement_scheme', $filters['scheme']))
+            // A custom contract type chosen in Settings is filed under its own code.
+            ->when(($filters['kind'] ?? '') !== '', fn ($q) => $q->where('c.contract_kind', $filters['kind']))
             ->tap(fn ($q) => $this->contracts->applyStatusFilter($q, (string) ($filters['status'] ?? ''), $today))
             ->orderByDesc('c.start_date')->orderByDesc('c.contract_id')
             ->paginate($perPage)->withQueryString();
@@ -82,7 +84,7 @@ class ExternalContractService
             ->where('b.employee_type', 'External')
             ->when($columns, fn ($q) => $q->select(array_merge([
                 'c.contract_id', 'c.employee_id', 'c.contract_number', 'c.contract_name', 'c.start_date', 'c.end_date', 'c.is_active',
-                'c.lifecycle_status', 'c.position as contract_position', 'c.signed_file_path',
+                'c.lifecycle_status', 'c.position as contract_position', 'c.contract_kind', 'c.signed_file_path',
                 'e.eci', 'b.first_name', 'b.last_name', 'b.nick_name', 'b.position as employee_position',
                 'tpl.name as template_name', 't.engagement_scheme', 't.billing_unit',
             ], $canRate ? ['t.rate', 't.currency'] : [])));
@@ -191,7 +193,37 @@ class ExternalContractService
             'work_volume'           => $d['work_volume'] ?? null,
             'notes'                 => $d['notes'] ?? null,
             'signatory_employee_id' => $d['signatory_employee_id'] ?? null,
+            'position'              => $d['position'] ?? null,
+            'position_type'         => $d['position_type'] ?? null,
+            'contract_kind'         => $d['contract_kind'] ?? null,
+            // A generated document that was adjusted by hand travels with the form (see ContractService::attributes).
+            'body_html'             => $d['body_html'] ?? null,
+            'body_customized'       => $d['body_customized'] ?? null,
+            'reset_body'            => $d['reset_body'] ?? null,
+            'page_size'             => $d['page_size'] ?? null,
+            'page_orientation'      => $d['page_orientation'] ?? null,
+            'margin_top'            => $d['margin_top'] ?? null,
+            'margin_right'          => $d['margin_right'] ?? null,
+            'margin_bottom'         => $d['margin_bottom'] ?? null,
+            'margin_left'           => $d['margin_left'] ?? null,
         ];
+    }
+
+    /**
+     * The contract text generated from the external form, not saved. The commercial terms typed on the form are used even
+     * though the contract does not exist yet.
+     *
+     * @param  array<string,mixed>  $d
+     * @return array<string,mixed>  see ContractService::previewDocument
+     * @throws \DomainException
+     */
+    public function preview(int $employeeId, array $d, bool $canRate): array
+    {
+        $terms = ExternalRules::cleanTerms($d, $canRate);
+        $terms += ['rate' => null, 'currency' => 'IDR'];
+
+        // Without the rate permission the rate stays masked in the generated text, as it does in the document.
+        return $this->contracts->previewDocument($employeeId, $this->contractData($d), $canRate, (object) $terms);
     }
 
     /** @param  array<string,mixed>  $terms  baris dari ExternalRules::cleanTerms (tanpa tarif bila tak berizin → tarif lama dipertahankan) */

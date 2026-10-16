@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\HR_General;
 
+use App\Http\Controllers\HR_General\Concerns\SyncsApprovalWorkflow;
 use App\Http\Controllers\Controller;
 use App\Models\CashAdvance\CashAdvance;
 use App\Models\CashAdvance\CashAdvanceApprovalStep;
@@ -52,6 +53,8 @@ use Illuminate\Validation\Rule;
  */
 class CashAdvanceSettingController extends Controller
 {
+    use SyncsApprovalWorkflow;
+
     /**
      * Editor alur CA dan CAR (slug `management.approval-workflow.cash-advance`
      * dan `...cash-advance-report`, terpisah satu sama lain) hidup di halaman
@@ -70,28 +73,13 @@ class CashAdvanceSettingController extends Controller
 
         return view('hr-general.cash-advance.settings', [
             'settings' => CashAdvanceSetting::current(),
-            'roles'    => EmployeeRole::orderBy('name')->get(['id', 'name']),
+            // roles · employees (full names) · roleMembers · employeeRoles — for the shared workflow editor
+            ...$this->workflowLookups(),
 
             'caSteps'       => $caSteps,
             'carSteps'      => $carSteps,
             'caOpenCount'   => $ca->countOpenRequestsBefore((int) $caSteps->max('order_seq') + 1),
             'carOpenCount'  => $car->countOpenReportsBefore((int) $carSteps->max('order_seq') + 1),
-
-            // Berapa karyawan yang memegang tiap posisi — kolom Reference pada
-            // editor langkah. Satu kueri berkelompok; definisinya sama dengan
-            // scope withRole() supaya angka yang tampil = kandidat sebenarnya.
-            'roleCandidates' => DB::table('employee_role_assignment')
-                ->select('role_id', DB::raw('COUNT(DISTINCT employee_id) AS total'))
-                ->groupBy('role_id')
-                ->pluck('total', 'role_id'),
-
-            // Hanya karyawan aktif, dan hanya kolom yang benar-benar dipakai —
-            // 207 baris berisi seluruh kolom membuat halaman berat tanpa manfaat.
-            'employees' => Employee::with('basicData:basic_data_id,employee_id,nick_name,department,full_name')
-                ->where('is_active', 1)
-                ->get(['employee_id', 'eci'])
-                ->sortBy(fn ($e) => $e->basicData?->full_name ?? $e->eci)
-                ->values(),
 
             // 🔴 Diberitahukan di layar, bukan didiamkan: tanpa cabang aktif,
             // dropdown pembebanan hampa dan `require_cost_center` akan menolak
@@ -168,6 +156,51 @@ class CashAdvanceSettingController extends Controller
      * otomatis: perubahan yang menyentuh dokumen berjalan harus terlihat dan
      * disengaja.
      */
+    /**
+     * One Save for the whole workflow of ONE module (CA or CAR) — shared editor. The module comes from the posted
+     * `module` field and its own permission is checked here (D180), because one route serves both.
+     *
+     * Steps have a name, an ACTOR (Verificator / Approver), a position and/or names, Mandatory and Active.
+     * Guard: at least one active step must be an Approver, or the "Approved by" column of the printout has no source.
+     */
+    public function syncSteps(Request $request, CashAdvanceService $ca, CashAdvanceReportService $car)
+    {
+        $module = $this->moduleOf($request);
+        $this->assertCanManageWorkflow($module);
+
+        return $this->syncWorkflow(
+            $request,
+            CashAdvanceApprovalStep::class,
+            $module,
+            [
+                'name'      => true,
+                'mandatory' => true,
+                'select'    => [
+                    'field'   => 'actor_role',
+                    'label'   => 'Actor',
+                    'options' => CashAdvanceApprovalStep::ACTOR_LABELS,
+                ],
+            ],
+            'management.cash-advance-settings.edit',
+            applyNew: function ($created) use ($module, $ca, $car) {
+                $applied = 0;
+
+                foreach ($created as $step) {
+                    $result = $module === CashAdvanceApprovalStep::MODULE_CA
+                        ? $ca->applyStepToOpenRequests($step, (int) session('user.id'))
+                        : $car->applyStepToOpenReports($step, (int) session('user.id'));
+                    $applied += $result['applied'];
+                }
+
+                return $applied > 0 ? " The new step was also applied to {$applied} document(s) in progress." : '';
+            },
+            guard: fn (array $built) => collect($built)->contains(
+                fn ($b) => $b['data']['is_active'] && $b['data']['actor_role'] === CashAdvanceApprovalStep::ACTOR_APPROVER
+            ) ? null : 'At least one active step for ' . $this->moduleLabel($module)
+                . ' must have the actor "Approver" — the "Approved by" column on the printed document takes its name from that step.',
+        );
+    }
+
     public function storeStep(Request $request, CashAdvanceService $ca, CashAdvanceReportService $car)
     {
         $module = $this->moduleOf($request);
