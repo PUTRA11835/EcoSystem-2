@@ -92,6 +92,63 @@ class DeliverySupportController extends Controller
     }
 
     /**
+     * Export daftar Delivery Support ke Excel. Query `ids` (opsional, dipisah
+     * koma) membatasi export ke baris yang sedang terlihat di tabel.
+     */
+    public function export(Request $request)
+    {
+        $ids = $this->parseEmployeeIdList($request->query('ids'));
+
+        $supports = DeliverySupport::with(['client.basicData', 'supportManagers'])
+            ->when($ids, fn ($q) => $q->whereIn('id', $ids))
+            ->get();
+
+        // Kolom PIC menyimpan employee_id; `full_name` adalah accessor (bukan
+        // kolom), jadi resolve lewat satu map.
+        $employeeIds = $supports->flatMap(fn ($s) => [
+            $s->delivery_owner_id,
+            $s->co_pm_id,
+            $s->support_admin_id,
+            $s->sales_id,
+            ...$s->supportManagers->pluck('employee_id')->all(),
+        ])->filter()->unique()->values();
+
+        $employeeNames = \App\Models\EmployeeBasicData::whereIn('employee_id', $employeeIds)
+            ->get()
+            ->mapWithKeys(fn ($b) => [$b->employee_id => $b->full_name]);
+
+        $name = fn ($id) => $id ? ($employeeNames[$id] ?? '-') : '-';
+        $text = fn ($v) => filled($v) ? $v : '-';
+        $date = fn ($d) => $d ? $d->format('Y-m-d') : '-';
+
+        $rows = $supports->map(fn (DeliverySupport $s) => [
+            'customer'        => $text($s->client->basicData->name_1 ?? null),
+            'name'            => $text($s->name),
+            'type'            => $text($s->type),
+            'io_number'       => $text($s->io_number),
+            'total_mandays'   => $s->total_mandays ?? 0,
+            'start_date'      => $date($s->start_date),
+            'end_date'        => $date($s->end_date),
+            'delivery_owner'  => $name($s->delivery_owner_id),
+            'support_manager' => $s->supportManagers->isEmpty()
+                ? '-'
+                : $s->supportManagers->map(fn ($m) => $name($m->employee_id))->implode(', '),
+            'co_pm'           => $name($s->co_pm_id),
+            'support_admin'   => $name($s->support_admin_id),
+            'sales'           => $name($s->sales_id),
+        ])
+        // Urut per Customer (A-Z), lalu Support Name. Nama customer ada di tabel
+        // basic data (bukan kolom support), jadi diurutkan di sini, bukan di query.
+        ->sort(fn ($a, $b) => strcasecmp($a['customer'], $b['customer']) ?: strcasecmp($a['name'], $b['name']))
+        ->values();
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\DeliverySupportExport($rows),
+            'Delivery_Support_' . now()->format('Ymd_His') . '.xlsx'
+        );
+    }
+
+    /**
      * Display planning list - all supports with planning progress
      */
     public function planningList(Request $request)

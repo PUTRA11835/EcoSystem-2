@@ -612,15 +612,33 @@ class ConsultantWorkloadController extends Controller
                 ]);
             }
 
-            // Setiap orang hanya boleh mengubah progress miliknya sendiri.
+            // Setiap orang hanya boleh mengubah progress miliknya sendiri — KECUALI
+            // Ticket Lead tiket ini, yang boleh mengubah progress semua anggotanya.
+            // Jalur Lead dibatasi ke detail milik tiket INI (lewat consultant_mandays
+            // tiket tsb), supaya Lead tiket A tidak bisa menyentuh detail tiket B
+            // dengan mengirim detail_id lain ke endpoint tiket A.
+            $leadId = Ticket::where('ticket_id', $ticketId)->value('ticket_lead_id');
+            $isLead = $leadId && (int) $leadId === (int) $empId;
+
             $ownDetailIds = collect($validated['progresses'])->pluck('detail_id');
             $ownedCount   = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)
-                ->where('employee_id', $empId)
+                ->where(function ($q) use ($empId, $isLead, $ticketId) {
+                    $q->where('employee_id', $empId);
+
+                    if ($isLead) {
+                        $q->orWhereIn(
+                            'consultant_mandays_id',
+                            ConsultantMandays::where('ticket_id', $ticketId)->select('id')
+                        );
+                    }
+                })
                 ->count();
             if ($ownedCount !== $ownDetailIds->count()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Anda hanya dapat mengubah progress milik sendiri.',
+                    'message' => $isLead
+                        ? 'Anda hanya dapat mengubah progress anggota tiket ini.'
+                        : 'Anda hanya dapat mengubah progress milik sendiri.',
                 ], 403);
             }
 
@@ -629,7 +647,8 @@ class ConsultantWorkloadController extends Controller
             // (ConsultantMandaysDetail::where(...)->update(...)) — Laravel never fires model
             // events for that (only single-instance $model->save() does), so AuditObserver
             // (wired via ConsultantMandaysDetail's Auditable trait) never sees it.
-            $detailsBeforeUpdate = ConsultantMandaysDetail::whereIn('id', $ownDetailIds)->get()->keyBy('id');
+            $detailsBeforeUpdate = ConsultantMandaysDetail::with('employee.basicData:employee_id,first_name,last_name')
+                ->whereIn('id', $ownDetailIds)->get()->keyBy('id');
             $actorName = session('user.name');
 
             foreach ($validated['progresses'] as $item) {
@@ -642,7 +661,15 @@ class ConsultantWorkloadController extends Controller
 
                 $beforeDetail = $detailsBeforeUpdate->get($item['detail_id']);
                 if ($beforeDetail) {
-                    $employeeLabel = $actorName ?: "Employee #{$empId}";
+                    // Label = PEMILIK baris, bukan aktor: sejak Ticket Lead boleh mengubah
+                    // progress anggotanya, keduanya tidak lagi selalu orang yang sama.
+                    if ((int) $beforeDetail->employee_id === (int) $empId) {
+                        $employeeLabel = $actorName ?: "Employee #{$empId}";
+                    } else {
+                        $ownerBasic    = $beforeDetail->employee?->basicData;
+                        $employeeLabel = trim(($ownerBasic->first_name ?? '') . ' ' . ($ownerBasic->last_name ?? ''))
+                            ?: "Employee #{$beforeDetail->employee_id}";
+                    }
 
                     AuditLog::recordAction(
                         module: 'Mandays', // matches ConsultantMandaysDetail::$auditModule so these rows group together

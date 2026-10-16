@@ -212,6 +212,17 @@
         <div class="px-4 sm:px-6 py-4 bg-gray-50 border-b border-gray-200">
             <div class="flex justify-between items-center flex-wrap gap-4">
                 <h3 class="text-lg font-medium text-gray-900">All Support Items</h3>
+                <div class="flex items-center gap-2">
+                {{-- Export mengikuti filter/sort yang sedang aktif di tabel:
+                     id baris yang terlihat dikirim sebagai query `ids`. --}}
+                @if($can('delivery-support.export'))
+                <button type="button" onclick="supExportExcel(this)"
+                        class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition duration-300 text-sm disabled:opacity-60 disabled:cursor-not-allowed">
+                    <i class="fas fa-file-excel text-green-600"></i>
+                    <span class="hidden sm:inline">Export Excel</span>
+                    <span class="sm:hidden">Export</span>
+                </button>
+                @endif
                 @if($can('delivery-support.add-new'))
                 <a href="{{ route('delivery.support.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm">
@@ -219,6 +230,7 @@
                     Add Delivery Support
                 </a>
                 @endif
+                </div>
             </div>
         </div>
 
@@ -445,6 +457,7 @@
                                 $progressColor = $progress >= 100 ? '#10b981' : ($progress > 50 ? '#3b82f6' : ($progress > 0 ? '#f59e0b' : '#9ca3af'));
                             @endphp
                             <tr class="support-row hover:bg-gray-50 transition-colors cursor-pointer"
+                                data-id="{{ $support->id }}"
                                 onclick="window.location.href='{{ route('delivery.support.show', $support->id) }}'"
                                 data-client="{{ strtolower($support->client->basicData->name_1 ?? '') }}"
                                 data-name="{{ strtolower($support->name ?? '') }}"
@@ -577,6 +590,30 @@
         updateStatTiles();
         const tc = document.querySelector('.table-container');
         if (tc) tc.scrollTop = 0;
+    }
+
+    // Export Excel: yang diekspor = baris desktop yang sedang terlihat. Filter
+    // kolom, tile, dan search semuanya sudah menyembunyikan baris lewat supMatches.
+    function supExportExcel(btn) {
+        const rows = Array.from(document.querySelectorAll('#desktop-support-table-body tr.support-row'));
+
+        const ids = rows
+            .filter(r => r.style.display !== 'none')
+            .map(r => r.dataset.id)
+            .filter(Boolean);
+
+        if (!ids.length) {
+            if (typeof showToast === 'function') showToast('No support items match the current filter — nothing to export.', 'warning');
+            return;
+        }
+
+        const url = new URL('{{ route('delivery.support.export') }}', window.location.origin);
+        // Semua baris terpilih → biarkan server mengekspor semuanya (hindari URL panjang).
+        if (ids.length < rows.length) url.searchParams.set('ids', ids.join(','));
+
+        btn.disabled = true;
+        window.location.href = url.toString();
+        setTimeout(() => { btn.disabled = false; }, 3000);
     }
 
     function applySupportMobileView() {

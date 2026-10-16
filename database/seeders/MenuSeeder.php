@@ -216,6 +216,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'delivery-support.add-new',     'name' => 'Add Delivery Support',    'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                     'icon' => null,                   'order_seq' => 1],
             ['slug' => 'delivery-support.delete-support', 'name' => 'Delete Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 10],
             ['slug' => 'delivery-support.remove-ticket',  'name' => 'Remove Ticket from DS',   'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 11],
+            ['slug' => 'delivery-support.export',         'name' => 'Export Delivery Support', 'type' => 'function', 'parent_slug' => 'delivery.support', 'route_name' => null,                  'icon' => null,                   'order_seq' => 12],
 
             // ── Control Center (Admin) ────────────────────────────────────────────
             ['slug' => 'control-center',               'name' => 'Control Center',          'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-server',            'order_seq' => 12],
@@ -416,6 +417,7 @@ class MenuSeeder extends Seeder
             'delivery-support.add-new'    => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v, self::RPMO=>$v],
             'delivery-support.delete-support' => [self::ADMIN=>$v, self::HOS=>$v,       self::RPMO=>$v],
             'delivery-support.remove-ticket'  => [self::ADMIN=>$v],
+            'delivery-support.export'         => [self::ADMIN=>$v],
             // Control Center
             'control-center'              => [self::ADMIN=>$v],
             'control-center.overview'     => [self::ADMIN=>$v],
