@@ -151,6 +151,62 @@ class ContractRulesTest extends TestCase
         $this->assertNull(R::pickTemplate($all, 'EXTERNAL', null));
     }
 
+    public function test_pick_template_follows_the_position_type_before_the_position(): void
+    {
+        $t = fn (int $id, string $type, ?string $pos, ?string $posType, bool $system = false, string $status = 'active') =>
+            ['id' => $id, 'contract_type' => $type, 'position' => $pos, 'position_type' => $posType, 'is_system_default' => $system, 'updated_at' => '2026-05-01', 'status' => $status];
+
+        $all = [
+            $t(1, 'PKWT', null, null, true),
+            $t(2, 'PKWT', null, null),                 // general, written by HR
+            $t(3, 'PKWT', 'Account Manager', null),    // an exact job title
+            $t(4, 'PKWT', null, 'Sales'),              // a position type
+            $t(5, 'PKWT', null, 'Staff', false, 'inactive'),
+            $t(6, 'INTERNSHIP', null, 'Internship'),
+            $t(7, 'EXTERNAL', null, 'Management Trainee'),
+        ];
+
+        $this->assertSame(4, R::pickTemplate($all, 'PKWT', 'Account Manager', 'sales')['id'], 'position type wins over a job title, whatever the case');
+        $this->assertSame(3, R::pickTemplate($all, 'PKWT', 'Account Manager', null)['id'], 'no position type: the job title');
+        $this->assertSame(3, R::pickTemplate($all, 'PKWT', 'Account Manager', 'Unknown')['id'], 'an unknown position type falls back to the job title');
+        $this->assertSame(2, R::pickTemplate($all, 'PKWT', null, 'Staff')['id'], 'an inactive template is skipped, then the general one');
+        $this->assertSame(2, R::pickTemplate($all, 'PKWT', null, null)['id'], 'a template of a position type is never "general"');
+        $this->assertSame(6, R::pickTemplate($all, 'INTERNSHIP', null, 'Internship')['id']);
+        $this->assertSame(7, R::pickTemplate($all, 'EXTERNAL', null, 'Management Trainee')['id']);
+        $this->assertNull(R::pickTemplate($all, 'ADDENDUM', null, 'Sales'), 'the type has to match');
+    }
+
+    public function test_internship_and_addendum_types(): void
+    {
+        $this->assertSame('INTERNSHIP', R::normalizeType('Internship'));
+        $this->assertSame('INTERNSHIP', R::normalizeType(' magang '));
+        $this->assertSame('ADDENDUM', R::normalizeType('addendum'));
+        $this->assertNull(R::normalizeType('Freelance'));
+        $this->assertSame(['PKWT', 'PKWTT', 'INTERNSHIP', 'ADDENDUM'], R::INTERNAL_TYPES);
+
+        $this->assertStringContainsString('needs an end date', (string) R::dateError('INTERNSHIP', '2026-07-01', null, 60));
+        $this->assertNull(R::dateError('INTERNSHIP', '2026-07-01', '2026-12-31', 60));
+        $this->assertNull(R::dateError('ADDENDUM', '2026-07-01', null, 60), 'an addendum may be open-ended');
+        $this->assertNull(R::dateError('ADDENDUM', '2026-07-01', '2026-12-31', 60));
+    }
+
+    public function test_alias_keys_cover_every_spelling_of_a_built_in_type(): void
+    {
+        $this->assertEqualsCanonicalizing(['PKWT', 'SPKWT'], R::aliasKeysOf('PKWT'));
+        $this->assertContains('PERMANENT', R::aliasKeysOf('PKWTT'));
+        $this->assertContains('MAGANG', R::aliasKeysOf('INTERNSHIP'));
+        $this->assertSame(['SOMETHING'], R::aliasKeysOf('SOMETHING'), 'an unknown type stands for itself');
+    }
+
+    public function test_every_internal_type_has_a_number_prefix(): void
+    {
+        $prefixes = config('hc_contract.number.prefixes');
+        foreach ([...R::INTERNAL_TYPES, 'EXTERNAL'] as $type) {
+            $this->assertArrayHasKey($type, $prefixes, $type);
+        }
+        $this->assertSame('SPM/2026/10/010001', R::formatNumber('INTERNSHIP', Carbon::parse('2026-10-07'), '01', 1, 4, $prefixes));
+    }
+
     // ── placeholder ──────────────────────────────────────────────────────
 
     public function test_render_escapes_fills_and_keeps_unknown(): void
@@ -159,6 +215,29 @@ class ContractRulesTest extends TestCase
             'nama' => 'A <b>&</b> "q"', 'kosong' => '  ', 'rincian' => ['html' => '<i>ok</i>'],
         ]);
         $this->assertSame('<p>A &lt;b&gt;&amp;&lt;/b&gt; &quot;q&quot; / A &lt;b&gt;&amp;&lt;/b&gt; &quot;q&quot; / - / {{typo_key}} / <i>ok</i></p>', $out);
+    }
+
+    public function test_generated_document_keeps_its_live_tokens(): void
+    {
+        $values = ['nama_karyawan' => 'Siti', 'gaji' => 'Rp 5.000.000'];
+        $html = '<p>{{nomor_kontrak}} — {{nama_karyawan}} — {{gaji}}</p><p>{{halaman_baru}}</p><p>{{meterai}}</p>';
+
+        // Generating (keepPageBreaks): fields are filled, the page break stays a token the editor shows and the document turns into a break.
+        $kept = R::render($html, $values, true);
+        $this->assertStringContainsString('{{nomor_kontrak}}', $kept);
+        $this->assertStringContainsString('Siti', $kept);
+        $this->assertStringContainsString('{{halaman_baru}}', $kept);
+        $this->assertStringNotContainsString('page-break-after', $kept);
+
+        // Showing the stored text: the break becomes real again and the live tokens are filled.
+        $shown = R::render($kept, $values + ['nomor_kontrak' => 'SPKWT/2026/10/010001', 'meterai' => ['html' => '<b>M</b>']]);
+        $this->assertStringContainsString('SPKWT/2026/10/010001', $shown);
+        $this->assertStringContainsString('page-break-after', $shown);
+        $this->assertStringContainsString('<b>M</b>', $shown);
+
+        foreach (R::LIVE_TOKENS as $token) {
+            $this->assertContains($token, ContractPlaceholders::keysFor('PKWT'), $token . ' must be a known placeholder');
+        }
     }
 
     public function test_unknown_placeholders_are_found(): void

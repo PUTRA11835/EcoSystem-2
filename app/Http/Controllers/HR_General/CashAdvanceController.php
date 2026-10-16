@@ -106,6 +106,60 @@ class CashAdvanceController extends Controller
         ]);
     }
 
+    /**
+     * Dashboard of Cash Advance Management: where money and documents stand across CA and CAR.
+     * The queues ("waiting for you", the oldest outstanding advances) are always the present state;
+     * the trend looks six months back by request date.
+     */
+    public function dashboard(CashAdvanceService $service, \App\Services\CashAdvance\CashAdvanceReportService $reports)
+    {
+        $actorId = (int) session('user.id');
+        $mineCa  = $service->pendingIdsFor($actorId);
+        $mineCar = $reports->pendingIdsFor($actorId);
+
+        $caByStatus = CashAdvance::query()->selectRaw('status, COUNT(*) AS total, COALESCE(SUM(amount), 0) AS amount')
+            ->groupBy('status')->get()->keyBy('status');
+        $carByStatus = \App\Models\CashAdvance\CashAdvanceReport::query()->selectRaw('status, COUNT(*) AS total')
+            ->groupBy('status')->get()->keyBy('status');
+
+        $outstanding = CashAdvance::query()->outstanding();
+        $settled = \App\Models\CashAdvance\CashAdvanceReport::query()->approved();
+        $sum = fn ($rows, array $keys, string $col = 'total') => collect($keys)->sum(fn ($k) => (float) ($rows[$k]->{$col} ?? 0));
+
+        $trend = collect(range(5, 0))->map(function ($ago) {
+            $start = now()->startOfMonth()->subMonths($ago);
+            $rows = CashAdvance::query()->whereBetween('request_date', [$start->toDateString(), $start->copy()->endOfMonth()->toDateString()]);
+
+            return ['label' => $start->format('M Y'), 'count' => (clone $rows)->count(), 'amount' => (float) (clone $rows)->sum('amount')];
+        });
+
+        $oldest = (clone $outstanding)->with('employee.basicData')->orderBy('request_date')->limit(8)->get();
+
+        return view('hr-general.cash-advance.dashboard', [
+            'cards' => [
+                'mine'        => count($mineCa) + count($mineCar),
+                'mineCa'      => count($mineCa),
+                'mineCar'     => count($mineCar),
+                'caOpen'      => (int) $sum($caByStatus, CashAdvance::OPEN_STATUSES),
+                'caApproved'  => (int) $sum($caByStatus, [CashAdvance::STATUS_APPROVED]),
+                'caRejected'  => (int) $sum($caByStatus, [CashAdvance::STATUS_REJECTED]),
+                'carOpen'     => (int) $sum($carByStatus, \App\Models\CashAdvance\CashAdvanceReport::OPEN_STATUSES),
+                'carApproved' => (int) $sum($carByStatus, [\App\Models\CashAdvance\CashAdvanceReport::STATUS_APPROVED]),
+                'outCount'    => (clone $outstanding)->count(),
+                'outAmount'   => (float) (clone $outstanding)->sum('amount'),
+                // Money that must still move after a CAR is approved — two directions, never added together.
+                'refund'      => (float) (clone $settled)->where('settlement_type', \App\Models\CashAdvance\CashAdvanceReport::SETTLEMENT_REFUND)->sum('difference_amount'),
+                'claim'       => abs((float) (clone $settled)->where('settlement_type', \App\Models\CashAdvance\CashAdvanceReport::SETTLEMENT_CLAIM)->sum('difference_amount')),
+            ],
+            'trend'      => $trend,
+            'oldest'     => $oldest,
+            'waitingCa'  => CashAdvance::query()->with('employee.basicData')->whereIn('id', $mineCa ?: [0])->orderBy('request_date')->limit(6)->get(),
+            'waitingCar' => \App\Models\CashAdvance\CashAdvanceReport::query()->with(['employee.basicData', 'cashAdvance'])->whereIn('id', $mineCar ?: [0])->orderBy('report_date')->limit(6)->get(),
+            'canCa'      => $this->can('general.cash-advance'),
+            'canCar'     => $this->can('general.cash-advance-report'),
+        ]);
+    }
+
     public function show(CashAdvance $cashAdvance, CashAdvanceService $service)
     {
         $cashAdvance->load([
@@ -561,7 +615,7 @@ class CashAdvanceController extends Controller
                           ->orWhere('description', 'like', "%{$term}%")
                           ->orWhere('notes', 'like', "%{$term}%")
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->whereRaw("CONCAT_WS(' ', first_name, last_name) like ?", ["%{$term}%"])->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

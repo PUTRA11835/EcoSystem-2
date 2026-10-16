@@ -234,6 +234,15 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{componentId}/delete', [EmployeeSalaryComponentController::class, 'destroy'])->middleware('employee.section:salary,delete');
     });
 
+    // My Profile recaps — SELF ONLY (the employee id is the session's, never a URL parameter). Read-only; HR changes
+    // go through Contracts / Payroll. Deliberately not under employee.section.salary, which stays HR's editing gate.
+    Route::prefix('profile')->group(function () {
+        Route::get('/salary-summary', [\App\Http\Controllers\ProfileCompensationController::class, 'salarySummary']);
+        // The signing state of my contracts (stage wording + link), for the Contract tab of My Profile.
+        Route::get('/contract-signing', [\App\Http\Controllers\MyContractController::class, 'mine']);
+        Route::get('/paystub-summary', [\App\Http\Controllers\ProfileCompensationController::class, 'paystubSummary'])->middleware('menu:general.my-paystub');
+    });
+
     // Employee Payment endpoints
     Route::prefix('employees/{employeeId}/payment')->group(function () {
         Route::get('/', [EmployeePaymentController::class, 'index']);

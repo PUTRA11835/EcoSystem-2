@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Contracts')
 @section('page-title', 'Contract')
-@section('page-subtitle', 'Manage PKWT, PKWTT and external consultant contracts for each employee in one place.')
+@section('page-subtitle', 'Fixed-term, indefinite-term, internship and addendum contracts of internal employees. External consultants have their own External Contract menu.')
 
 @php
     $filter = 'hr-general.recruitment.components.header-filter';
@@ -10,7 +10,7 @@
         'active' => 'bg-green-100 text-green-700', 'draft' => 'bg-gray-200 text-gray-600', 'expired' => 'bg-red-100 text-red-700',
         'terminated' => 'bg-red-100 text-red-700', 'inactive' => 'bg-gray-100 text-gray-500', 'none' => 'bg-gray-100 text-gray-400',
     ];
-    $typeBadge = ['PKWT' => 'tone-primary', 'PKWTT' => 'tone-primary-strong', 'EXTERNAL' => 'bg-amber-100 text-amber-700'];
+    $typeBadge = ['PKWT' => 'tone-primary', 'PKWTT' => 'tone-primary-strong', 'INTERNSHIP' => 'bg-sky-100 text-sky-700', 'ADDENDUM' => 'bg-purple-100 text-purple-700', 'EXTERNAL' => 'bg-amber-100 text-amber-700'];
     $canSalary = $canDo('general.contracts.salary');
     $canEdit = $canDo('general.contracts.list', 'edit');
 @endphp
@@ -27,7 +27,8 @@
         <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
                 <h3 class="text-sm font-bold text-gray-800">All contracts</h3>
-                <p class="text-[10px] text-gray-400 mt-0.5">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter each column.</p>
+                <p class="text-[10px] text-gray-400 mt-0.5">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter each column.
+                    @if($canExternal)Consultant contracts: <a href="{{ route('general.external.contracts.index') }}" class="underline font-semibold">External Contract</a>.@endif</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
                 @include('hr-general.partials.data-transfer', ['dataset' => 'contracts.list', 'bare' => true])
@@ -89,7 +90,7 @@
                             </td>
                             <td class="px-4 py-3">
                                 @if($row->has_contract)
-                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $typeBadge[$row->type] ?? 'bg-gray-100 text-gray-600' }}">{{ $row->type ?? $row->contract_type }}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $typeBadge[$row->type] ?? 'bg-gray-100 text-gray-600' }}">{{ $kindLabels[$row->contract_kind] ?? ($row->type ?? $row->contract_type) }}</span>
                                 @else <span class="text-gray-300">-</span> @endif
                             </td>
                             <td class="px-4 py-3">{{ $row->employee_department ?: '-' }}</td>
@@ -104,6 +105,9 @@
                             </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $badge[$row->effective_status] ?? 'bg-gray-100 text-gray-500' }}">{{ $statuses[$row->effective_status] ?? $row->effective_status }}</span>
+                                @if($row->sign_stage)
+                                    <span class="block mt-1"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ \App\Support\Contracts\SigningRules::BADGES[$row->sign_stage] ?? 'bg-gray-100 text-gray-600' }}"><i class="fas fa-signature mr-0.5"></i>{{ \App\Support\Contracts\SigningRules::LEGAL_LABELS[$row->sign_stage] ?? $row->sign_stage }}</span></span>
+                                @endif
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex justify-end">

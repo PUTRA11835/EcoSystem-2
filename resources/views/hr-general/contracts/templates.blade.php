@@ -1,13 +1,13 @@
 @extends('dashboard')
 @section('title', 'Contract Templates')
 @section('page-title', 'Contract')
-@section('page-subtitle', 'Write a different contract text for each position, or for external consultants.')
+@section('page-subtitle', 'A contract text for each contract type and position type — for employees and for external consultants.')
 
 @php
     $canCreate = $canDo('general.contracts.templates', 'create');
     $canEdit   = $canDo('general.contracts.templates', 'edit');
     $canDelete = $canDo('general.contracts.templates', 'delete');
-    $typeBadge = ['PKWT' => 'tone-primary', 'PKWTT' => 'tone-primary-strong', 'EXTERNAL' => 'bg-amber-100 text-amber-700'];
+    $typeBadge = ['PKWT' => 'tone-primary', 'PKWTT' => 'tone-primary-strong', 'INTERNSHIP' => 'bg-sky-100 text-sky-700', 'ADDENDUM' => 'bg-purple-100 text-purple-700', 'EXTERNAL' => 'bg-amber-100 text-amber-700'];
 @endphp
 
 @section('content')
@@ -18,7 +18,7 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="text-xs bg-sky-50 border border-sky-200 text-sky-900 rounded-lg px-4 py-3 flex-1">
             <p class="font-semibold mb-1">How the template is selected</p>
-            <p>When a contract is created, the system uses a template of the same contract type: first one that matches the employee’s Position, then a general template for all positions (the newest), then the system default. You can also pick another template by hand in the contract form.</p>
+            <p>When a contract is created, the system uses a template of the same contract type: first one written for the contract’s <strong>position type</strong> (Sales, Internship, Management Trainee …), then one that matches its Position, then a general template (the newest), then the system default. You can also pick another template by hand in the contract form. Contract types and position types are kept in each menu’s <strong>Settings</strong> tab.</p>
             <p class="mt-1">A system default is the baseline text: it can be edited but not deleted. Once a contract is <strong>Active</strong>, it keeps the template text it had — editing a template never changes running contracts.</p>
             <p class="mt-1">
                 @if($letterhead)<i class="fas fa-circle-check text-green-600"></i> Letterhead in use: <strong>{{ $letterhead->name }}</strong>.

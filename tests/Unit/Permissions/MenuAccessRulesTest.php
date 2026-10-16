@@ -44,6 +44,7 @@ class MenuAccessRulesTest extends TestCase
             ['general.settings.shifts', 'hr-attendance'],
             ['general.overtime.approve', 'hr-overtime'],
             ['general.cash-advance-report', 'hr-ca'],
+            ['general.cash-advance-dashboard', 'hr-ca'],
             ['management.cash-advance-settings', 'hr-ca'],
             ['general.recruitment.offers', 'hr-recruit'],
             ['general.letter-templates', 'hr-docs'],

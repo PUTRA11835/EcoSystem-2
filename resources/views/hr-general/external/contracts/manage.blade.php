@@ -12,8 +12,10 @@
         'terminated' => 'bg-red-100 text-red-700', 'inactive' => 'bg-gray-100 text-gray-500',
     ];
     $schemeTone = ['mandays' => 'tone-primary', 'monthly' => 'bg-amber-100 text-amber-700', 'fixed_price' => 'bg-sky-100 text-sky-700', 'hourly' => 'bg-purple-100 text-purple-700'];
-    $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white';
+    $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 bg-white disabled:bg-gray-50 disabled:text-gray-400';
     $label = 'block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1';
+    $hint = 'text-[11px] text-gray-400 mt-1';
+    $card = 'bg-white rounded-xl border border-gray-200 shadow-sm';
     $dt = fn ($v) => $v ? \Illuminate\Support\Carbon::parse($v)->format('d M Y') : '—';
 
     $editing = $edit !== null;
@@ -22,9 +24,12 @@
     $terms = $editing ? $edit->terms : null;
     // Starting values: what is being edited, else the consultant's engagement (scheme, dates, rate when allowed).
     $v = [
-        'engagement_scheme' => $editing ? ($edit->scheme_key ?? '') : ($c->scheme_key ?? 'mandays'),
+        // The option code: a custom contract type when the contract holds one, else the built-in scheme.
+        'engagement_scheme' => $editing ? ($edit->contract_kind ?: ($edit->scheme_key ?? '')) : ($defaultScheme ?: ($c->scheme_key ?? 'mandays')),
         'status'            => $editing ? (in_array($edit->lifecycle_status, $settable, true) ? $edit->lifecycle_status : 'draft') : 'draft',
         'template_id'       => $editing ? $edit->template_id : '',
+        'position_type'     => $editing ? ($edit->position_type ?? '') : ($defaultPositionType ?? ''),
+        'position'          => $editing ? ($edit->position ?? '') : ($c->assignment_role ?? ''),
         'start_date'        => $editing ? $edit->start_date?->toDateString() : ($c->engagement_start ?? ''),
         'end_date'          => $editing ? $edit->end_date?->toDateString() : ($c->engagement_end ?? ''),
         'signed_date'       => $editing ? $edit->signed_date?->toDateString() : now()->toDateString(),
@@ -45,108 +50,135 @@
     $showForm = $canCreate || ($editing && $canEdit);
     $lockActive = $activeLocked && !($editing && $edit->is_active);
     $pct = $readiness['percent'];
-    $pctTone = $pct >= 100 ? 'bg-green-100 text-green-700' : ($pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700');
+    $pctTone = $pct >= 100 ? 'bg-green-500' : ($pct >= 50 ? 'bg-amber-500' : 'bg-red-500');
+    $pctText = $pct >= 100 ? 'text-green-700' : ($pct >= 50 ? 'text-amber-700' : 'text-red-700');
     $employeeUrl = route('general.external.consultants.edit', $c->employee_id);
+    $summary = [
+        ['Contract type', $c->scheme_label ?: '—'],
+        ['Default rate', $canEngRate ? (!empty($c->rate_text) ? $c->rate_text . ' ' . ($c->rate_unit ?? '') : '—') : '•••••'],
+        ['Engagement period', $dt($c->engagement_start) . ' – ' . $dt($c->engagement_end)],
+        ['Client', $c->client_company ?: '—'],
+    ];
 @endphp
 
 @section('content')
-<div class="w-full space-y-6 px-1 lg:px-2">
+<div class="w-full space-y-5 px-1 lg:px-2">
+    @include('hr-general.external.contracts.components.tabs')
     @include('partials.accent-remap')
     @include('hr-general.recruitment.components.form-errors')
     @include('hr-general.contracts.components.confirm-forms')
 
-    {{-- Header --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <span class="w-12 h-12 rounded-full tone-primary flex items-center justify-center text-sm font-bold shrink-0">{{ $c->initials }}</span>
-            <div>
-                <h2 class="text-lg font-bold text-gray-800 leading-tight">{{ $c->name }}</h2>
-                <p class="text-xs text-gray-500 mt-0.5">{{ $c->eci }} • {{ $c->assignment_role ?: ($c->position ?: '-') }}@if($c->managed_by) • Managed by {{ $c->managed_by }}@endif</p>
+    {{-- Consultant --}}
+    <header class="{{ $card }} px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-4 min-w-0">
+            <span class="w-14 h-14 rounded-full tone-primary flex items-center justify-center text-base font-bold shrink-0" aria-hidden="true">{{ $c->initials }}</span>
+            <div class="min-w-0">
+                <a href="{{ route('general.external.contracts.index') }}" class="text-[11px] font-semibold text-gray-400 hover:text-gray-700"><i class="fas fa-arrow-left mr-1"></i> External contracts</a>
+                <h2 class="text-xl font-bold text-gray-900 leading-tight truncate">{{ $c->name }}</h2>
+                <p class="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="font-semibold text-gray-600">{{ $c->eci }}</span>
+                    <span class="text-gray-300">•</span><span>{{ $c->assignment_role ?: ($c->position ?: '—') }}</span>
+                    @if($c->managed_by)<span class="text-gray-300">•</span><span>Managed by {{ $c->managed_by }}</span>@endif
+                </p>
             </div>
         </div>
-        <div class="flex flex-wrap gap-2">
-            @if($canDo('general.external.consultants'))<a href="{{ route('general.external.consultants.show', $c->employee_id) }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">Consultant Detail</a>@endif
-            <a href="{{ route('general.external.contracts.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">External Contract List</a>
+        <div class="flex flex-wrap gap-2 shrink-0">
+            @if($canDo('general.external.consultants'))
+                <a href="{{ route('general.external.consultants.show', $c->employee_id) }}" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50"><i class="far fa-id-card text-[11px]"></i> Consultant detail</a>
+            @endif
+            @if($showForm && !$editing)
+                <a href="#new-contract" class="inline-flex items-center gap-1.5 px-3.5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus text-[10px]"></i> New contract</a>
+            @endif
         </div>
-    </div>
+    </header>
 
-    {{-- Consultant summary --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="px-5 py-3.5 border-b border-gray-100">
-            <h3 class="text-sm font-bold text-gray-800">Consultant Summary</h3>
-            <p class="text-[11px] text-gray-500 mt-0.5">The scheme and default rate below are the starting point of a new contract.</p>
-        </div>
-        <div class="p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div><p class="text-[11px] text-gray-400">Scheme</p><p class="text-sm font-semibold text-gray-800">{{ $c->scheme_label ?: '—' }}</p></div>
-            <div><p class="text-[11px] text-gray-400">Default rate</p><p class="text-sm font-semibold text-gray-800">{{ $canEngRate ? (!empty($c->rate_text) ? $c->rate_text . ' ' . ($c->rate_unit ?? '') : '—') : '•••••' }}</p></div>
-            <div><p class="text-[11px] text-gray-400">Engagement period</p><p class="text-sm font-semibold text-gray-800">{{ $dt($c->engagement_start) }} – {{ $dt($c->engagement_end) }}</p></div>
-            <div><p class="text-[11px] text-gray-400">Client</p><p class="text-sm font-semibold text-gray-800">{{ $c->client_company ?: '—' }}</p></div>
-        </div>
-    </div>
-
-    {{-- Readiness --}}
-    @if($gate !== 'off')
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div class="px-5 py-3.5 flex items-start justify-between gap-3">
-                <div>
-                    <h3 class="text-sm font-bold text-gray-800">Contract Readiness</h3>
-                    <p class="text-[11px] text-gray-500 mt-0.5">
-                        @if($gate === 'create') A contract can only be created after the consultant's master data and minimum documents are complete.
-                        @else A contract can be prepared as a Draft at any time, but it can only be set to Active after the consultant's master data and minimum documents are complete. @endif
-                    </p>
-                </div>
-                <span class="px-2.5 py-1 rounded-full text-[11px] font-bold {{ $pctTone }}">{{ $pct }}%</span>
+    {{-- Summary and readiness side by side --}}
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <section class="{{ $card }} xl:col-span-2" aria-labelledby="sumTitle">
+            <div class="px-5 pt-4 pb-3">
+                <h3 id="sumTitle" class="text-sm font-bold text-gray-900">Consultant summary</h3>
+                <p class="text-xs text-gray-500 mt-0.5">The contract type and default rate are the starting point of a new contract.</p>
             </div>
-            @unless($readiness['ready'])
-                <div class="px-5 pb-4">
-                    <div class="text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3">
-                        <p class="font-semibold mb-1.5">Complete the following data in Employee Data:</p>
-                        <div class="flex flex-wrap gap-1.5">
-                            @foreach($readiness['missing'] as $item)
-                                @if($canProfile)
-                                    <a href="{{ $employeeUrl }}?section={{ $item['section'] ?? '' }}" class="px-2 py-0.5 rounded-full bg-white border border-amber-300 text-amber-900 hover:bg-amber-100">{{ $item['label'] }}</a>
-                                @else
-                                    <span class="px-2 py-0.5 rounded-full bg-white border border-amber-300">{{ $item['label'] }}</span>
-                                @endif
-                            @endforeach
-                        </div>
+            <dl class="px-5 pb-5 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
+                @foreach($summary as [$term, $value])
+                    <div class="min-w-0"><dt class="text-[11px] text-gray-400">{{ $term }}</dt><dd class="text-sm font-semibold text-gray-900 wrap-break-word">{{ $value }}</dd></div>
+                @endforeach
+            </dl>
+        </section>
+
+        @if($gate !== 'off')
+            <section class="{{ $card }}" aria-labelledby="readyTitle">
+                <div class="px-5 pt-4 pb-3 flex items-start justify-between gap-3">
+                    <div>
+                        <h3 id="readyTitle" class="text-sm font-bold text-gray-900">Contract readiness</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            @if($gate === 'create') Needed before a contract can be created.
+                            @else Needed before a contract can be set to Active; a Draft can always be prepared. @endif
+                        </p>
                     </div>
+                    <span class="text-sm font-bold {{ $pctText }}">{{ $pct }}%</span>
                 </div>
-            @endunless
-        </div>
-    @endif
+                <div class="px-5 pb-5">
+                    <div class="h-2 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-valuenow="{{ $pct }}" aria-valuemin="0" aria-valuemax="100" aria-label="Data completeness">
+                        <div class="h-full rounded-full {{ $pctTone }}" style="width: {{ $pct }}%"></div>
+                    </div>
+                    @if($readiness['ready'])
+                        <p class="mt-3 text-xs text-green-700"><i class="fas fa-circle-check mr-1"></i> The consultant's data is complete.</p>
+                    @else
+                        <p class="mt-3 text-xs font-semibold text-gray-700">Still missing</p>
+                        <ul class="mt-1.5 flex flex-wrap gap-1.5">
+                            @foreach($readiness['missing'] as $item)
+                                <li>
+                                    @if($canProfile)
+                                        <a href="{{ $employeeUrl }}?section={{ $item['section'] ?? '' }}" class="inline-block px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] hover:bg-amber-100">{{ $item['label'] }}</a>
+                                    @else
+                                        <span class="inline-block px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">{{ $item['label'] }}</span>
+                                    @endif
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+            </section>
+        @endif
+    </div>
 
     {{-- History --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-3.5 border-b border-gray-100">
-            <h3 class="text-sm font-bold text-gray-800">External Contract History</h3>
-            <p class="text-[11px] text-gray-500 mt-0.5">{{ count($history) }} document{{ count($history) === 1 ? '' : 's' }} available</p>
+    <section class="{{ $card }} overflow-hidden" aria-labelledby="histTitle">
+        <div class="px-5 pt-4 pb-3 flex items-center justify-between gap-3">
+            <div>
+                <h3 id="histTitle" class="text-sm font-bold text-gray-900">Contract history</h3>
+                <p class="text-xs text-gray-500 mt-0.5">{{ count($history) }} document{{ count($history) === 1 ? '' : 's' }}</p>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-xs text-left">
-                <thead class="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
+        <div class="overflow-x-auto border-t border-gray-100">
+            <table class="w-full text-xs text-left min-w-208">
+                <thead class="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
                     <tr>
-                        <th class="px-4 py-3 w-10">No</th><th class="px-4 py-3">Number</th><th class="px-4 py-3">Template</th><th class="px-4 py-3">Type</th>
-                        <th class="px-4 py-3">Period</th><th class="px-4 py-3">Rate</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th>
+                        <th scope="col" class="pl-5 pr-2 py-2.5 w-10">No</th><th scope="col" class="px-3 py-2.5">Contract</th><th scope="col" class="px-3 py-2.5">Type</th>
+                        <th scope="col" class="px-3 py-2.5">Period</th><th scope="col" class="px-3 py-2.5">Rate</th><th scope="col" class="px-3 py-2.5">Status</th>
+                        <th scope="col" class="pl-3 pr-5 py-2.5 text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-gray-700">
                     @forelse($history as $h)
-                        <tr class="hover:bg-gray-50 align-top">
-                            <td class="px-4 py-3 text-gray-400">{{ $loop->iteration }}</td>
-                            <td class="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{{ $h->contract_number }}</td>
-                            <td class="px-4 py-3">{{ $h->contract_name ?: '-' }}</td>
-                            <td class="px-4 py-3">
-                                @if($h->scheme_key)<span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $schemeTone[$h->scheme_key] ?? 'bg-gray-100 text-gray-600' }}">{{ \App\Support\External\ExternalRules::schemeLabel($h->scheme_key) }}</span>@else <span class="text-gray-300">-</span>@endif
+                        <tr class="hover:bg-gray-50/60 align-middle {{ $editing && $edit->contract_id === $h->contract_id ? 'bg-indigo-50/40' : '' }}">
+                            <td class="pl-5 pr-2 py-3 text-gray-400">{{ $loop->iteration }}</td>
+                            <td class="px-3 py-3">
+                                <span class="font-semibold text-gray-900 whitespace-nowrap">{{ $h->contract_number }}</span>
+                                <span class="block text-[11px] text-gray-400">{{ $h->contract_name ?: '—' }}</span>
                             </td>
-                            <td class="px-4 py-3 whitespace-nowrap">{{ $dt($h->start_date) }}<span class="block text-[11px] text-gray-400">until {{ $dt($h->end_date) }}</span></td>
-                            <td class="px-4 py-3 whitespace-nowrap">
-                                @if(!$canRate) <span class="text-gray-300">•••••</span>
-                                @elseif($h->rate_text) <span class="font-semibold text-gray-800">{{ $h->rate_text }}</span><span class="block text-[11px] text-gray-400">/ {{ $h->terms->billing_unit ?? '' }}</span>
-                                @else <span class="text-gray-300">-</span> @endif
+                            <td class="px-3 py-3">
+                                @if($h->scheme_key)<span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $schemeTone[$h->scheme_key] ?? 'bg-gray-100 text-gray-600' }}">{{ $kindLabels[$h->contract_kind] ?? \App\Support\External\ExternalRules::schemeLabel($h->scheme_key) }}</span>@else<span class="text-gray-300">—</span>@endif
                             </td>
-                            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $badge[$h->effective_status] ?? '' }}">{{ $statuses[$h->effective_status] ?? $h->effective_status }}</span></td>
-                            <td class="px-4 py-3">
+                            <td class="px-3 py-3 whitespace-nowrap">{{ $dt($h->start_date) }}<span class="block text-[11px] text-gray-400">until {{ $dt($h->end_date) }}</span></td>
+                            <td class="px-3 py-3 whitespace-nowrap">
+                                @if(!$canRate)<span class="text-gray-300" title="Needs the “View Salary” permission">•••••</span>
+                                @elseif($h->rate_text)<span class="font-semibold text-gray-900">{{ $h->rate_text }}</span><span class="block text-[11px] text-gray-400">/ {{ $h->terms->billing_unit ?? '' }}</span>
+                                @else<span class="text-gray-300">—</span>@endif
+                            </td>
+                            <td class="px-3 py-3"><span class="px-2 py-0.5 rounded-full text-[11px] font-semibold {{ $badge[$h->effective_status] ?? 'bg-gray-100 text-gray-500' }}">{{ $statuses[$h->effective_status] ?? $h->effective_status }}</span></td>
+                            <td class="pl-3 pr-5 py-3">
                                 <div class="flex items-center justify-end gap-1.5">
                                     <div class="seg">
                                         <a href="{{ route('general.external.contracts.document', $h->contract_id) }}" class="seg-view">View</a>
@@ -154,113 +186,196 @@
                                         @if($canEdit)<a href="{{ route('general.external.contracts.manage', $c->employee_id) }}?edit={{ $h->contract_id }}#new-contract" class="seg-edit">Edit</a>@endif
                                     </div>
                                     @if($canDelete && $h->lifecycle_status === 'draft')
-                                        <form method="POST" action="{{ route('general.external.contracts.destroy', $h->contract_id) }}" data-confirm="Delete draft {{ $h->contract_number }}? This cannot be undone." data-confirm-title="Delete Draft" data-confirm-ok="Delete" data-unsaved-ignore>@csrf
-                                            <button type="submit" class="px-2.5 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-[11px] font-semibold">Delete</button>
+                                        <form method="POST" action="{{ route('general.external.contracts.destroy', $h->contract_id) }}" data-confirm="Delete draft {{ $h->contract_number }}? This cannot be undone." data-confirm-title="Delete Draft" data-confirm-ok="Delete" data-confirm-variant="danger" data-unsaved-ignore>@csrf
+                                            <button type="submit" class="w-8 h-8 inline-flex items-center justify-center rounded-lg text-red-500 hover:bg-red-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300" title="Delete draft" aria-label="Delete draft {{ $h->contract_number }}"><i class="fas fa-trash-can text-xs"></i></button>
                                         </form>
                                     @endif
                                 </div>
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-10 text-center text-gray-400">No external contract yet.</td></tr>
+                        <tr>
+                            <td colspan="7" class="px-5 py-12 text-center">
+                                <i class="far fa-file-lines text-2xl text-gray-300 mb-2 block"></i>
+                                <p class="text-sm font-semibold text-gray-700">No external contract yet</p>
+                                @if($showForm)<p class="text-xs text-gray-500 mt-1">Use the form below to prepare the first one.</p>@endif
+                            </td>
+                        </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-    </div>
+    </section>
 
     {{-- New / edit contract --}}
     @if($showForm)
-    <div id="new-contract" class="bg-white rounded-xl border border-gray-200 shadow-sm scroll-mt-24">
-        <div class="px-5 py-3.5 border-b border-gray-100 flex items-start justify-between gap-3">
+    <section id="new-contract" class="{{ $card }} scroll-mt-24" aria-labelledby="formTitle">
+        <div class="px-5 pt-4 pb-3 border-b border-gray-100 flex items-start justify-between gap-3">
             <div>
-                <h3 class="text-sm font-bold text-gray-800">{{ $editing ? 'Edit External Contract' : 'Add New External Contract' }}</h3>
-                <p class="text-[11px] text-gray-500 mt-0.5">
-                    {{ $editing ? $edit->contract_number : 'Pick the contract text from Contract Templates. The text is frozen as a snapshot once the contract is Active, so old documents never change.' }}
+                <h3 id="formTitle" class="text-base font-bold text-gray-900">{{ $editing ? 'Edit external contract' : 'New external contract' }}</h3>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    @if($editing)
+                        {{ $edit->contract_number }}
+                    @else
+                        Fill in the fields, generate the document to read it, then save. Its text is frozen once the contract is Active.
+                    @endif
                 </p>
             </div>
-            @if($editing)<a href="{{ route('general.external.contracts.manage', $c->employee_id) }}#new-contract" class="text-[11px] font-semibold primary-text hover:underline">Cancel editing</a>@endif
+            @if($editing)<a href="{{ route('general.external.contracts.manage', $c->employee_id) }}#new-contract" class="text-xs font-semibold primary-text hover:underline shrink-0">Cancel editing</a>@endif
         </div>
 
-        <form method="POST" action="{{ $editing ? route('general.external.contracts.update', $edit->contract_id) : route('general.external.contracts.store', $c->employee_id) }}" id="extContractForm" class="p-5 space-y-5">
+        <form method="POST" action="{{ $editing ? route('general.external.contracts.update', $edit->contract_id) : route('general.external.contracts.store', $c->employee_id) }}" id="extContractForm">
             @csrf
-            {{-- Template --}}
-            <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <div class="flex items-center justify-between gap-3 mb-1">
-                    <label class="{{ $label }} mb-0" for="fTpl">Contract template</label>
-                    @if($canTemplates)<a href="{{ route('general.contracts.templates.index') }}" class="text-[11px] font-semibold primary-text hover:underline"><i class="far fa-file-lines mr-1"></i>Manage templates</a>@endif
-                </div>
-                <select id="fTpl" name="template_id" class="{{ $input }}">
-                    <option value="">Automatic — the default external template</option>
-                    @foreach($templates as $t)
-                        <option value="{{ $t->id }}" @selected((string) $old('template_id') === (string) $t->id)>{{ $t->name }}@if($t->is_system_default) (system default)@endif</option>
-                    @endforeach
-                </select>
-                @if($canTemplates)
-                    <a id="tplPreview" href="#" target="_blank" class="hidden mt-2 text-[11px] font-semibold primary-text hover:underline"><i class="far fa-eye mr-1"></i>Preview this template</a>
-                @endif
-            </div>
+            <div class="p-5 space-y-6">
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                @if($editing)
-                    <div><label class="{{ $label }}" for="fNumber">Contract number</label><input id="fNumber" name="contract_number" maxlength="100" value="{{ old('contract_number', $edit->contract_number) }}" class="{{ $input }}"><p class="text-[10px] text-gray-400 mt-1">Generated by the system; correct it only if needed.</p></div>
-                @else
-                    <div><label class="{{ $label }}">Contract number</label><input value="Generated when the contract is saved" disabled class="{{ $input }} bg-gray-50 text-gray-400"></div>
-                @endif
-                <div>
-                    <label class="{{ $label }}" for="fScheme">Contract type</label>
-                    <select id="fScheme" name="engagement_scheme" class="{{ $input }}" required>
-                        @foreach($schemes as $key => $name)<option value="{{ $key }}" @selected($old('engagement_scheme') === $key)>{{ $name }}</option>@endforeach
-                    </select>
-                </div>
-                <div>
-                    <label class="{{ $label }}" for="fStatus">Status</label>
-                    <select id="fStatus" name="status" class="{{ $input }}">
-                        @foreach($settable as $s)
-                            <option value="{{ $s }}" @selected($old('status') === $s) @disabled($s === 'active' && $lockActive)>{{ $statuses[$s] }}{{ $s === 'active' && $lockActive ? ' (needs complete consultant data)' : '' }}</option>
+                {{-- 1 · Template --}}
+                <fieldset class="rounded-lg border border-gray-200 bg-gray-50/60 p-4">
+                    <legend class="px-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">Contract text</legend>
+                    <div class="flex items-center justify-between gap-3 mb-1">
+                        <label class="{{ $label }} mb-0" for="fTpl">Template</label>
+                        @if($canTemplates)<a href="{{ route('general.contracts.templates.index') }}" class="text-[11px] font-semibold primary-text hover:underline"><i class="far fa-file-lines mr-1"></i>Manage templates</a>@endif
+                    </div>
+                    <select id="fTpl" name="template_id" data-searchable="true" data-search-placeholder="Search template…" class="{{ $input }}">
+                        <option value="">Automatic — by position type, else the default external template</option>
+                        @foreach($templates as $t)
+                            <option value="{{ $t->id }}" @selected((string) $old('template_id') === (string) $t->id)>{{ $t->name }}@if($t->position_type) — {{ $t->position_type }}@endif @if($t->is_system_default) (system default)@endif</option>
                         @endforeach
                     </select>
+                    @if($canTemplates)
+                        <a id="tplPreview" href="#" target="_blank" rel="noopener" class="hidden mt-2 text-[11px] font-semibold primary-text hover:underline"><i class="far fa-eye mr-1"></i>Preview this template</a>
+                    @endif
+                </fieldset>
+
+                {{-- 2 · The contract --}}
+                <fieldset>
+                    <legend class="text-sm font-bold text-gray-900 mb-3">Contract</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <div class="md:col-span-4">
+                            @if($editing)
+                                <label class="{{ $label }}" for="fNumber">Contract number</label>
+                                <input id="fNumber" name="contract_number" maxlength="100" value="{{ old('contract_number', $edit->contract_number) }}" class="{{ $input }}">
+                                <p class="{{ $hint }}">Generated by the system; correct it only if needed.</p>
+                            @else
+                                <label class="{{ $label }}" for="fNumberShown">Contract number</label>
+                                <input id="fNumberShown" value="Generated when saved" disabled class="{{ $input }}">
+                            @endif
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="{{ $label }}" for="fScheme">Contract type <span class="text-red-500">*</span></label>
+                            <select id="fScheme" name="engagement_scheme" data-searchable="true" data-search-placeholder="Search contract type…" class="{{ $input }}" required>
+                                @foreach($schemes as $key => $name)<option value="{{ $key }}" @selected($old('engagement_scheme') === $key)>{{ $name }}</option>@endforeach
+                            </select>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="{{ $label }}" for="fStatus">Status</label>
+                            <select id="fStatus" name="status" data-searchable="true" data-search-placeholder="Search status…" class="{{ $input }}">
+                                @foreach($settable as $s)
+                                    <option value="{{ $s }}" @selected($old('status') === $s) @disabled($s === 'active' && $lockActive)>{{ $statuses[$s] }}{{ $s === 'active' && $lockActive ? ' (needs complete consultant data)' : '' }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="md:col-span-4">
+                            <label class="{{ $label }}" for="fPosType">Position type</label>
+                            <select id="fPosType" name="position_type" data-searchable="true" data-search-placeholder="Search position type…" class="{{ $input }}">
+                                <option value="">Not specified</option>
+                                @foreach($positionTypes as $pt)<option value="{{ $pt }}" @selected((string) $old('position_type') === (string) $pt)>{{ $pt }}</option>@endforeach
+                            </select>
+                            <p class="{{ $hint }}">Picks the template written for it.@if($canDo('general.external.contracts.settings')) <a href="{{ route('general.external.contracts.settings.index') }}" class="underline font-semibold">Manage</a>@endif</p>
+                        </div>
+                        <div class="md:col-span-8">
+                            <label class="{{ $label }}" for="fPosition">Position / role</label>
+                            <input id="fPosition" name="position" maxlength="255" value="{{ $old('position') }}" placeholder="e.g. Business Analyst" class="{{ $input }}">
+                            <p class="{{ $hint }}">Printed as the specialisation of the consultant.</p>
+                        </div>
+                    </div>
+                </fieldset>
+
+                {{-- 3 · Period --}}
+                <fieldset>
+                    <legend class="text-sm font-bold text-gray-900 mb-3">Period</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fStart">Start <span class="text-red-500">*</span></label>
+                            <input type="date" id="fStart" name="start_date" value="{{ $old('start_date') }}" class="{{ $input }}" required></div>
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fEnd">End</label>
+                            <input type="date" id="fEnd" name="end_date" value="{{ $old('end_date') }}" class="{{ $input }}">
+                            <p class="{{ $hint }}">Optional. “Expired” follows the end date by itself.</p></div>
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fSigned">Signing date</label>
+                            <input type="date" id="fSigned" name="signed_date" value="{{ $old('signed_date') }}" class="{{ $input }}"></div>
+                    </div>
+                </fieldset>
+
+                {{-- 4 · Commercial terms --}}
+                <fieldset>
+                    <legend class="text-sm font-bold text-gray-900 mb-3">Commercial terms</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        @if($canRate)
+                            <div class="md:col-span-4"><label class="{{ $label }}" for="fRate">Rate</label>
+                                <input id="fRate" name="rate" inputmode="decimal" value="{{ $rateShown }}" placeholder="e.g. 2.700.000" class="{{ $input }}"></div>
+                            <div class="md:col-span-4"><label class="{{ $label }}" for="fCur">Currency</label>
+                                <select id="fCur" name="currency" data-searchable="true" data-search-placeholder="Search currency…" class="{{ $input }}">@foreach($currencies as $cur)<option value="{{ $cur }}" @selected($old('currency') === $cur)>{{ $cur }}</option>@endforeach</select></div>
+                        @else
+                            <div class="md:col-span-8 self-end">
+                                <p class="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"><i class="fas fa-lock mt-0.5 text-gray-400"></i><span>The rate is hidden: it needs the “View Salary” permission. Saving here never changes it.</span></p>
+                            </div>
+                        @endif
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fUnit">Billing unit</label>
+                            <input id="fUnit" name="billing_unit" maxlength="30" value="{{ $old('billing_unit') }}" placeholder="Follows the contract type" class="{{ $input }}"></div>
+
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fVolume">Work volume</label>
+                            <input id="fVolume" name="work_volume" maxlength="100" value="{{ $old('work_volume') }}" placeholder="e.g. 20,00 mandays" class="{{ $input }}">
+                            <p class="{{ $hint }}">Printed as “Jumlah waktu pelaksanaan”.</p></div>
+                        <div id="fHoursWrap" class="md:col-span-4"><label class="{{ $label }}" for="fHours">Hours per manday</label>
+                            <input id="fHours" name="hours_per_manday" inputmode="decimal" value="{{ $old('hours_per_manday') }}" class="{{ $input }}"></div>
+                        <div id="fProWrap" class="md:col-span-4"><label class="{{ $label }}" for="fPro">Monthly proration</label>
+                            <select id="fPro" name="proration" data-searchable="true" data-search-placeholder="Search…" class="{{ $input }}">@foreach($proration as $key => $name)<option value="{{ $key }}" @selected($old('proration') === $key)>{{ $name }}</option>@endforeach</select></div>
+
+                        <div class="md:col-span-4"><label class="{{ $label }}" for="fTerm">Payment term (days)</label>
+                            <input type="number" min="0" max="365" id="fTerm" name="payment_term_days" value="{{ $old('payment_term_days') }}" class="{{ $input }}"></div>
+                        <div class="md:col-span-8"><label class="{{ $label }}" for="fLoc">Work location / model</label>
+                            <input id="fLoc" name="work_location" maxlength="255" value="{{ $old('work_location') }}" placeholder="e.g. ONSITE, REMOTE" class="{{ $input }}"></div>
+                    </div>
+                </fieldset>
+
+                {{-- 5 · Signing and notes --}}
+                <fieldset>
+                    <legend class="text-sm font-bold text-gray-900 mb-3">Signing and notes</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <div class="md:col-span-6">
+                            <label class="{{ $label }}" for="fSign">Company signatory</label>
+                            <select id="fSign" name="signatory_employee_id" data-searchable="true" data-search-placeholder="Search signer…" class="{{ $input }}">
+                                <option value="">Template default (if the template sets one)</option>
+                                @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) $old('signatory_employee_id') === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
+                            </select>
+                            <p class="{{ $hint }}">From Letter Templates → Settings → Signers.</p>
+                        </div>
+                        <div class="md:col-span-12">
+                            <label class="{{ $label }}" for="fNotes">Notes</label>
+                            <textarea id="fNotes" name="notes" rows="2" maxlength="2000" class="{{ $input }}" placeholder="Internal notes, not printed unless the template uses them">{{ $old('notes') }}</textarea>
+                        </div>
+                    </div>
+                </fieldset>
+
+                {{-- 6 · Generate the contract from the fields above, then read it and adjust it (Legal / HR / RPMO) before saving. --}}
+                <div class="grid grid-cols-1">
+                    @include('hr-general.contracts.components.document-composer', [
+                        'dcForm' => 'extContractForm', 'dcUrl' => route('general.external.contracts.preview', $c->employee_id), 'dcExternal' => true, 'dcContract' => $editing ? $edit : null,
+                    ])
                 </div>
-
-                <div><label class="{{ $label }}" for="fStart">Start</label><input type="date" id="fStart" name="start_date" value="{{ $old('start_date') }}" class="{{ $input }}" required></div>
-                <div><label class="{{ $label }}" for="fEnd">End</label><input type="date" id="fEnd" name="end_date" value="{{ $old('end_date') }}" class="{{ $input }}"><p class="text-[10px] text-gray-400 mt-1">Optional. “Expired” follows the end date by itself.</p></div>
-                <div><label class="{{ $label }}" for="fSigned">Signing date</label><input type="date" id="fSigned" name="signed_date" value="{{ $old('signed_date') }}" class="{{ $input }}"></div>
-
-                @if($canRate)
-                    <div><label class="{{ $label }}" for="fRate">Rate</label><input id="fRate" name="rate" inputmode="decimal" value="{{ $rateShown }}" placeholder="e.g. 2.700.000" class="{{ $input }}"></div>
-                    <div><label class="{{ $label }}" for="fCur">Currency</label>
-                        <select id="fCur" name="currency" class="{{ $input }}">@foreach($currencies as $cur)<option value="{{ $cur }}" @selected($old('currency') === $cur)>{{ $cur }}</option>@endforeach</select></div>
-                @else
-                    <p class="md:col-span-2 text-[11px] text-gray-400 self-end pb-2"><i class="fas fa-lock mr-1"></i> The rate is hidden: it needs the “View Salary” permission. Saving here never changes it.</p>
-                @endif
-
-                <div><label class="{{ $label }}" for="fUnit">Billing unit</label><input id="fUnit" name="billing_unit" maxlength="30" value="{{ $old('billing_unit') }}" placeholder="Follows the contract type" class="{{ $input }}"></div>
-                <div><label class="{{ $label }}" for="fVolume">Work volume</label><input id="fVolume" name="work_volume" maxlength="100" value="{{ $old('work_volume') }}" placeholder="e.g. 20,00 mandays" class="{{ $input }}"><p class="text-[10px] text-gray-400 mt-1">Printed as “Jumlah waktu pelaksanaan”.</p></div>
-                <div id="fHoursWrap"><label class="{{ $label }}" for="fHours">Hours per manday</label><input id="fHours" name="hours_per_manday" inputmode="decimal" value="{{ $old('hours_per_manday') }}" class="{{ $input }}"></div>
-
-                <div id="fProWrap">
-                    <label class="{{ $label }}" for="fPro">Monthly proration</label>
-                    <select id="fPro" name="proration" class="{{ $input }}">@foreach($proration as $key => $name)<option value="{{ $key }}" @selected($old('proration') === $key)>{{ $name }}</option>@endforeach</select>
-                </div>
-                <div><label class="{{ $label }}" for="fTerm">Payment term (days)</label><input type="number" min="0" max="365" id="fTerm" name="payment_term_days" value="{{ $old('payment_term_days') }}" class="{{ $input }}"></div>
-                <div><label class="{{ $label }}" for="fLoc">Work location / model</label><input id="fLoc" name="work_location" maxlength="255" value="{{ $old('work_location') }}" placeholder="e.g. ONSITE, REMOTE" class="{{ $input }}"></div>
-
-                <div class="md:col-span-3">
-                    <label class="{{ $label }}" for="fSign">Company signatory</label>
-                    <select id="fSign" name="signatory_employee_id" class="{{ $input }} md:w-1/2">
-                        <option value="">Template default (if the template sets one)</option>
-                        @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) $old('signatory_employee_id') === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
-                    </select>
-                    <p class="text-[10px] text-gray-400 mt-1">From Letter Templates → Settings → Signers.</p>
-                </div>
-                <div class="md:col-span-3"><label class="{{ $label }}" for="fNotes">Notes</label><textarea id="fNotes" name="notes" rows="2" maxlength="2000" class="{{ $input }}">{{ $old('notes') }}</textarea></div>
             </div>
 
-            <div class="flex justify-end">
-                <button type="submit" class="px-5 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-check mr-1"></i> {{ $editing ? 'Save External Contract' : 'Save External Contract' }}</button>
+            {{-- The save bar stays in view while the long form scrolls --}}
+            <div class="sticky bottom-0 z-10 px-5 py-3 bg-white/95 backdrop-blur border-t border-gray-200 rounded-b-xl flex flex-wrap items-center justify-between gap-3">
+                <p class="text-[11px] text-gray-400"><span class="text-red-500">*</span> required</p>
+                <div class="flex items-center gap-2">
+                    @if($editing)
+                        <a href="{{ route('general.external.contracts.manage', $c->employee_id) }}#new-contract" class="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</a>
+                    @endif
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-check text-[11px]"></i> {{ $editing ? 'Save changes' : 'Save contract' }}</button>
+                </div>
             </div>
         </form>
-    </div>
+    </section>
     @endif
 </div>
 
@@ -270,12 +385,15 @@
     const $ = id => document.getElementById(id);
     const scheme = $('fScheme');
     if (!scheme) return;
+    // option code → the built-in scheme its terms follow (a custom contract type behaves like its base)
+    const schemeBase = @json($schemeBase);
+    const baseScheme = () => schemeBase[scheme.value] || scheme.value;
 
     // Hours per manday only matters for mandays; proration only for the monthly scheme.
     function schemeRules() {
-        $('fHoursWrap').classList.toggle('hidden', scheme.value !== 'mandays');
-        $('fProWrap').classList.toggle('hidden', scheme.value !== 'monthly');
-        const unit = { mandays: 'mandays', monthly: 'months', fixed_price: 'package', hourly: 'hours' }[scheme.value] || '';
+        $('fHoursWrap').classList.toggle('hidden', baseScheme() !== 'mandays');
+        $('fProWrap').classList.toggle('hidden', baseScheme() !== 'monthly');
+        const unit = { mandays: 'mandays', monthly: 'months', fixed_price: 'package', hourly: 'hours' }[baseScheme()] || '';
         $('fUnit').placeholder = 'Follows the contract type (' + unit + ')';
     }
     scheme.addEventListener('change', schemeRules);
@@ -287,6 +405,12 @@
     tpl.addEventListener('change', tplLink);
     tplLink();
     @endif
+
+    // End date cannot precede the start date: the browser says so before the server does.
+    const start = $('fStart'), end = $('fEnd');
+    function limitEnd() { end.min = start.value || ''; }
+    start.addEventListener('change', limitEnd);
+    limitEnd();
 
     // Opening the page with #new-contract (Add Contract / Edit) scrolls to the form.
     if (location.hash === '#new-contract') $('new-contract')?.scrollIntoView({ behavior: 'smooth', block: 'start' });

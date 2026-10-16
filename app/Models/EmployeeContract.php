@@ -42,6 +42,9 @@ class EmployeeContract extends Model
         'salary_components',
         'notes',
         'body_html',
+        'body_customized',
+        'position_type',
+        'contract_kind',
         'created_by',
         'signatory_employee_id',
         'signatory_name',
@@ -53,10 +56,13 @@ class EmployeeContract extends Model
         'signed_file_by',
         'stamp_method',
         'page_json',
+        // Signing workflow (ContractSigningService)
+        'sign_stage', 'sign_deadline', 'sign_sent_at', 'sign_sent_by', 'sign_file_hash', 'employee_signed_at',
+        'approver_employee_id', 'approver_name', 'approver_title', 'approver_signed_at', 'released_at', 'released_by', 'signed_pdf_path',
     ];
 
     // Teks template beku bisa panjang; tidak ikut JSON seksi Contract di Master Employee.
-    protected $hidden = ['body_html', 'signed_file_path'];
+    protected $hidden = ['body_html', 'signed_file_path', 'signed_pdf_path', 'sign_file_hash'];
 
     // Casting tipe data otomatis
     protected $casts = [
@@ -64,8 +70,14 @@ class EmployeeContract extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'is_active' => 'boolean',
+        'body_customized' => 'boolean',
         'signed_date' => 'date',
         'signed_file_at' => 'datetime',
+        'sign_deadline' => 'date',
+        'sign_sent_at' => 'datetime',
+        'employee_signed_at' => 'datetime',
+        'approver_signed_at' => 'datetime',
+        'released_at' => 'datetime',
         'page_json' => 'array',
         'salary_components' => 'array',
         'contract_date' => 'datetime',

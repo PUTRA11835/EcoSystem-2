@@ -257,7 +257,8 @@
         $onbEditableSections = [];
         foreach (array_keys($onbSectionNames) as $onbSec) {
             $onbSecKey = str_replace('-', '_', $onbSec);
-            if (isset($visibleSections[$onbSecKey]) && !($ro[$onbSecKey] ?? false)) {
+            // Contract is a recap on My Profile (HR manages it), so its items are never fillable by the owner.
+            if ($onbSec !== 'contract' && isset($visibleSections[$onbSecKey]) && !($ro[$onbSecKey] ?? false)) {
                 $onbEditableSections[] = $onbSec;
             }
         }
@@ -318,10 +319,19 @@
         <div class="p-6">
             @forelse($visibleSections as $key => [$tabId, $label, $partial])
             <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }} {{ $allows($key, 'create') ? '' : 'sec-no-create' }} {{ $allows($key, 'delete') ? '' : 'sec-no-delete' }}">
-                @include("master.employee.sections.{$partial}", $sec + $hrFrag + ['isReadonly' => (bool)($ro[$key] ?? false)])
+                {{-- My Profile shows Basic Payment as a paystub recap (read-only); Master keeps the payment records. --}}
+                @php $ownProfile = isset($isOwnProfile) && $isOwnProfile; @endphp
+                @include('master.employee.sections.' . ($ownProfile && $key === 'payment' ? 'payment-recap' : $partial), $sec + $hrFrag + ['isReadonly' => (bool)($ro[$key] ?? false)])
+                {{-- My Profile: read-only salary recap under the contract history. Fed by its own self-only endpoint
+                     (/api/profile/salary-summary), so it needs no salary permission and widens nothing. --}}
+                @if($key === 'contract' && $ownProfile)
+                    <div class="mt-6">
+                        @include('master.employee.sections.salary-recap', $sec)
+                    </div>
+                @endif
                 {{-- Salary Components: kotak yang dapat dibuka di dalam tab Contract (sumber utama payroll, BPJS, referensi kontrak).
-                     Izin sendiri (employee.section.salary.*), hanya Master — tidak ada padanan My Profile. --}}
-                @if($key === 'contract' && !($hidden['salary'] ?? true))
+                     Izin sendiri (employee.section.salary.*), hanya Master — My Profile memakai salary-recap di atas. --}}
+                @if($key === 'contract' && !$ownProfile && !($hidden['salary'] ?? true))
                     <div class="mt-6 {{ $allows('salary', 'create') ? '' : 'sec-no-create' }} {{ $allows('salary', 'delete') ? '' : 'sec-no-delete' }}">
                         @include('master.employee.sections.salary', $sec + [
                             'canCreate' => $allows('salary', 'create'),

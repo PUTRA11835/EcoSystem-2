@@ -543,7 +543,7 @@ class CashAdvanceReportController extends Controller
                           // nomor uang mukanya, bukan nomor laporannya.
                           ->orWhereHas('cashAdvance', fn ($c) => $c->where('request_no', 'like', "%{$term}%"))
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->whereRaw("CONCAT_WS(' ', first_name, last_name) like ?", ["%{$term}%"])->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

@@ -1,5 +1,5 @@
 {{--
-    Daftar tab hub Cash Advance Management (sisi Finance) — tiga tab: CA, CAR, Settings (D177, direvisi: CAR kini tab). Lihat components/hub-tabs.blade.php
+    Daftar tab hub Cash Advance Management (sisi Finance) — Dashboard, CA, CAR, Settings (D177, direvisi: CAR kini tab). Lihat components/hub-tabs.blade.php
     untuk penjelasan pola secara umum.
 
     🔴 Tab "Settings" menunjuk ke rute `management.cash-advance-settings.edit`,
@@ -9,6 +9,15 @@
 --}}
 @php
     $hubTabs = [
+        [
+            'label'  => 'Dashboard',
+            'icon'   => 'chart-pie',
+            'route'  => 'general.cash-advance.dashboard',
+            'is'     => 'general/cash-advance/dashboard',
+            'gate'   => 'general.cash-advance-dashboard',
+            // Own slug (Menu Access → Cash Advance Management → Dashboard); `general` alone does not open it.
+            'strict' => true,
+        ],
         [
             'label' => 'Cash Advance (CA)',
             'icon'  => 'hand-holding-usd',

@@ -15,6 +15,7 @@
      sebelum D177 — Reimbursement/Purchase Request Settings baru menyusul
      lebar penuh di D177). --}}
 @include('hr-general.cash-advance.components.hub-tabs')
+@include('hr-general.recruitment.components.unsaved-guard')
 
 <div class="flex flex-col lg:flex-row gap-6 items-start">
     @include('hr-general.partials.settings-nav', ['title' => 'Cash Advance (CA)'])
