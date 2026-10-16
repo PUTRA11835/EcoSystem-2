@@ -20,6 +20,7 @@ class ReimbursementApprovalStep extends Model
     protected $fillable = [
         'module', 'order_seq', 'name',
         'approver_type', 'approver_role_id', 'approver_employee_ids',
+        'signs_as', 'requester_selectable',
         'is_active',
     ];
 
@@ -28,6 +29,7 @@ class ReimbursementApprovalStep extends Model
         'approver_role_id'      => 'integer',
         'approver_employee_ids' => 'array',
         'is_active'             => 'boolean',
+        'requester_selectable'  => 'boolean',
     ];
 
     // ── Konstanta ───────────────────────────────────────────────────────────
@@ -68,6 +70,20 @@ class ReimbursementApprovalStep extends Model
         self::TYPE_DIRECT_MANAGER => 'Direct Manager',
     ];
 
+    /**
+     * Kolom tanda tangan pada dokumen yang diisi langkah ini. Nama yang
+     * tercetak adalah orang yang bertindak pada langkahnya.
+     */
+    public const SIGNS_ACCOUNTING = 'accounting';
+    public const SIGNS_CASHIER    = 'cashier';
+    public const SIGNS_APPROVER   = 'approver';
+
+    public const SIGNS_AS_LABELS = [
+        self::SIGNS_ACCOUNTING => 'Accounting',
+        self::SIGNS_CASHIER    => 'Cashier',
+        self::SIGNS_APPROVER   => 'Approver',
+    ];
+
     // ── Relationships ───────────────────────────────────────────────────────
 
     public function role()
@@ -92,6 +108,31 @@ class ReimbursementApprovalStep extends Model
     public function isSelectable(): bool
     {
         return in_array($this->approver_type, self::SELECTABLE_TYPES, true);
+    }
+
+    /**
+     * Karyawan yang dapat bertindak pada langkah ini — kandidat dropdown bila
+     * langkahnya dipilih pemohon.
+     *
+     * @return array<int>
+     */
+    public function candidateEmployeeIds(): array
+    {
+        if ($this->approver_type === self::TYPE_EMPLOYEE) {
+            return array_values(array_unique(array_map('intval', $this->approver_employee_ids ?? [])));
+        }
+
+        if ($this->approver_type === self::TYPE_ROLE && $this->approver_role_id) {
+            return \Illuminate\Support\Facades\DB::table('employee_role_assignment')
+                ->where('role_id', $this->approver_role_id)
+                ->pluck('employee_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values()
+                ->all();
+        }
+
+        return [];
     }
 
     public function typeLabel(): string

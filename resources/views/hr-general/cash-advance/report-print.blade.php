@@ -121,7 +121,7 @@
         <tr>
             <td class="label">Requester</td>
             <td class="colon">:</td>
-            <td>{{ $report->employee?->basicData?->nick_name ?? $report->employee?->eci ?? '—' }}</td>
+            <td>{{ $report->employee?->basicData?->full_name ?? $report->employee?->eci ?? '—' }}</td>
         </tr>
         <tr>
             <td class="label">Purpose</td>
@@ -214,7 +214,7 @@
 
     @if($report->isApproved() && $lastApproved)
     <div class="approved-line">
-        approved by: {{ $lastApproved->actor?->basicData?->nick_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
+        approved by: {{ $lastApproved->actor?->basicData?->full_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
         on: {{ optional($lastApproved->acted_at)->format('d/m/Y') }}
     </div>
     @endif

@@ -16,22 +16,7 @@
     $firstTab = collect($tabOk)->filter()->keys()->first();
 @endphp
 
-@section('page-actions')
-<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
-    @if($pendingReqCount > 0 && $tabOk['inbox'])
-    <button type="button" onclick="switchTab('inbox')"
-        title="{{ $pendingReqCount }} pending validation"
-        class="inline-flex items-center gap-1.5 border text-xs font-semibold px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg hover:opacity-80 transition shadow-sm whitespace-nowrap active:scale-95"
-        style="background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); color: var(--primary-color);">
-        <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style="background: var(--primary-color);"></span>
-        <span>{{ $pendingReqCount }} request</span>
-    </button>
-    @endif
-</div>
-@endsection
-
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'leave-permit.applications'])
     <div class="w-full space-y-6 px-1 lg:px-2">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div class="flex items-center gap-3">
@@ -59,6 +44,18 @@
                         @endfor
                     </select>
                 </div>
+
+                @if($pendingReqCount > 0 && $tabOk['inbox'])
+                <button type="button" onclick="switchTab('inbox')"
+                    title="{{ $pendingReqCount }} pending validation"
+                    class="inline-flex items-center gap-1.5 border text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-80 transition shadow-sm whitespace-nowrap active:scale-95"
+                    style="background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); color: var(--primary-color);">
+                    <span class="w-2 h-2 rounded-full animate-pulse shrink-0" style="background: var(--primary-color);"></span>
+                    <span>{{ $pendingReqCount }} request</span>
+                </button>
+                @endif
+
+                @include('hr-general.partials.data-transfer', ['dataset' => 'leave-permit.applications', 'bare' => true])
 
                 <!-- Action Buttons — "Log Leave / Permit" is available on every tab, so it is the Create box of the page itself -->
                 @if($canDo('hr_general.leave_permit', 'create'))
@@ -713,10 +710,10 @@
         </div>
     </div>
 
-    @include('hr-general.leave-permit.partials.modal-apply')
-    @include('hr-general.leave-permit.partials.modal-type-form')
-    @include('hr-general.leave-permit.partials.modal-review')
-    @include('hr-general.leave-permit.partials.modal-employee-quota-detail')
+    @include('hr-general.leave-permit.components.modal-apply')
+    @include('hr-general.leave-permit.components.modal-type-form')
+    @include('hr-general.leave-permit.components.modal-review')
+    @include('hr-general.leave-permit.components.modal-employee-quota-detail')
 
     <script>
         const isHR = true;

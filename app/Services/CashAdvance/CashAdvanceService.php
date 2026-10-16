@@ -1265,7 +1265,7 @@ class CashAdvanceService
     /** Nama yang ditampilkan; pola yang sama dengan ReimbursementService. */
     private function nameOf(?Employee $employee): string
     {
-        return $employee?->basicData?->nick_name ?? $employee?->eci ?? '—';
+        return $employee?->basicData?->full_name ?? $employee?->eci ?? '—';
     }
 
     /**

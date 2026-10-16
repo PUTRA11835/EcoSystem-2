@@ -4,28 +4,10 @@
 @section('page-title', 'Purchase Request')
 @section('page-subtitle', 'Review and process employee purchase requests')
 
-@section('page-actions')
-    <div class="flex flex-wrap items-center gap-2">
-        @if($can('general.purchase-request.export'))
-        <a href="{{ route('general.purchase-request.export', request()->query()) }}"
-           class="inline-flex items-center gap-2 px-4 py-2 bg-white text-green-700 text-sm font-semibold rounded-lg border border-green-300 hover:bg-green-50 transition-all">
-            <i class="fas fa-file-excel"></i> Monthly Export
-        </a>
-        @endif
-
-        @if($can('general.purchase-request.create'))
-        <a href="{{ route('general.purchase-request.create') }}"
-           class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-            <i class="fas fa-plus"></i> New PR
-        </a>
-        @endif
-    </div>
-@endsection
-
 @section('content')
 @php use App\Models\PurchaseRequest\PurchaseRequest; @endphp
 
-@include('hr-general.purchase-request.hub-tabs-purchase-request')
+@include('hr-general.purchase-request.components.hub-tabs')
 
 <div class="space-y-5">
 
@@ -49,12 +31,30 @@
     </div>
 
     <div class="bg-white rounded-xl p-6 shadow-sm">
-        <div class="mb-6 pb-4 border-b-2 border-gray-100">
-            <h2 class="text-2xl font-bold text-gray-900">Purchase Requests</h2>
-            <p class="text-sm text-gray-500 mt-0.5">
-                A request moves to the next step only after the current one is approved.
-                Rows needing attention are highlighted.
-            </p>
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 pb-4 border-b-2 border-gray-100">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">Purchase Requests</h2>
+                <p class="text-sm text-gray-500 mt-0.5">
+                    A request moves to the next step only after the current one is approved.
+                    Rows needing attention are highlighted.
+                </p>
+            </div>
+
+            <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+                @if($can('general.purchase-request.export'))
+                <a href="{{ route('general.purchase-request.export', request()->query()) }}"
+                   class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <i class="fas fa-file-excel text-xs"></i> Monthly Export
+                </a>
+                @endif
+
+                @if($can('general.purchase-request.create'))
+                <a href="{{ route('general.purchase-request.create') }}"
+                   class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 primary-gradient text-white rounded-lg text-sm font-medium hover:opacity-90 transition-all whitespace-nowrap">
+                    <i class="fas fa-plus text-xs"></i> New PR
+                </a>
+                @endif
+            </div>
         </div>
 
         <form method="GET" action="{{ route('general.purchase-request.index') }}"
@@ -168,7 +168,7 @@
                         </td>
 
                         <td class="px-4 py-3">
-                            <div class="font-medium text-gray-900">{{ $request->employee?->basicData?->nick_name ?? '—' }}</div>
+                            <div class="font-medium text-gray-900">{{ $request->employee?->basicData?->full_name ?? '—' }}</div>
                             <div class="text-xs text-gray-400">{{ $request->employee?->eci }}</div>
                         </td>
 

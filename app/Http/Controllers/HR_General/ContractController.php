@@ -31,34 +31,44 @@ class ContractController extends Controller
     /** Tab pertama yang boleh dibuka orang ini (tautan sidebar). */
     public function home()
     {
-        return redirect()->route($this->employeeCanView('general.contracts.list') ? 'general.contracts.list' : 'general.contracts.templates.index');
+        return redirect()->route($this->employeeCanView('general.contracts.list') ? 'general.contracts.dashboard' : 'general.contracts.templates.index');
     }
 
+    /** Dashboard: siapa yang kontraknya segera berakhir, plus angka pendukungnya. */
+    public function dashboard(Request $request)
+    {
+        return view('hr-general.contracts.dashboard', [
+            'dash' => $this->contracts->dashboard((int) $request->query('window', 30)),
+        ]);
+    }
+
+    /** Daftar kontrak; tiap kolom punya filter di kepala tabelnya (data-live-region diganti di tempat). */
     public function index(Request $request)
     {
+        $date = fn (string $key) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $request->query($key)) ? (string) $request->query($key) : '';
+        $text = fn (string $key) => trim((string) $request->query($key));
+
         $filters = [
-            'search' => trim((string) $request->query('search')),
-            'type'   => (string) $request->query('type'),
-            'status' => (string) $request->query('status'),
+            'employee'   => $text('employee'),
+            'number'     => $text('number'),
+            'type'       => $text('type'),
+            'department' => $text('department'),
+            'status'     => $text('status'),
+            'end_from'   => $date('end_from'),
+            'end_to'     => $date('end_to'),
         ];
         $perPage = $this->perPage($request);
 
-        $data = [
+        return view('hr-general.contracts.index', [
             'rows'           => $this->contracts->listing($filters, $perPage),
             'filters'        => $filters,
             'perPage'        => $perPage,
             'perPageOptions' => self::PER_PAGE_OPTIONS,
             'types'          => ContractRules::TYPES,
             'statuses'       => ContractRules::STATUS_LABELS + ['none' => 'No contract'],
+            'departments'    => $this->contracts->departments(),
             'filterForm'     => 'contractFilters',
-        ];
-
-        // The live filters refresh only the table + pagination (components/list-table) in the background.
-        if ($request->ajax()) {
-            return view('hr-general.contracts.components.list-table', $data);
-        }
-
-        return view('hr-general.contracts.index', $data + ['summary' => $this->contracts->summary()]);
+        ]);
     }
 
     public function show(int $employeeId)

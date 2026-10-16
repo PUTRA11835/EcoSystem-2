@@ -4,14 +4,9 @@
 @section('page-title', 'Submit Reimbursement')
 @section('page-subtitle', 'Claim expenses you already paid for. The request is verified before it is paid.')
 
-@section('page-actions')
-    <a href="{{ route('general.my-reimbursement.index') }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => route('general.my-reimbursement.index'), 'backLabel' => 'Back'])
+@include('hr-general.reimbursement.components.date-picker')
 {{-- Lebar penuh (D152/D176), sejalan dengan Purchase Request & Cash Advance. --}}
 <div class="w-full space-y-5">
 
@@ -112,7 +107,7 @@
             @error('supporting_url')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('hr-general.reimbursement._item_rows', ['existingItems' => null])
+        @include('hr-general.reimbursement.components.item-rows', ['existingItems' => null])
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
@@ -121,24 +116,7 @@
                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
             </div>
 
-            @if($directors->isNotEmpty())
-            <div>
-                <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Approver <span class="text-red-600">*</span>
-                </label>
-                <select name="approver_id" required
-                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <option value="">— choose a director —</option>
-                    @foreach($directors as $director)
-                        <option value="{{ $director['id'] }}" @selected((string) old('approver_id') === (string) $director['id'])>
-                            {{ $director['label'] }}
-                        </option>
-                    @endforeach
-                </select>
-                <p class="text-xs text-gray-400 mt-1">The director who gives the final approval.</p>
-                @error('approver_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
-            </div>
-            @endif
+            @include('hr-general.reimbursement.components.step-choices', ['choiceSteps' => $choiceSteps, 'fixedSteps' => $fixedSteps])
         </div>
 
         {{-- Aturan yang sedang berlaku. Ditampilkan apa adanya supaya pengguna
@@ -166,9 +144,9 @@
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 @foreach([
                     'Requester'   => $signatoryRequester ?? (session('user.name') ?? 'You'),
-                    'Accounting'  => $settings->accountingSigner?->basicData?->nick_name ?? '—',
-                    'Cashier'     => $settings->cashierSigner?->basicData?->nick_name ?? '—',
-                    'Approved by' => $settings->approverSigner?->basicData?->nick_name ?? 'Last approver in the workflow',
+                    'Accounting'  => $steps->firstWhere('signs_as', 'accounting')?->name ?? '—',
+                    'Cashier'     => $steps->firstWhere('signs_as', 'cashier')?->name ?? '—',
+                    'Approved by' => $steps->firstWhere('signs_as', 'approver')?->name ?? 'Last approver in the workflow',
                 ] as $label => $name)
                 <div class="border border-gray-200 rounded-lg px-3 py-2 bg-gray-50">
                     <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ $label }}</p>
@@ -176,7 +154,7 @@
                 </div>
                 @endforeach
             </div>
-            <p class="text-xs text-gray-400 mt-2">Follows Reimbursement Settings — cannot be changed from this form.</p>
+            <p class="text-xs text-gray-400 mt-2">Each column carries the name of the person who acts on that approval step — it follows the approval workflow.</p>
         </div>
 
         <div class="flex items-center gap-3 pt-2 border-t border-gray-100">
@@ -198,7 +176,7 @@
 @endsection
 
 @push('scripts')
-@include('hr-general.reimbursement._item_rows_script')
+@include('hr-general.reimbursement.components.item-rows-script')
 <script>
     // Konfirmasi sebelum kirim. Karena karyawan tidak dapat membatalkan
     // dokumennya (Keputusan D111), inilah kesempatan terakhir memeriksa nominal.

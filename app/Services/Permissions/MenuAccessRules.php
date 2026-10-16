@@ -39,6 +39,12 @@ final class MenuAccessRules
         return $list;
     }
 
+    /** Menu tanpa halaman nyata (lihat `hidden` di config): tidak ditampilkan, hibahnya tak disentuh. */
+    public function isHidden(string $slug): bool
+    {
+        return Str::is((array) ($this->config['hidden'] ?? []), $slug);
+    }
+
     public function isGlobalEss(string $slug): bool
     {
         return in_array($slug, $this->config['global_ess'], true) || Str::is($this->config['global_ess_patterns'], $slug);

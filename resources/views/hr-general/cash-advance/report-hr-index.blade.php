@@ -1,8 +1,8 @@
 @extends('dashboard')
 
-@section('title', 'Cash Advance Reports')
-@section('page-title', 'Cash Advance Reports')
-@section('page-subtitle', 'Review settlement reports and close the book on cash advances')
+@section('title', 'Cash Advance Management — Reports')
+@section('page-title', 'Cash Advance Management')
+@section('page-subtitle', 'Review settlement reports (CAR) and close the book on cash advances')
 
 @section('content')
 @php
@@ -10,6 +10,8 @@
 
     $amounts = app(\App\Services\CashAdvance\CashAdvanceAmountService::class);
 @endphp
+
+@include('hr-general.cash-advance.components.hub-tabs')
 
 <div class="w-full space-y-5">
 
@@ -106,7 +108,7 @@
                                     {{ $advance->request_no }}
                                 </p>
                                 <p class="text-xs text-gray-500 truncate">
-                                    {{ $advance->employee?->basicData?->nick_name ?? $advance->employee?->eci ?? '—' }}
+                                    {{ $advance->employee?->basicData?->full_name ?? $advance->employee?->eci ?? '—' }}
                                     · {{ $advance->currency }}
                                     {{ number_format((float) $advance->amount, 0, ',', '.') }}
                                 </p>
@@ -234,7 +236,7 @@
                         <td class="px-4 py-3 whitespace-nowrap">{{ $report->report_date->format('d M Y') }}</td>
 
                         <td class="px-4 py-3">
-                            {{ $report->employee?->basicData?->nick_name ?? $report->employee?->eci ?? '—' }}
+                            {{ $report->employee?->basicData?->full_name ?? $report->employee?->eci ?? '—' }}
                         </td>
 
                         <td class="px-4 py-3 text-right whitespace-nowrap text-gray-600">

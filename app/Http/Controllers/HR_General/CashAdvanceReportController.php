@@ -250,7 +250,7 @@ class CashAdvanceReportController extends Controller
 
             // 🔴 Nama PEMILIK CA, bukan nama yang sedang login. Laporan ini
             // dibukukan atas namanya; menampilkan nama operator akan keliru.
-            'requesterName' => $advance->employee?->basicData?->nick_name
+            'requesterName' => $advance->employee?->basicData?->full_name
                 ?? $advance->employee?->eci ?? '—',
         ], $this->approverChoice($steps)));
     }
@@ -306,7 +306,7 @@ class CashAdvanceReportController extends Controller
             'backRoute'     => route('general.cash-advance-report.show', $cashAdvanceReport),
             'advanceRoute'  => route('general.cash-advance.show', $cashAdvanceReport->cash_advance_id),
             'maxDate'       => null,
-            'requesterName' => $cashAdvanceReport->cashAdvance?->employee?->basicData?->nick_name ?? '—',
+            'requesterName' => $cashAdvanceReport->cashAdvance?->employee?->basicData?->full_name ?? '—',
 
             // Alurnya sudah dibekukan saat laporan dibuat.
             'firstStep'          => null,
@@ -543,7 +543,7 @@ class CashAdvanceReportController extends Controller
                           // nomor uang mukanya, bukan nomor laporannya.
                           ->orWhereHas('cashAdvance', fn ($c) => $c->where('request_no', 'like', "%{$term}%"))
                           ->orWhereHas('employee', fn ($e) => $e->where('eci', 'like', "%{$term}%"))
-                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('nick_name', 'like', "%{$term}%"));
+                          ->orWhereHas('employee.basicData', fn ($b) => $b->where('full_name', 'like', "%{$term}%")->orWhere('nick_name', 'like', "%{$term}%"));
                 });
             });
     }

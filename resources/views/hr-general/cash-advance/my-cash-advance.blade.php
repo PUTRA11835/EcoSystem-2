@@ -11,6 +11,8 @@
     $amounts = app(\App\Services\CashAdvance\CashAdvanceAmountService::class);
 @endphp
 
+@include('hr-general.cash-advance.components.hub-tabs-my')
+
 <div class="space-y-5">
 
     @if(session('success'))

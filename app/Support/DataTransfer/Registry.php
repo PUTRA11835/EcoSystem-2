@@ -183,7 +183,7 @@ class Registry
     private static function branches(): Dataset
     {
         return new Dataset(
-            'attendance.branches', 'Branches', 'general.settings.branches',
+            'attendance.branches', 'Branches', 'management.branches',
             [
                 ['key' => 'code', 'label' => 'Code', 'required' => true, 'get' => fn ($r) => $r->code,
                  'parse' => fn ($v) => Cell::text($v), 'rules' => ['required', 'string', 'max:50'],
@@ -230,7 +230,7 @@ class Registry
                     ->orderByDesc('is_head_office')->orderBy('name')->get();
             },
             [
-                'permission' => ['general.settings.branches.manage', 'view'],
+                'permission' => ['management.branches.manage', 'view'],
                 'key'        => 'code',
                 'find'       => fn (array $v) => Branch::where('code', $v['code'])->first(),
                 'save'       => function (array $v, ?Branch $existing, int $actor) {

@@ -239,13 +239,13 @@
                     </tr>
                 </thead>
                 <tbody id="teamRows" class="divide-y divide-gray-50">
-                    @include('hr-general.kpi.partials._lead-project-rows')
+                    @include('hr-general.kpi.components.lead-project-rows')
                 </tbody>
             </table>
         </div>
 
         <div id="teamPager">
-            @include('hr-general.kpi.partials._lead-project-pager')
+            @include('hr-general.kpi.components.lead-project-pager')
         </div>
         <div id="teamLoading" class="hidden px-5 py-3 text-center text-xs text-gray-400"><i class="fas fa-circle-notch fa-spin mr-1"></i> Loading…</div>
     </div>

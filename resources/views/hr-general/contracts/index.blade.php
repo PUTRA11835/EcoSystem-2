@@ -4,131 +4,136 @@
 @section('page-subtitle', 'Manage PKWT, PKWTT and external consultant contracts for each employee in one place.')
 
 @php
-    $input = 'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white';
-    $filterForm = 'contractFilters';
+    $filter = 'hr-general.recruitment.components.header-filter';
+    $hasFilters = collect($filters)->contains(fn ($v) => $v !== '');
+    $badge = [
+        'active' => 'bg-green-100 text-green-700', 'draft' => 'bg-gray-200 text-gray-600', 'expired' => 'bg-red-100 text-red-700',
+        'terminated' => 'bg-red-100 text-red-700', 'inactive' => 'bg-gray-100 text-gray-500', 'none' => 'bg-gray-100 text-gray-400',
+    ];
+    $typeBadge = ['PKWT' => 'tone-primary', 'PKWTT' => 'tone-primary-strong', 'EXTERNAL' => 'bg-amber-100 text-amber-700'];
+    $canSalary = $canDo('general.contracts.salary');
+    $canEdit = $canDo('general.contracts.list', 'edit');
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => 'contracts.list'])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.contracts.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        @foreach([
-            ['Employees', $summary['employees'], 'users', 'primary-text'],
-            ['Active contracts', $summary['active'], 'circle-check', 'text-green-600'],
-            ['Ending within ' . config('hc_contract.expiring_soon_days', 30) . ' days', $summary['ending'], 'hourglass-half', 'text-amber-600'],
-            ['Without contract', $summary['none'], 'file-circle-xmark', 'text-gray-500'],
-        ] as [$label, $count, $icon, $tone])
-            <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 flex items-center gap-3">
-                <span class="w-9 h-9 rounded-lg bg-gray-50 flex items-center justify-center {{ $tone }}"><i class="fas fa-{{ $icon }}"></i></span>
-                <div>
-                    <p class="text-lg font-bold text-gray-800 leading-tight">{{ number_format($count) }}</p>
-                    <p class="text-[11px] text-gray-500">{{ $label }}</p>
-                </div>
-            </div>
-        @endforeach
-    </div>
+    {{-- Every header filter and the rows-per-page choice belong to this form through their `form` attribute. --}}
+    <form id="{{ $filterForm }}" method="GET" action="{{ route('general.contracts.list') }}" data-filter-form class="hidden"></form>
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        {{-- Live filters: typing and the two selects refresh the list by themselves; the button re-reads it. --}}
-        <form id="{{ $filterForm }}" method="GET" action="{{ route('general.contracts.list') }}" data-unsaved-ignore
-              class="px-5 py-4 border-b border-gray-100 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            <input type="hidden" name="per_page" value="{{ $perPage }}">
-            <div class="md:col-span-6 relative">
-                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
-                <input type="search" name="search" id="contractSearch" value="{{ $filters['search'] }}" autocomplete="off"
-                       placeholder="Search name, ECI, NIK, contract number, position or department"
-                       class="{{ $input }} pl-9 pr-9" aria-label="Search contracts">
-                <button type="button" id="contractSearchClear" class="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 {{ $filters['search'] === '' ? 'hidden' : '' }}" aria-label="Clear search"><i class="fas fa-xmark text-xs"></i></button>
+        <div class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="text-sm font-bold text-gray-800">All contracts</h3>
+                <p class="text-[10px] text-gray-400 mt-0.5">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter each column.</p>
             </div>
-            <div class="md:col-span-3">
-                <select name="type" class="{{ $input }}" aria-label="Contract type">
-                    <option value="">All contract types</option>
-                    @foreach($types as $value => $label)
-                        <option value="{{ $value }}" @selected($filters['type'] === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
+            <div class="flex flex-wrap items-center gap-2">
+                @include('hr-general.partials.data-transfer', ['dataset' => 'contracts.list', 'bare' => true])
+                <div class="flex items-center gap-2" data-live-region="toolbar">
+                    @if($hasFilters)
+                        <a href="{{ route('general.contracts.list') }}"
+                            class="px-3 py-2 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-800 text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 whitespace-nowrap">
+                            <i class="fas fa-rotate-left text-[10px]"></i> Reset Filter
+                        </a>
+                    @endif
+                </div>
             </div>
-            <div class="md:col-span-2">
-                <select name="status" class="{{ $input }}" aria-label="Status">
-                    <option value="">All statuses</option>
-                    @foreach($statuses as $value => $label)
-                        <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="md:col-span-1 flex justify-end">
-                <button type="button" id="contractRefresh" class="w-full md:w-auto px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 inline-flex items-center justify-center gap-1.5" title="Refresh the list">
-                    <i class="fas fa-rotate" id="contractRefreshIcon"></i><span class="md:hidden">Refresh</span>
-                </button>
-            </div>
-        </form>
+        </div>
 
-        <div id="contractList" class="transition-opacity" aria-live="polite">
-            @include('hr-general.contracts.components.list-table')
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+                <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[10px] font-bold border-b border-gray-200 select-none">
+                    <tr>
+                        <th class="px-4 py-3 w-12">No.</th>
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'employee', 'label' => 'Employee', 'type' => 'search',
+                            'value' => $filters['employee'], 'placeholder' => 'Name or ECI…', 'thClass' => 'min-w-48',
+                        ])
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'number', 'label' => 'Contract No.', 'type' => 'search',
+                            'value' => $filters['number'], 'placeholder' => 'Type a contract number…', 'thClass' => 'min-w-40',
+                        ])
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'type', 'label' => 'Type', 'type' => 'options',
+                            'value' => $filters['type'], 'options' => $types, 'allLabel' => 'All types', 'thClass' => 'min-w-32',
+                        ])
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'department', 'label' => 'Department', 'type' => 'options',
+                            'value' => $filters['department'], 'options' => $departments, 'allLabel' => 'All departments', 'thClass' => 'min-w-40',
+                        ])
+                        <th class="px-4 py-3 min-w-28">Start</th>
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'end', 'label' => 'End', 'type' => 'daterange',
+                            'value' => ['from' => $filters['end_from'], 'to' => $filters['end_to']], 'thClass' => 'min-w-32',
+                            'note' => 'Contracts ending between these dates.',
+                        ])
+                        @include($filter, [
+                            'form' => $filterForm, 'name' => 'status', 'label' => 'Status', 'type' => 'options',
+                            'value' => $filters['status'], 'options' => $statuses, 'allLabel' => 'All statuses', 'thClass' => 'min-w-32',
+                        ])
+                        <th class="px-4 py-3 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 text-gray-700" data-live-region="rows">
+                    @forelse($rows as $row)
+                        <tr class="hover:bg-gray-50 align-top">
+                            <td class="px-4 py-3 text-gray-400">{{ $rows->firstItem() + $loop->index }}</td>
+                            <td class="px-4 py-3">
+                                <a href="{{ route('general.contracts.show', $row->employee_id) }}" class="font-semibold text-gray-800 hover:underline">{{ $row->name }}</a>
+                                <span class="block text-[11px] text-gray-400">{{ $row->eci }} • {{ $row->position ?: '-' }}</span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="font-medium text-gray-800">{{ $row->contract_number ?: '-' }}</span>@if($row->has_signed)<i class="fas fa-stamp ml-1 primary-text" title="Stamped copy on file"></i>@endif
+                            </td>
+                            <td class="px-4 py-3">
+                                @if($row->has_contract)
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $typeBadge[$row->type] ?? 'bg-gray-100 text-gray-600' }}">{{ $row->type ?? $row->contract_type }}</span>
+                                @else <span class="text-gray-300">-</span> @endif
+                            </td>
+                            <td class="px-4 py-3">{{ $row->employee_department ?: '-' }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                {{ $row->has_contract && $row->start_date ? \Illuminate\Support\Carbon::parse($row->start_date)->format('d M Y') : '-' }}
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                @if($row->has_contract)
+                                    {{ $row->end_date ? \Illuminate\Support\Carbon::parse($row->end_date)->format('d M Y') : 'Permanent' }}
+                                    @if($row->ending_soon)<span class="block text-[10px] text-amber-600"><i class="fas fa-hourglass-half"></i> Ending soon</span>@endif
+                                @else <span class="text-gray-300">-</span> @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold {{ $badge[$row->effective_status] ?? 'bg-gray-100 text-gray-500' }}">{{ $statuses[$row->effective_status] ?? $row->effective_status }}</span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex justify-end">
+                                    <div class="seg">
+                                        @if($row->has_contract)
+                                            <a href="{{ route('general.contracts.document', $row->contract_id) }}" class="seg-view">View</a>
+                                            @if($canSalary)<a href="{{ route('general.contracts.document', $row->contract_id) }}?print=1" class="seg-print">Print</a>@endif
+                                            @if($canEdit)<a href="{{ route('general.contracts.show', $row->employee_id) }}?edit_contract_id={{ $row->contract_id }}" class="seg-edit">Edit</a>@endif
+                                        @endif
+                                        <a href="{{ route('general.contracts.show', $row->employee_id) }}" class="seg-manage">Manage</a>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="9" class="px-4 py-12 text-center text-gray-400">
+                            <i class="fas fa-magnifying-glass text-lg mb-2 block"></i>{{ $hasFilters ? 'No contract matches these filters.' : 'No employee found.' }}</td></tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+
+        <div data-live-region="pagination">
+            @include('hr-general.recruitment.components.pagination', [
+                'paginator' => $rows, 'form' => $filterForm, 'perPage' => $perPage, 'perPageOptions' => $perPageOptions,
+            ])
         </div>
     </div>
 </div>
 
-@push('scripts')
-<script>
-(function () {
-    const form = document.getElementById(@json($filterForm));
-    const list = document.getElementById('contractList');
-    const search = document.getElementById('contractSearch');
-    const clear = document.getElementById('contractSearchClear');
-    const icon = document.getElementById('contractRefreshIcon');
-    let timer = null, controller = null;
-
-    // The form's fields as a query string; fields with the same name (rows per page sits outside the form tag) keep the last value.
-    function query(extra) {
-        const map = new Map();
-        new FormData(form).forEach((v, k) => map.set(k, v));
-        Object.entries(extra || {}).forEach(([k, v]) => map.set(k, v));
-        const q = new URLSearchParams();
-        map.forEach((v, k) => { if (String(v) !== '') q.set(k, v); });
-        return q.toString();
-    }
-
-    async function load(qs, push = true) {
-        if (controller) controller.abort();
-        controller = new AbortController();
-        list.classList.add('opacity-50');
-        icon.classList.add('fa-spin');
-        const url = form.action + (qs ? '?' + qs : '');
-        try {
-            const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal, credentials: 'same-origin' });
-            if (!res.ok) throw new Error(res.status);
-            list.innerHTML = await res.text();
-            if (push) history.pushState({ qs }, '', url);
-        } catch (e) {
-            if (e.name !== 'AbortError') window.showNotification('The list could not be refreshed. Please try again.', 'error');
-        } finally {
-            list.classList.remove('opacity-50');
-            icon.classList.remove('fa-spin');
-        }
-    }
-
-    const reload = () => load(query({ page: '' }));
-
-    // Typing waits for a short pause; the selects and Enter apply at once.
-    search.addEventListener('input', () => { clear.classList.toggle('hidden', search.value === ''); clearTimeout(timer); timer = setTimeout(reload, 300); });
-    form.addEventListener('change', e => { if (e.target.matches('select')) reload(); });
-    form.addEventListener('submit', e => { e.preventDefault(); clearTimeout(timer); reload(); });
-    clear.addEventListener('click', () => { search.value = ''; clear.classList.add('hidden'); search.focus(); reload(); });
-    document.getElementById('contractRefresh').addEventListener('click', () => { clearTimeout(timer); load(query()); });
-
-    // Pagination links stay inside the list (no full page reload).
-    list.addEventListener('click', e => {
-        const a = e.target.closest('a[href*="page="]');
-        if (!a || e.metaKey || e.ctrlKey) return;
-        e.preventDefault();
-        load(new URL(a.href).searchParams.toString());
-    });
-    window.addEventListener('popstate', () => load(location.search.replace(/^\?/, ''), false));
-})();
-</script>
-@endpush
+{{-- The calendar of the End-date filter. --}}
+@include('hr-general.inventory.components.modal-helpers', ['dates' => true])
 @endsection

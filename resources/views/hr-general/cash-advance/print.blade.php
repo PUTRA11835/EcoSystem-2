@@ -123,7 +123,7 @@
         <tr>
             <td class="label">Requester</td>
             <td class="colon">:</td>
-            <td>{{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}</td>
+            <td>{{ $request->employee?->basicData?->full_name ?? $request->employee?->eci ?? '—' }}</td>
         </tr>
         @if($request->charged_to_label)
         <tr>
@@ -194,7 +194,7 @@
 
     @if($request->isApproved() && $lastApproved)
     <div class="approved-line">
-        approved by: {{ $lastApproved->actor?->basicData?->nick_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
+        approved by: {{ $lastApproved->actor?->basicData?->full_name ?? $lastApproved->actor?->eci ?? '—' }}<br>
         on: {{ optional($lastApproved->acted_at)->format('d/m/Y') }}
     </div>
     @endif

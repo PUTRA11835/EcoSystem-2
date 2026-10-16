@@ -25,8 +25,7 @@ class ReimbursementSetting extends Model
         'supporting_url_allowed_hosts', 'require_receipt_no',
         'allow_self_approval', 'self_approval_fallback_role_id',
         'allow_approver_adjust_amount', 'locked_period_policy',
-        'accounting_signer_employee_id', 'cashier_signer_employee_id',
-        'approver_signer_employee_id', 'director_employee_ids',
+        'receipt_max_age_days', 'receipt_age_policy', 'letterhead_id',
         'updated_by',
     ];
 
@@ -42,7 +41,7 @@ class ReimbursementSetting extends Model
         'require_receipt_no'             => 'boolean',
         'allow_self_approval'            => 'boolean',
         'allow_approver_adjust_amount'   => 'boolean',
-        'director_employee_ids'          => 'array',
+        'receipt_max_age_days'           => 'integer',
     ];
 
     // ── Kebijakan periode terkunci ──────────────────────────────────────────
@@ -107,39 +106,21 @@ class ReimbursementSetting extends Model
         self::$cached = null;
     }
 
-    // ── Relationships ───────────────────────────────────────────────────────
-    //
-    // Penanda tangan disimpan sebagai employee_id, BUKAN teks nama (Keputusan
-    // D108): saat gambar tanda tangan hadir di profil karyawan nanti, cetakan
-    // tinggal merender gambarnya tanpa migrasi apa pun di modul ini.
-
-    public function accountingSigner()
-    {
-        return $this->belongsTo(Employee::class, 'accounting_signer_employee_id', 'employee_id');
-    }
-
-    public function cashierSigner()
-    {
-        return $this->belongsTo(Employee::class, 'cashier_signer_employee_id', 'employee_id');
-    }
-
-    public function approverSigner()
-    {
-        return $this->belongsTo(Employee::class, 'approver_signer_employee_id', 'employee_id');
-    }
-
-    // ── Helpers ─────────────────────────────────────────────────────────────
-
-    /** @return array<int> */
-    public function directorIds(): array
-    {
-        return array_values(array_unique(array_map('intval', $this->director_employee_ids ?? [])));
-    }
-
     /** Nilai 0 berarti "tanpa batas", bukan "nol". Konsisten dengan Overtime. */
     public function hasBackdateLimit(): bool
     {
         return $this->max_backdate_days > 0;
+    }
+
+    /** Nota yang lebih tua dari ini (terhadap tanggal pengajuan) ditandai atau ditolak. */
+    public function hasReceiptAgeLimit(): bool
+    {
+        return $this->receipt_max_age_days > 0;
+    }
+
+    public function blocksOldReceipt(): bool
+    {
+        return $this->hasReceiptAgeLimit() && $this->receipt_age_policy === self::OVER_LIMIT_BLOCK;
     }
 
     public function hasItemLimit(): bool

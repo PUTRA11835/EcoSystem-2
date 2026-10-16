@@ -47,6 +47,24 @@ class MyOvertimeController extends Controller
                 : null,
             'maxDate'  => $settings->allow_future_date ? null : $today->toDateString(),
             'steps'    => $overtime->activeSteps(),
+
+            // Rantai persetujuan yang akan dilalui pengajuan ini, ditampilkan
+            // sebelum dikirim supaya pemohon tahu siapa yang meninjau.
+            'flow'     => $overtime->activeSteps()->map(function ($step) {
+                $who = match ($step->approver_type) {
+                    \App\Models\Overtime\OvertimeApprovalStep::TYPE_ROLE
+                        => $step->role?->name ?? 'Role',
+                    \App\Models\Overtime\OvertimeApprovalStep::TYPE_EMPLOYEE
+                        => \App\Models\Employee::with('basicData')
+                            ->whereIn('employee_id', $step->approver_employee_ids ?? [])
+                            ->get()
+                            ->map(fn ($e) => $e->fullNameLabel())
+                            ->implode(', ') ?: '—',
+                    default => '—',
+                };
+
+                return ['name' => $step->name, 'who' => $who];
+            })->values(),
         ]);
     }
 

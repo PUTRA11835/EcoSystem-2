@@ -30,22 +30,8 @@
     $attention = $request->attentionFlags();
 @endphp
 
-@section('page-actions')
-    <div class="flex items-center gap-2">
-        @if($editRoute && $request->isEditable())
-        <a href="{{ $editRoute }}"
-           class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-            Edit
-        </a>
-        @endif
-        <a href="{{ $backRoute }}"
-           class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-            Back to List
-        </a>
-    </div>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => $backRoute, 'backLabel' => 'Back to List', 'edit' => ($editRoute && $request->isEditable()) ? $editRoute : null, 'editLabel' => 'Edit'])
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
 
     {{-- ── Kolom kiri ──────────────────────────────────────────────────── --}}
@@ -57,7 +43,7 @@
                 @foreach([
                     'Document No.' => $request->request_no,
                     'Date'         => $request->request_date->format('d M Y'),
-                    'Requester'    => $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—',
+                    'Requester'    => $request->employee?->basicData?->full_name ?? $request->employee?->eci ?? '—',
                     'Employee No.' => $request->employee?->eci ?? '—',
                     'Charged To'   => $request->charged_to_label ?? '—',
                     'Summary'      => $request->title,
@@ -98,7 +84,7 @@
                 <div class="flex gap-3">
                     <dt class="w-32 shrink-0 text-gray-500">Created by</dt>
                     <dd class="text-gray-600">
-                        {{ $request->creator?->basicData?->nick_name ?? $request->creator?->eci ?? '—' }}
+                        {{ $request->creator?->basicData?->full_name ?? $request->creator?->eci ?? '—' }}
                         <span class="text-xs text-gray-400">(on behalf)</span>
                     </dd>
                 </div>
@@ -110,7 +96,7 @@
                     <dd class="text-gray-600">
                         {{ $request->cancelled_at->format('d M Y H:i') }}
                         <span class="text-xs text-gray-400">
-                            by {{ $request->canceller?->basicData?->nick_name ?? $request->canceller?->eci ?? '—' }}
+                            by {{ $request->canceller?->basicData?->full_name ?? $request->canceller?->eci ?? '—' }}
                         </span>
                     </dd>
                 </div>
@@ -220,7 +206,7 @@
                         <p class="text-xs text-gray-500">
                             {{ ucfirst($approval->status) }}
                             @if($approval->actor)
-                                · {{ $approval->actor->basicData?->nick_name ?? $approval->actor->eci }}
+                                · {{ $approval->actor->basicData?->full_name ?? $approval->actor->eci }}
                             @else
                                 · {{ $approval->approverLabel() }}
                             @endif

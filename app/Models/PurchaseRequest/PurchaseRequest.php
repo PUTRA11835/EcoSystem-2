@@ -327,7 +327,7 @@ class PurchaseRequest extends Model
             ->sortByDesc('order_seq')
             ->first();
 
-        return $lastActed?->actor?->basicData?->nick_name
+        return $lastActed?->actor?->basicData?->full_name
             ?? $lastActed?->approverLabel()
             ?? '—';
     }

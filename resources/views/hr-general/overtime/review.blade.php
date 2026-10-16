@@ -4,22 +4,10 @@
 @section('page-title', 'Overtime')
 @section('page-subtitle', 'Review, approve, and export employee overtime claims')
 
-@section('page-actions')
-    @if($can('general.overtime.export'))
-    <a href="{{ route('general.overtime.export', request()->query()) }}"
-       class="inline-flex items-center gap-2 px-4 py-2 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-all">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
-        </svg>
-        Download Excel
-    </a>
-    @endif
-@endsection
-
 @section('content')
 <div class="space-y-5">
 
-    @include('hr-general.overtime.hub-tabs-overtime')
+    @include('hr-general.overtime.components.hub-tabs')
 
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         @foreach([
@@ -49,12 +37,21 @@
     </div>
 
     <div class="bg-white rounded-xl p-6 shadow-sm">
-        <div class="mb-6 pb-4 border-b-2 border-gray-100">
-            <h2 class="text-2xl font-bold text-gray-900">Overtime Requests</h2>
-            <p class="text-sm text-gray-500 mt-0.5">
-                A request moves to the next step only after the current one is approved.
-                The employee's claim is what gets reviewed; the attendance column is shown for comparison.
-            </p>
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6 pb-4 border-b-2 border-gray-100">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">Overtime Requests</h2>
+                <p class="text-sm text-gray-500 mt-0.5">
+                    A request moves to the next step only after the current one is approved.
+                    The employee's claim is what gets reviewed; the attendance column is shown for comparison.
+                </p>
+            </div>
+
+            @if($can('general.overtime.export'))
+            <a href="{{ route('general.overtime.export', request()->query()) }}"
+               class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                <i class="fas fa-file-excel text-xs"></i> Export Excel
+            </a>
+            @endif
         </div>
 
         <form method="GET" action="{{ route('general.overtime.index') }}"
@@ -115,7 +112,7 @@
                         <th class="px-4 py-3">Attendance</th>
                         <th class="px-4 py-3">Reason</th>
                         <th class="px-4 py-3">Approval</th>
-                        @if($can('general.overtime.approve'))
+                        @if($canAct)
                         <th class="px-4 py-3 w-80">Action</th>
                         @endif
                     </tr>
@@ -233,7 +230,7 @@
                             @endforeach
                         </td>
 
-                        @if($can('general.overtime.approve'))
+                        @if($canAct)
                         <td class="px-4 py-3">
                             @if($request->isOpen() && $isMine)
                             <form method="POST" action="{{ route('general.overtime.approve', $request) }}"

@@ -163,6 +163,10 @@ class ReimbursementTotalService
             $flags[] = ReimbursementRequest::FLAG_MISSING_RECEIPT_NO;
         }
 
+        if ($this->anyStaleReceipt($items, (int) ($rules['receipt_max_age_days'] ?? 0), $rules['request_date'] ?? null)) {
+            $flags[] = ReimbursementRequest::FLAG_STALE_RECEIPT;
+        }
+
         $minItem = (float) ($rules['min_item_amount'] ?? 0);
         if ($minItem > 0 && $this->anyBelow($items, $minItem)) {
             $flags[] = ReimbursementRequest::FLAG_BELOW_MIN_ITEM;
@@ -175,6 +179,26 @@ class ReimbursementTotalService
         }
 
         return array_values(array_unique($flags));
+    }
+
+    /** Ada nota yang lebih tua dari `$days` hari terhadap tanggal pengajuan? 0 = tanpa batas. */
+    private function anyStaleReceipt(array $items, int $days, $requestDate): bool
+    {
+        if ($days <= 0 || !$requestDate) {
+            return false;
+        }
+
+        $limit = \Illuminate\Support\Carbon::parse($requestDate)->startOfDay()->subDays($days);
+
+        foreach ($items as $item) {
+            $from = $item['receipt_date_from'] ?? '';
+
+            if ($from !== '' && \Illuminate\Support\Carbon::parse($from)->startOfDay()->lessThan($limit)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function anyMissingReceiptNo(array $items): bool

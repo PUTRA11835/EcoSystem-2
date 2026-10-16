@@ -20,14 +20,8 @@
               $firstStep · $chooseApprover · $approverCandidates
 --}}
 
-@section('page-actions')
-    <a href="{{ $backRoute }}"
-       class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">
-        Back
-    </a>
-@endsection
-
 @section('content')
+@include('partials.page-toolbar', ['back' => $backRoute, 'backLabel' => 'Back'])
 <div class="max-w-6xl space-y-5">
 
     @if(!$isEdit && $steps->isEmpty())
@@ -70,7 +64,7 @@
             <div>
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Requester</label>
                 <input type="text" disabled
-                       value="{{ $request->employee?->basicData?->nick_name ?? $request->employee?->eci ?? '—' }}"
+                       value="{{ $request->employee?->basicData?->full_name ?? $request->employee?->eci ?? '—' }}"
                        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500">
                 <p class="text-xs text-gray-400 mt-1">The requester cannot be changed after submission.</p>
             </div>
@@ -84,7 +78,7 @@
                     <option value="">— choose an employee —</option>
                     @foreach($employees as $employee)
                         <option value="{{ $employee->employee_id }}" @selected((string) old('employee_id') === (string) $employee->employee_id)>
-                            {{ $employee->basicData?->nick_name ?? $employee->eci }} — {{ $employee->eci }}
+                            {{ $employee->basicData?->full_name ?? $employee->eci }} — {{ $employee->eci }}
                         </option>
                     @endforeach
                 </select>
@@ -134,7 +128,7 @@
             @error('notes')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
         </div>
 
-        @include('hr-general.purchase-request._item_rows', ['existingItems' => $isEdit ? $request->items : null])
+        @include('hr-general.purchase-request.components.item-rows', ['existingItems' => $isEdit ? $request->items : null])
 
         {{-- Approver hanya ditanyakan saat MEMBUAT. Pada Edit, alur persetujuan
              dokumen sudah dibekukan sejak ia dibuat — menanyakannya lagi akan
@@ -192,5 +186,5 @@
 @endsection
 
 @push('scripts')
-@include('hr-general.purchase-request._item_rows_script')
+@include('hr-general.purchase-request.components.item-rows-script')
 @endpush

@@ -120,8 +120,8 @@
     </div>
 </div>
 
-@include('hr-general.leave-permit.partials.modal-apply')
-@include('hr-general.leave-permit.partials.modal-review')
+@include('hr-general.leave-permit.components.modal-apply')
+@include('hr-general.leave-permit.components.modal-review')
 
 <script>
     const isHR = false;

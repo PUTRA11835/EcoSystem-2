@@ -1,12 +1,15 @@
 {{--
     Excel export / import untuk satu atau beberapa tabel, sebagai SATU tombol
-    "Excel" di header halaman (stack `page-actions-extra` pada layout dashboard),
-    bukan baris tombol di dalam konten. Cukup di-@include di dalam
-    @section('content'); isinya dikirim ke header lewat @push.
+    "Excel" (menu: Export / Import / Template) yang ditaruh DI DALAM HALAMAN,
+    di toolbar kartu tempat ia di-@include — sejajar tombol Tambah / Reset Filter,
+    bukan di navbar layout. Kebiasaan yang sama dengan Reimbursement & Cash Advance.
 
     Variabel: $dataset — kunci di App\Support\DataTransfer\Registry, atau
               array kunci (menu dropdown diberi judul per tabel).
+              $bare    — true bila pemanggil sudah menaruhnya di dalam baris toolbar
+                         (default: dibungkus baris sendiri, rata kanan).
     Ekspor memakai query string halaman ini, jadi filter yang sedang aktif ikut.
+    Letakkan di LUAR elemen `data-live-region` agar tidak ikut diganti saat filter.
 --}}
 @php
     $__defs = collect((array) $dataset)
@@ -16,20 +19,22 @@
         ))
         ->values();
     $__many = $__defs->count() > 1;
+    $__bare = !empty($bare);
 @endphp
 
 @if($__defs->isNotEmpty())
-@push('page-actions-extra')
+@unless($__bare)<div class="flex justify-end">@endunless
 <div class="relative" data-excel-menu>
     <details class="group">
-        <summary class="list-none cursor-pointer select-none inline-flex items-center gap-2 h-10 px-3 bg-white text-green-700 text-sm font-semibold rounded-xl border-2 border-gray-200 hover:border-green-600 hover:bg-green-50 transition-all"
+        <summary class="list-none cursor-pointer select-none inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 text-xs font-semibold rounded-lg shadow-sm transition-colors whitespace-nowrap"
                  title="Export or import Excel">
-            <i class="fas fa-file-excel"></i>
-            <span class="hidden sm:inline">Excel</span>
-            <i class="fas fa-chevron-down text-[10px] transition-transform group-open:rotate-180"></i>
+            <i class="fas fa-file-excel text-green-600"></i>
+            <span>Excel</span>
+            <i class="fas fa-chevron-down text-[9px] transition-transform group-open:rotate-180"></i>
         </summary>
 
-        <div class="absolute right-0 mt-2 w-72 max-h-[70vh] overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 text-sm">
+        {{-- `fixed` + positioned by script: the card around the toolbar clips an absolute menu. --}}
+        <div data-excel-panel class="fixed w-72 max-h-[70vh] overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-1 text-sm">
             @foreach($__defs as $__def)
                 @php
                     $__canExport = \App\Support\DataTransfer\Registry::canExport($__def);
@@ -128,13 +133,31 @@
     @endif
 
     <script>
-        // Close the Excel menu when clicking elsewhere or choosing an entry.
-        document.addEventListener('click', function (event) {
-            document.querySelectorAll('[data-excel-menu] details[open]').forEach(function (details) {
-                if (!details.contains(event.target) || event.target.closest('a, button')) details.removeAttribute('open');
+        // One set of listeners for the page, however many menus it holds.
+        if (!window.__dtMenuReady) {
+            window.__dtMenuReady = true;
+            const closeAll = (except) => document.querySelectorAll('[data-excel-menu] details[open]').forEach((d) => { if (d !== except) d.removeAttribute('open'); });
+            document.addEventListener('toggle', (event) => {
+                const details = event.target;
+                if (!details.matches || !details.matches('[data-excel-menu] details') || !details.open) return;
+                closeAll(details);
+                const panel = details.querySelector('[data-excel-panel]');
+                const box = details.querySelector('summary').getBoundingClientRect();
+                panel.style.top = (box.bottom + 8) + 'px';
+                panel.style.left = Math.max(8, box.right - panel.offsetWidth) + 'px';
+            }, true);
+            document.addEventListener('click', (event) => {
+                document.querySelectorAll('[data-excel-menu] details[open]').forEach((d) => {
+                    if (!d.contains(event.target) || event.target.closest('a, button')) d.removeAttribute('open');
+                });
             });
-        });
+            window.addEventListener('scroll', (event) => {
+                if (event.target.closest && event.target.closest('[data-excel-panel]')) return;
+                closeAll();
+            }, true);
+            window.addEventListener('resize', () => closeAll());
+        }
     </script>
 </div>
-@endpush
+@unless($__bare)</div>@endunless
 @endif

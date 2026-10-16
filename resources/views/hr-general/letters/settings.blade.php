@@ -46,7 +46,6 @@
 @endphp
 
 @section('content')
-@include('hr-general.partials.data-transfer', ['dataset' => $stepDatasets[$section] ?? []])
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.letters.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
@@ -80,6 +79,17 @@
         </aside>
 
         <div class="min-w-0 space-y-6">
+    {{-- Step header: what this step is, and the Excel menu of the table it edits (none for steps without one). --}}
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+            <h2 class="text-sm font-bold text-gray-800">{{ $steps[$section][0] }}</h2>
+            <p class="text-[11px] text-gray-400 mt-0.5">{{ $steps[$section][1] }}</p>
+        </div>
+        @if(!empty($stepDatasets[$section]))
+            @include('hr-general.partials.data-transfer', ['dataset' => $stepDatasets[$section], 'bare' => true])
+        @endif
+    </div>
+
     {{-- ── ① Numbering & codes ──────────────────────────────────────────── --}}
     @if($section === 'numbering')
     <section data-panel="numbering">
@@ -471,10 +481,10 @@
                             <a href="{{ route('general.letters.settings.image', $letterhead) }}?v={{ $letterhead->updated_at?->timestamp }}" target="_blank"
                                 class="block w-20 shrink-0 border border-gray-200 rounded-md bg-gray-50 p-1" title="Open the full image">
                                 <img src="{{ route('general.letters.settings.image', $letterhead) }}?v={{ $letterhead->updated_at?->timestamp }}"
-                                    alt="Background of {{ $letterhead->name }}" class="w-full aspect-[210/297] object-fill bg-white">
+                                    alt="Background of {{ $letterhead->name }}" class="w-full aspect-210/297 object-fill bg-white">
                             </a>
                         @else
-                            <p class="w-20 shrink-0 aspect-[210/297] flex items-center justify-center border border-dashed border-red-200 rounded-md text-center text-[9px] text-red-500 px-1">
+                            <p class="w-20 shrink-0 aspect-210/297 flex items-center justify-center border border-dashed border-red-200 rounded-md text-center text-[9px] text-red-500 px-1">
                                 Image missing
                             </p>
                         @endif
@@ -637,7 +647,7 @@
                         <input type="file" name="background" id="letterheadImage" accept=".jpg,.jpeg,.png,.pdf,.docx,.doc" class="{{ $file }}">
                         <p class="{{ $help }}" id="letterheadImageHelp"></p>
                         <div class="mt-2 flex items-start gap-3">
-                            <div class="w-24 shrink-0 aspect-[210/297] border border-gray-200 rounded-md bg-gray-50 p-1 flex items-center justify-center">
+                            <div class="w-24 shrink-0 aspect-210/297 border border-gray-200 rounded-md bg-gray-50 p-1 flex items-center justify-center">
                                 <img id="letterheadPreview" alt="Letterhead preview" class="hidden w-full h-full object-fill bg-white">
                                 <i id="letterheadPreviewEmpty" class="fas fa-file-image text-gray-300 text-xl"></i>
                             </div>
