@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\DeliveryProject;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 
 /**
  * Export Plan Cost satu Delivery Project:
@@ -16,7 +17,7 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
  * sama dengan tampilan (formatCost/buildSummary), supaya angka di file tidak
  * pernah berbeda dari angka di layar.
  */
-class DeliveryProjectCostExport implements WithMultipleSheets
+class DeliveryProjectCostExport implements WithMultipleSheets, WithPreCalculateFormulas
 {
     public function __construct(
         private DeliveryProject $project,
