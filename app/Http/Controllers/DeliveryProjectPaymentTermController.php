@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\DeliveryInvoicedTopExport;
+use App\Exports\DeliveryProjectPaymentTermExport;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectContractLineItem;
 use App\Models\DeliveryProjectPaymentTerm;
@@ -10,6 +12,7 @@ use App\Services\ProjectTopPlan;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Term Of Payment Plan — dua mode penagihan (lihat ProjectTopPlan):
@@ -38,6 +41,91 @@ class DeliveryProjectPaymentTermController extends Controller
         $plan->resyncLineItemAmounts();
 
         return response()->json($plan->payload());
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // GET /projects/{project}/payment-terms/export?scope=all|invoiced
+    // Export Term Of Payment Plan ke Excel: seluruh termin, atau hanya
+    // termin yang sudah punya Invoice No (scope=invoiced).
+    // ──────────────────────────────────────────────────────────────
+    public function export(Request $request, DeliveryProject $project)
+    {
+        $scope = $request->query('scope') === 'invoiced' ? 'invoiced' : 'all';
+
+        $project->load('client.basicData');
+
+        // Hanya membaca: amount pada payload sudah = effectiveAmount() terkini,
+        // jadi tidak perlu self-heal (tulis) seperti index().
+        $plan  = (new ProjectTopPlan($project))->payload();
+        $terms = collect($plan['payment_terms'])
+            ->when($scope === 'invoiced', fn($c) => $c->filter(fn($t) => trim((string) $t['invoice_number']) !== ''))
+            ->values()
+            ->all();
+
+        $filename = ($scope === 'invoiced' ? 'TOP_Invoiced_' : 'TOP_')
+            . trim(preg_replace('/[^A-Za-z0-9-]+/', '_', $project->io_number ?: $project->name), '_')
+            . '_' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new DeliveryProjectPaymentTermExport($project, $plan, $terms, $scope), $filename);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // GET /projects/payment-terms/export-invoiced
+    // Export global: termin ber-Invoice No dari SELURUH Delivery Project
+    // (tombol Export di halaman list project).
+    // ──────────────────────────────────────────────────────────────
+    public function exportInvoiced()
+    {
+        $terms = DeliveryProjectPaymentTerm::query()
+            ->whereNotNull('invoice_number')
+            ->where('invoice_number', '!=', '')
+            ->with(['contractLineItem', 'project.client.basicData'])
+            ->get()
+            // Invoice No berisi spasi saja dianggap belum ada (sama dengan export per project).
+            ->filter(fn(DeliveryProjectPaymentTerm $t) => trim((string) $t->invoice_number) !== '' && $t->project);
+
+        $rows = $terms
+            ->sortBy([
+                fn($a, $b) => strnatcasecmp((string) $a->project->io_number, (string) $b->project->io_number),
+                fn($a, $b) => $a->delivery_projects_id <=> $b->delivery_projects_id,
+                fn($a, $b) => $a->term_number <=> $b->term_number,
+            ])
+            ->map(function (DeliveryProjectPaymentTerm $t) {
+                $project = $t->project;
+                $revenue = (float) ($project->revenue ?? 0);
+                // Format yang sama dengan tabel TOP di layar (amount = effectiveAmount).
+                $f = ProjectTopPlan::formatTerm($t, $revenue);
+
+                return [
+                    'project_id'          => $project->id,
+                    'io_number'           => $project->io_number,
+                    'customer'            => $project->client->basicData->name_1 ?? null,
+                    'project_name'        => $project->name,
+                    'category'            => $project->category,
+                    'revenue'             => $revenue,
+                    'term_number'         => $f['term_number'],
+                    'line_item'           => $t->contractLineItem?->name,
+                    'payment_term'        => $f['payment_term'],
+                    'period'              => $f['period'],
+                    'basis'               => $f['basis'],
+                    // Fixed tidak punya %, yang ditampilkan porsinya ke line item.
+                    'pct'                 => $f['basis'] === 'fixed' ? $f['line_item_share'] : $f['payment_percentage'],
+                    'amount'              => (float) $f['amount'],
+                    'requirements'        => $f['requirements'],
+                    'estimated_date'      => $f['estimated_date'],
+                    'submit_invoice_date' => $f['submit_invoice_date'],
+                    'invoice_number'      => trim((string) $f['invoice_number']),
+                    'paid_date'           => $f['paid_date'],
+                    'status'              => $f['status'],
+                ];
+            })
+            ->values()
+            ->all();
+
+        return Excel::download(
+            new DeliveryInvoicedTopExport($rows),
+            'TOP_Invoiced_All_Projects_' . now()->format('Ymd_His') . '.xlsx'
+        );
     }
 
     // ──────────────────────────────────────────────────────────────

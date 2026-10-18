@@ -333,6 +333,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // `projects/{project}` agar "export" tidak tertangkap sebagai {project}.
     // Izinnya sama dengan halaman list — isinya memang data list yang sama.
     Route::get('/projects/export', [DeliveryProjectController::class, 'export'])->name('projects.export')->middleware('menu:delivery.project');
+    // Export global TOP ber-Invoice No (semua project). Data TOP → butuh izin
+    // lihat Delivery Information juga, sama seperti endpoint TOP per project.
+    Route::get('/projects/payment-terms/export-invoiced', [DeliveryProjectPaymentTermController::class, 'exportInvoiced'])
+        ->name('projects.paymentTerms.exportInvoiced')
+        ->middleware(['menu:delivery.project', 'menu:delivery-project.delivery-info.view']);
 
     Route::get('/projects', [DeliveryProjectController::class, 'index'])->name('projects.index')->middleware('menu:delivery.project');
     Route::get('/projects/{project}', [DeliveryProjectController::class, 'show'])->name('projects.show')->middleware('menu:delivery.project');
@@ -390,6 +395,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // Term of Payment (TOP) Plan — read-only
     Route::get('/projects/{project}/payment-terms',         [DeliveryProjectPaymentTermController::class, 'index'])->name('projects.paymentTerms.index')->middleware('menu:delivery-project.delivery-info.view');
+    Route::get('/projects/{project}/payment-terms/export',  [DeliveryProjectPaymentTermController::class, 'export'])->name('projects.paymentTerms.export')->middleware('menu:delivery-project.delivery-info.view');
 
     // Risk Register routes
     //

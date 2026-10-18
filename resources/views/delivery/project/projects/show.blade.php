@@ -825,13 +825,22 @@
                     <div>
                         <h4 class="text-lg font-medium text-gray-900">Term Of Payment Plan</h4>
                     </div>
-                    <button type="button" onclick="PaymentTermPlan.openAdd()"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Add Payment Term
-                    </button>
+                    <div class="flex items-center gap-2">
+                        {{-- Hanya membaca → tetap tersedia walau project closed / read only.
+                             Pilihan scope (semua / invoiced) ada di modal. --}}
+                        <button type="button" data-lock-exempt data-perm-keep onclick="PaymentTermPlan.openExport()"
+                                class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
+                            <i class="fas fa-file-excel text-green-600"></i>
+                            Export Excel
+                        </button>
+                        <button type="button" onclick="PaymentTermPlan.openAdd()"
+                                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Add Payment Term
+                        </button>
+                    </div>
                 </div>
 
                 <div class="overflow-x-auto rounded-lg border border-gray-200">
@@ -2411,7 +2420,16 @@
                                 <tr>
                                     <th class="px-4 py-2.5 text-left font-medium">#</th>
                                     <th class="px-4 py-2.5 text-left font-medium">Expense Name</th>
-                                    <th class="px-4 py-2.5 text-center font-medium">Period</th>
+                                    {{-- Klik: terbaru → terlama → kembali ke urutan input. --}}
+                                    <th class="px-4 py-2.5 text-center font-medium" data-lock-exempt>
+                                        <button type="button" id="adSortPeriodBtn" data-lock-exempt data-perm-keep
+                                                onclick="PlanCost.togglePeriodSort()"
+                                                title="Sort by period: newest first"
+                                                class="inline-flex items-center gap-1 font-medium hover:text-gray-900 transition">
+                                            Period
+                                            <span id="adSortPeriodIcon" class="text-[11px] leading-none text-gray-400">⇅</span>
+                                        </button>
+                                    </th>
                                     <th class="px-4 py-2.5 text-right font-medium">Amount</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Document</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Action</th>
@@ -2697,6 +2715,65 @@
                 <button type="button" id="paymentTermSaveBtn" onclick="PaymentTermPlan.save()"
                         class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
                     Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) PLAN — EXPORT EXCEL MODAL                --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- data-lock-exempt: export hanya membaca, tetap bisa dipakai walau project closed. --}}
+<div id="paymentTermExportModal" data-lock-exempt class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeExport()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Export Term Of Payment</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Choose which payment terms to include in the Excel file.</p>
+                </div>
+                <button type="button" onclick="PaymentTermPlan.closeExport()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-3">
+                <label class="pt-export-opt flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition">
+                    <input type="radio" name="pt_export_scope" value="all" class="mt-1" onchange="PaymentTermPlan.renderExportOptions()">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold text-gray-900">Full Term Of Payment</span>
+                            <span id="ptExportCountAll" class="text-xs font-medium text-gray-500"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">All payment terms, whatever their status.</p>
+                    </div>
+                </label>
+                <label class="pt-export-opt flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition">
+                    <input type="radio" name="pt_export_scope" value="invoiced" class="mt-1" onchange="PaymentTermPlan.renderExportOptions()">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold text-gray-900">Invoiced Only</span>
+                            <span id="ptExportCountInvoiced" class="text-xs font-medium text-gray-500"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">Only payment terms that already have an Invoice No.</p>
+                    </div>
+                </label>
+                <p class="text-xs text-gray-400 pt-1">The file includes project info, the payment term table with totals, and a summary by status<span id="ptExportLineItemHint"> and by line item</span>.</p>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" onclick="PaymentTermPlan.closeExport()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" id="ptExportBtn" onclick="PaymentTermPlan.confirmExport()"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-file-excel"></i>
+                    Export
                 </button>
             </div>
         </div>
@@ -3311,6 +3388,8 @@
     let _adEditId      = null;  // expense item id being edited
     let _adEditRowEl   = null;  // <tr> element being edited
     let _adEditRemoveDoc = false; // user asked to remove the existing document
+    let _adSort        = 'default'; // urutan Expense List: 'default' (urutan input) | 'desc' (terbaru) | 'asc' (terlama)
+    let _adSeq         = 0;     // nomor urut input baris (dasar urutan default)
 
     // Cost form modal: current actual_amount (derived from expenses, read-only here)
     let _currentActual = 0;
@@ -3728,10 +3807,11 @@
             // Set subtitle
             document.getElementById('actualDetailSubtitle').textContent = costName;
 
-            // Reset form + period filter
+            // Reset form + period filter + sort
             _adResetForm();
             _setSelect('adFilterMonth', '');
             _setSelect('adFilterYear', '');
+            _adSort = 'default';
 
             // Show modal
             document.getElementById('actualDetailModal').classList.remove('hidden');
@@ -4015,6 +4095,12 @@
         _adApplyFilter();
     };
 
+    // ── Period sort (Expense List): default → terbaru → terlama → default ──
+    PlanCost.togglePeriodSort = function () {
+        _adSort = { default: 'desc', desc: 'asc', asc: 'default' }[_adSort];
+        _adApplyFilter();
+    };
+
     // ── Simple toast (reuse existing showToast if available) ──────
     function showPlanCostToast(msg, type) {
         if (typeof window.showToast === 'function') {
@@ -4039,6 +4125,7 @@
             const res = await axios.get(`${BASE_URL}/${_adCostId}/items`);
             _adTotal = res.data.total ?? 0;
             const items = res.data.items ?? [];
+            _adSeq = 0;
             if (!items.length) {
                 _adShowEmpty();
             } else {
@@ -4072,6 +4159,8 @@
         const tr = document.createElement('tr');
         tr.className   = 'hover:bg-gray-50 transition-colors';
         tr.dataset.itemId  = item.id;
+        // Urutan input (server mengirim urut created_at; baris baru di akhir).
+        tr.dataset.seq     = ++_adSeq;
         // Raw values cached on the row so the edit modal can be populated
         // without another round-trip.
         tr.dataset.desc    = item.description ?? '';
@@ -4210,14 +4299,50 @@
         _adApplyFilter();
     }
 
-    // Sembunyikan baris di luar period terpilih, nomori ulang yang terlihat,
-    // dan jadikan total footer = jumlah baris yang terlihat. Kartu "Actual
-    // Amount" di atas tetap total seluruh expense (tidak ikut filter).
+    // Urutkan baris sesuai _adSort. Period "YYYY-MM" bisa dibandingkan sebagai
+    // string; expense lama tanpa period selalu di bawah. Period sama → urutan input.
+    function _adSortRows(rows) {
+        const seq = tr => Number(tr.dataset.seq) || 0;
+        if (_adSort === 'default') return rows.sort((a, b) => seq(a) - seq(b));
+        const dir = _adSort === 'desc' ? -1 : 1;
+        return rows.sort((a, b) => {
+            const pa = a.dataset.period || '', pb = b.dataset.period || '';
+            if (pa !== pb) {
+                if (!pa) return 1;
+                if (!pb) return -1;
+                return (pa < pb ? -1 : 1) * dir;
+            }
+            return seq(a) - seq(b);
+        });
+    }
+
+    function _adRenderSortIndicator() {
+        const icon = document.getElementById('adSortPeriodIcon');
+        const btn  = document.getElementById('adSortPeriodBtn');
+        if (!icon || !btn) return;
+        const state = {
+            default: ['⇅', 'text-gray-400', 'Sort by period: newest first'],
+            desc:    ['↓', 'text-blue-600', 'Newest first — click for oldest first'],
+            asc:     ['↑', 'text-blue-600', 'Oldest first — click to restore input order'],
+        }[_adSort];
+        icon.textContent = state[0];
+        icon.className   = `text-[11px] leading-none ${state[1]}`;
+        btn.title        = state[2];
+        btn.classList.toggle('text-blue-700', _adSort !== 'default');
+    }
+
+    // Urutkan baris, sembunyikan yang di luar period terpilih, nomori ulang
+    // yang terlihat, dan jadikan total footer = jumlah baris yang terlihat.
+    // Kartu "Actual Amount" di atas tetap total seluruh expense (tidak ikut filter).
     function _adApplyFilter() {
         const tbody  = document.getElementById('actualDetailTableBody');
         const active = !!(document.getElementById('adFilterMonth').value || document.getElementById('adFilterYear').value);
-        const rows   = _adRows();
+        const rows   = _adSortRows(_adRows());
         let shown = 0, sum = 0;
+
+        // appendChild memindahkan baris yang sudah ada → DOM ikut urutan baru.
+        rows.forEach(tr => tbody.appendChild(tr));
+        _adRenderSortIndicator();
 
         rows.forEach(tr => {
             const ok = _adMatches(tr.dataset.period || '');
@@ -10755,9 +10880,60 @@ window.PaymentTermPlan = (function () {
         }
     }
 
+    // ── Export Excel ──────────────────────────────────────────────
+    // Scope "invoiced" = termin yang sudah punya Invoice No (sama dengan filter
+    // di DeliveryProjectPaymentTermController::export()).
+    function invoicedCount() {
+        return _terms.filter(t => String(t.invoice_number ?? '').trim() !== '').length;
+    }
+
+    function openExport() {
+        const all = document.querySelector('input[name="pt_export_scope"][value="all"]');
+        if (all) all.checked = true;
+        renderExportOptions();
+        document.getElementById('paymentTermExportModal').classList.remove('hidden');
+    }
+
+    function closeExport() {
+        document.getElementById('paymentTermExportModal').classList.add('hidden');
+    }
+
+    function renderExportOptions() {
+        const counts = { all: _terms.length, invoiced: invoicedCount() };
+        const label  = n => `${n} term${n === 1 ? '' : 's'}`;
+        document.getElementById('ptExportCountAll').textContent      = label(counts.all);
+        document.getElementById('ptExportCountInvoiced').textContent = label(counts.invoiced);
+        document.getElementById('ptExportLineItemHint').classList.toggle('hidden', _mode !== 'line_item');
+
+        let selected = null;
+        document.querySelectorAll('input[name="pt_export_scope"]').forEach(r => {
+            // Scope tanpa termin tidak bisa dipilih (file-nya akan kosong).
+            r.disabled = counts[r.value] === 0;
+            if (r.disabled) r.checked = false;
+            if (r.checked) selected = r.value;
+            const opt = r.closest('.pt-export-opt');
+            opt.classList.toggle('border-green-500', r.checked);
+            opt.classList.toggle('bg-green-50', r.checked);
+            opt.classList.toggle('border-gray-200', !r.checked);
+            opt.classList.toggle('opacity-50', r.disabled);
+            opt.classList.toggle('cursor-not-allowed', r.disabled);
+            opt.classList.toggle('cursor-pointer', !r.disabled);
+        });
+        document.getElementById('ptExportBtn').disabled = !selected;
+    }
+
+    function confirmExport() {
+        const scope = document.querySelector('input[name="pt_export_scope"]:checked')?.value;
+        if (!scope) return;
+        // Download biasa (bukan axios) supaya browser menangani file-nya.
+        window.location.href = `${BASE_URL}/export?scope=${scope}`;
+        closeExport();
+    }
+
     document.addEventListener('DOMContentLoaded', function () { renderMode(); load(); });
 
     return {
+        openExport, closeExport, renderExportOptions, confirmExport,
         openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete,
         recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load,
         switchMode, setBasis, onLineItemChange, onAmountInput, toggleGroup,
