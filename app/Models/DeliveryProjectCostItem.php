@@ -18,6 +18,7 @@ class DeliveryProjectCostItem extends Model
         'delivery_project_cost_id',
         'description',
         'amount',
+        'period',
         'document_name',
         'document_file_id',
         'document_url',

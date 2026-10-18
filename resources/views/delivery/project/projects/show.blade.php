@@ -825,13 +825,22 @@
                     <div>
                         <h4 class="text-lg font-medium text-gray-900">Term Of Payment Plan</h4>
                     </div>
-                    <button type="button" onclick="PaymentTermPlan.openAdd()"
-                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                        </svg>
-                        Add Payment Term
-                    </button>
+                    <div class="flex items-center gap-2">
+                        {{-- Hanya membaca → tetap tersedia walau project closed / read only.
+                             Pilihan scope (semua / invoiced) ada di modal. --}}
+                        <button type="button" data-lock-exempt data-perm-keep onclick="PaymentTermPlan.openExport()"
+                                class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
+                            <i class="fas fa-file-excel text-green-600"></i>
+                            Export Excel
+                        </button>
+                        <button type="button" onclick="PaymentTermPlan.openAdd()"
+                                class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Add Payment Term
+                        </button>
+                    </div>
                 </div>
 
                 <div class="overflow-x-auto rounded-lg border border-gray-200">
@@ -1942,15 +1951,24 @@
                     </h2>
                     <p class="text-xs text-gray-500 mt-1">Project cost recapitulation: Indirect Cost &amp; Direct Cost</p>
                 </div>
-                @if($can('delivery-project.plan-cost.manage'))
-                <button type="button" onclick="PlanCost.openAddParentModal()"
-                        class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Add Cost Item
-                </button>
-                @endif
+                <div class="flex items-center gap-2">
+                    {{-- Rekap + seluruh expense detail (2 sheet). Hanya membaca,
+                         jadi tersedia untuk semua yang boleh melihat section ini. --}}
+                    <a href="{{ route('projects.costs.export', $project->id) }}"
+                       class="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 bg-white text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition">
+                        <i class="fas fa-file-excel text-green-600"></i>
+                        Export Excel
+                    </a>
+                    @if($can('delivery-project.plan-cost.manage'))
+                    <button type="button" onclick="PlanCost.openAddParentModal()"
+                            class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add Cost Item
+                    </button>
+                    @endif
+                </div>
             </div>
         </div>
 
@@ -2225,6 +2243,10 @@
                            placeholder="e.g. Transportation, Accommodation…">
                 </div>
                 <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Period <span class="text-red-500">*</span></label>
+                    @include('delivery.project.projects.partials.plancost-period-select', ['prefix' => 'ae'])
+                </div>
+                <div>
                     <label class="block text-xs font-medium text-gray-600 mb-1">Amount (Rp) <span class="text-red-500">*</span></label>
                     <input type="text" id="aeAmountInput" inputmode="numeric"
                            class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
@@ -2353,7 +2375,33 @@
 
                 {{-- Table rincian pengeluaran --}}
                 <div>
-                    <h4 class="text-sm font-semibold text-gray-700 mb-2">Expense List</h4>
+                    <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+                        <h4 class="text-sm font-semibold text-gray-700">Expense List</h4>
+                        {{-- Filter period (bulan / tahun, masing-masing opsional).
+                             data-lock-exempt: filter hanya membaca, jadi tetap
+                             aktif walau project sudah closed. --}}
+                        <div data-lock-exempt class="flex items-center gap-2">
+                            <span class="text-xs font-medium text-gray-500">Period</span>
+                            <div class="w-36">
+                                <select id="adFilterMonth" onchange="PlanCost.applyPeriodFilter()"
+                                        class="block w-full py-1.5 px-2 border border-gray-300 rounded-lg text-xs">
+                                    <option value="">All Months</option>
+                                    @foreach(range(1, 12) as $m)
+                                        <option value="{{ sprintf('%02d', $m) }}">{{ date('F', mktime(0, 0, 0, $m, 1)) }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="w-28">
+                                {{-- Opsi tahun diisi JS dari period expense yang ada. --}}
+                                <select id="adFilterYear" onchange="PlanCost.applyPeriodFilter()"
+                                        class="block w-full py-1.5 px-2 border border-gray-300 rounded-lg text-xs">
+                                    <option value="">All Years</option>
+                                </select>
+                            </div>
+                            <button type="button" id="adFilterResetBtn" onclick="PlanCost.resetPeriodFilter()"
+                                    class="hidden text-xs font-medium text-red-500 hover:text-red-700">Reset</button>
+                        </div>
+                    </div>
                     {{-- table-fixed + colgroup: lebar kolom ditentukan di sini, bukan
                          oleh isi sel. Tanpa ini nama dokumen yang panjang (nowrap)
                          merebut hampir seluruh lebar tabel dan Expense Name terjepit
@@ -2363,6 +2411,7 @@
                             <colgroup>
                                 <col class="w-10">   {{-- #        --}}
                                 <col>                {{-- Expense Name: sisa lebar --}}
+                                <col class="w-24">   {{-- Period   --}}
                                 <col class="w-36">   {{-- Amount   --}}
                                 <col class="w-44">   {{-- Document --}}
                                 <col class="w-20">   {{-- Action   --}}
@@ -2371,6 +2420,16 @@
                                 <tr>
                                     <th class="px-4 py-2.5 text-left font-medium">#</th>
                                     <th class="px-4 py-2.5 text-left font-medium">Expense Name</th>
+                                    {{-- Klik: terbaru → terlama → kembali ke urutan input. --}}
+                                    <th class="px-4 py-2.5 text-center font-medium" data-lock-exempt>
+                                        <button type="button" id="adSortPeriodBtn" data-lock-exempt data-perm-keep
+                                                onclick="PlanCost.togglePeriodSort()"
+                                                title="Sort by period: newest first"
+                                                class="inline-flex items-center gap-1 font-medium hover:text-gray-900 transition">
+                                            Period
+                                            <span id="adSortPeriodIcon" class="text-[11px] leading-none text-gray-400">⇅</span>
+                                        </button>
+                                    </th>
                                     <th class="px-4 py-2.5 text-right font-medium">Amount</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Document</th>
                                     <th class="px-4 py-2.5 text-center font-medium">Action</th>
@@ -2378,7 +2437,7 @@
                             </thead>
                             <tbody id="actualDetailTableBody" class="divide-y divide-gray-100">
                                 <tr>
-                                    <td colspan="5" class="text-center py-8 text-gray-400 text-sm">
+                                    <td colspan="6" class="text-center py-8 text-gray-400 text-sm">
                                         <svg class="animate-spin h-5 w-5 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -2389,7 +2448,7 @@
                             </tbody>
                             <tfoot id="actualDetailTableFoot" class="hidden bg-gray-50 border-t-2 border-gray-300">
                                 <tr>
-                                    <td colspan="2" class="px-4 py-2.5 text-sm font-bold text-gray-700 text-right">Total:</td>
+                                    <td colspan="3" class="px-4 py-2.5 text-sm font-bold text-gray-700 text-right" id="adFooterLabel">Total:</td>
                                     <td class="px-4 py-2.5 text-right font-bold text-blue-700 font-mono text-sm" id="adFooterTotal">Rp 0</td>
                                     <td colspan="2"></td>
                                 </tr>
@@ -2410,11 +2469,16 @@
                     </h4>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {{-- Expense name --}}
-                        <div>
+                        <div class="sm:col-span-2">
                             <label class="block text-xs font-medium text-gray-600 mb-1">Expense Name <span class="text-red-500">*</span></label>
                             <input type="text" id="adDescInput" maxlength="200"
                                    class="block w-full py-2 px-3 border border-gray-300 rounded-lg shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 focus:border-orange-400"
                                    placeholder="e.g. Transportation, Accommodation…">
+                        </div>
+                        {{-- Period (bulan + tahun) --}}
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Period <span class="text-red-500">*</span></label>
+                            @include('delivery.project.projects.partials.plancost-period-select', ['prefix' => 'ad'])
                         </div>
                         {{-- Amount --}}
                         <div>
@@ -2651,6 +2715,65 @@
                 <button type="button" id="paymentTermSaveBtn" onclick="PaymentTermPlan.save()"
                         class="px-4 py-2 text-sm font-semibold text-white primary-gradient rounded-lg hover:opacity-90 transition disabled:opacity-50">
                     Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- TERM OF PAYMENT (TOP) PLAN — EXPORT EXCEL MODAL                --}}
+{{-- ══════════════════════════════════════════════════════════════ --}}
+{{-- data-lock-exempt: export hanya membaca, tetap bisa dipakai walau project closed. --}}
+<div id="paymentTermExportModal" data-lock-exempt class="fixed inset-0 z-50 hidden">
+    <div class="modal-backdrop fixed inset-0 bg-black/50" onclick="PaymentTermPlan.closeExport()"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">Export Term Of Payment</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Choose which payment terms to include in the Excel file.</p>
+                </div>
+                <button type="button" onclick="PaymentTermPlan.closeExport()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-3">
+                <label class="pt-export-opt flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition">
+                    <input type="radio" name="pt_export_scope" value="all" class="mt-1" onchange="PaymentTermPlan.renderExportOptions()">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold text-gray-900">Full Term Of Payment</span>
+                            <span id="ptExportCountAll" class="text-xs font-medium text-gray-500"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">All payment terms, whatever their status.</p>
+                    </div>
+                </label>
+                <label class="pt-export-opt flex items-start gap-3 p-4 border rounded-lg cursor-pointer transition">
+                    <input type="radio" name="pt_export_scope" value="invoiced" class="mt-1" onchange="PaymentTermPlan.renderExportOptions()">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-sm font-semibold text-gray-900">Invoiced Only</span>
+                            <span id="ptExportCountInvoiced" class="text-xs font-medium text-gray-500"></span>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-0.5">Only payment terms that already have an Invoice No.</p>
+                    </div>
+                </label>
+                <p class="text-xs text-gray-400 pt-1">The file includes project info, the payment term table with totals, and a summary by status<span id="ptExportLineItemHint"> and by line item</span>.</p>
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+                <button type="button" onclick="PaymentTermPlan.closeExport()"
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" id="ptExportBtn" onclick="PaymentTermPlan.confirmExport()"
+                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-file-excel"></i>
+                    Export
                 </button>
             </div>
         </div>
@@ -3265,6 +3388,8 @@
     let _adEditId      = null;  // expense item id being edited
     let _adEditRowEl   = null;  // <tr> element being edited
     let _adEditRemoveDoc = false; // user asked to remove the existing document
+    let _adSort        = 'default'; // urutan Expense List: 'default' (urutan input) | 'desc' (terbaru) | 'asc' (terlama)
+    let _adSeq         = 0;     // nomor urut input baris (dasar urutan default)
 
     // Cost form modal: current actual_amount (derived from expenses, read-only here)
     let _currentActual = 0;
@@ -3682,8 +3807,11 @@
             // Set subtitle
             document.getElementById('actualDetailSubtitle').textContent = costName;
 
-            // Reset form
+            // Reset form + period filter + sort
             _adResetForm();
+            _setSelect('adFilterMonth', '');
+            _setSelect('adFilterYear', '');
+            _adSort = 'default';
 
             // Show modal
             document.getElementById('actualDetailModal').classList.remove('hidden');
@@ -3709,10 +3837,15 @@
             const rawAmt = document.getElementById('adAmountInput').value.replace(/\./g, '').replace(',', '.');
             const amount = parseFloat(rawAmt);
             const file   = document.getElementById('adFileInput').files[0];
+            const period = _periodValue('ad');
 
             if (!desc) {
                 showPlanCostToast('Expense name is required.', 'error');
                 document.getElementById('adDescInput').focus();
+                return;
+            }
+            if (!period) {
+                showPlanCostToast('Period (month and year) is required.', 'error');
                 return;
             }
             if (!rawAmt || isNaN(amount) || amount <= 0) {
@@ -3728,6 +3861,7 @@
                 const fd = new FormData();
                 fd.append('description', desc);
                 fd.append('amount', amount);
+                fd.append('period', period);
                 fd.append('_token', getCsrf());
                 if (file) fd.append('document', file);
 
@@ -3739,7 +3873,10 @@
                 _adDirty = true;
                 _adAppendRow(res.data.item, _adGetCurrentCount() + 1);
                 _adUpdateSummary();
-                _adResetForm();
+                _adRefreshFilter(res.data.item);
+                // Period dipertahankan: biasanya beberapa expense diinput
+                // berturut-turut untuk bulan yang sama.
+                _adResetForm(true);
                 showPlanCostToast('Expense added successfully.', 'success');
             } catch (err) {
                 const msg = err.response?.data?.message
@@ -3779,9 +3916,9 @@
                 _adTotal = res.data.total ?? 0;
                 _adDirty = true;
                 rowEl?.remove();
-                _adRenumberRows();
                 _adUpdateSummary();
                 if (_adGetCurrentCount() === 0) _adShowEmpty();
+                _adRefreshFilter();
                 PlanCost.closeExpenseDeleteModal();
                 showPlanCostToast('Expense deleted.', 'success');
             } catch (err) {
@@ -3829,6 +3966,8 @@
             document.getElementById('aeDescInput').value   = desc;
             document.getElementById('aeAmountInput').value = amount
                 ? new Intl.NumberFormat('id-ID').format(amount) : '';
+            // Expense lama belum punya period → kosong, wajib dipilih saat disimpan.
+            _setPeriodValue('ae', rowEl?.dataset.period ?? '');
 
             // Current document row (only when the item already has one)
             const curRow = document.getElementById('aeCurrentDocRow');
@@ -3895,10 +4034,15 @@
             const rawAmt = document.getElementById('aeAmountInput').value.replace(/\./g, '').replace(',', '.');
             const amount = parseFloat(rawAmt);
             const file   = document.getElementById('aeFileInput').files[0];
+            const period = _periodValue('ae');
 
             if (!desc) {
                 showPlanCostToast('Expense name is required.', 'error');
                 document.getElementById('aeDescInput').focus();
+                return;
+            }
+            if (!period) {
+                showPlanCostToast('Period (month and year) is required.', 'error');
                 return;
             }
             if (!rawAmt || isNaN(amount) || amount <= 0) {
@@ -3913,6 +4057,7 @@
                 const fd = new FormData();
                 fd.append('description', desc);
                 fd.append('amount', amount);
+                fd.append('period', period);
                 if (file) fd.append('document', file);
                 if (_adEditRemoveDoc) fd.append('remove_document', '1');
 
@@ -3928,6 +4073,7 @@
                 _adDirty = true;
                 _adUpdateRow(_adEditRowEl, res.data.item);
                 _adUpdateSummary();
+                _adRefreshFilter(res.data.item);
                 PlanCost.closeExpenseEditModal();
                 showPlanCostToast('Expense updated successfully.', 'success');
             } catch (err) {
@@ -3939,6 +4085,20 @@
                 btn.disabled = false;
             }
         },
+    };
+
+    // ── Period filter (Expense List) ──────────────────────────────
+    PlanCost.applyPeriodFilter = function () { _adApplyFilter(); };
+    PlanCost.resetPeriodFilter = function () {
+        _setSelect('adFilterMonth', '');
+        _setSelect('adFilterYear', '');
+        _adApplyFilter();
+    };
+
+    // ── Period sort (Expense List): default → terbaru → terlama → default ──
+    PlanCost.togglePeriodSort = function () {
+        _adSort = { default: 'desc', desc: 'asc', asc: 'default' }[_adSort];
+        _adApplyFilter();
     };
 
     // ── Simple toast (reuse existing showToast if available) ──────
@@ -3955,7 +4115,7 @@
     async function _adLoadItems() {
         const tbody = document.getElementById('actualDetailTableBody');
         const tfoot = document.getElementById('actualDetailTableFoot');
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-400 text-sm">
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-gray-400 text-sm">
             <svg class="animate-spin h-5 w-5 primary-text mx-auto mb-2" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -3965,6 +4125,7 @@
             const res = await axios.get(`${BASE_URL}/${_adCostId}/items`);
             _adTotal = res.data.total ?? 0;
             const items = res.data.items ?? [];
+            _adSeq = 0;
             if (!items.length) {
                 _adShowEmpty();
             } else {
@@ -3973,14 +4134,15 @@
                 tfoot.classList.remove('hidden');
             }
             _adUpdateSummary();
+            _adRefreshFilter();
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-red-500 text-sm">Failed to load data.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-red-500 text-sm">Failed to load data.</td></tr>`;
         }
     }
 
     function _adShowEmpty() {
         document.getElementById('actualDetailTableBody').innerHTML =
-            `<tr><td colspan="5" class="text-center py-8 text-gray-400 text-sm italic">No expense records found.</td></tr>`;
+            `<tr data-empty><td colspan="6" class="text-center py-8 text-gray-400 text-sm italic">No expense records found.</td></tr>`;
         document.getElementById('actualDetailTableFoot').classList.add('hidden');
     }
 
@@ -3997,15 +4159,19 @@
         const tr = document.createElement('tr');
         tr.className   = 'hover:bg-gray-50 transition-colors';
         tr.dataset.itemId  = item.id;
+        // Urutan input (server mengirim urut created_at; baris baru di akhir).
+        tr.dataset.seq     = ++_adSeq;
         // Raw values cached on the row so the edit modal can be populated
         // without another round-trip.
         tr.dataset.desc    = item.description ?? '';
         tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.period  = item.period ?? '';
         tr.dataset.docName = item.document_name ?? '';
         tr.dataset.docUrl  = item.document_url ?? '';
         tr.innerHTML = `
             <td class="px-4 py-2.5 text-gray-400 text-xs align-top">${no}</td>
             <td class="px-4 py-2.5 text-gray-700 text-sm align-top break-words">${_esc(item.description)}</td>
+            <td class="px-4 py-2.5 text-center text-gray-600 text-xs whitespace-nowrap align-top">${_fmtPeriod(item.period)}</td>
             <td class="px-4 py-2.5 text-right font-mono text-sm text-blue-700 font-medium whitespace-nowrap align-top">${fmtRp(item.amount)}</td>
             <td class="px-4 py-2.5 text-center align-top">${docCell}</td>
             <td class="px-4 py-2.5 text-center whitespace-nowrap align-top">
@@ -4052,19 +4218,151 @@
         if (!tr || !item) return;
         tr.dataset.desc    = item.description ?? '';
         tr.dataset.amount  = item.amount ?? 0;
+        tr.dataset.period  = item.period ?? '';
         tr.dataset.docName = item.document_name ?? '';
         tr.dataset.docUrl  = item.document_url ?? '';
         const tds = tr.querySelectorAll('td');
         if (tds[1]) tds[1].textContent = item.description ?? '';
-        if (tds[2]) tds[2].textContent = fmtRp(item.amount);
-        if (tds[3]) tds[3].innerHTML   = _adDocCellHtml(item);
+        if (tds[2]) tds[2].textContent = _fmtPeriod(item.period);
+        if (tds[3]) tds[3].textContent = fmtRp(item.amount);
+        if (tds[4]) tds[4].innerHTML   = _adDocCellHtml(item);
     }
 
-    function _adRenumberRows() {
-        document.querySelectorAll('#actualDetailTableBody tr[data-item-id]').forEach((tr, idx) => {
-            const firstTd = tr.querySelector('td:first-child');
-            if (firstTd) firstTd.textContent = idx + 1;
+    // ── Period helpers ────────────────────────────────────────────
+    const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    /** "2026-10" → "Oct 2026"; kosong (expense lama) → "—". */
+    function _fmtPeriod(period) {
+        if (!period) return '—';
+        const [y, m] = String(period).split('-');
+        return `${MONTHS_SHORT[Number(m) - 1] ?? m} ${y}`;
+    }
+
+    // select-enhance.js merender label tombolnya dari event 'change'.
+    function _setSelect(id, value) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.value = value;
+        el.dispatchEvent(new Event('change', { bubbles: false }));
+    }
+
+    /** Baca input period (prefix 'ad' | 'ae') → "YYYY-MM", atau '' bila belum lengkap. */
+    function _periodValue(prefix) {
+        const m = document.getElementById(prefix + 'PeriodMonth').value;
+        const y = document.getElementById(prefix + 'PeriodYear').value;
+        return m && y ? `${y}-${m}` : '';
+    }
+
+    function _setPeriodValue(prefix, period) {
+        const [y = '', m = ''] = String(period || '').split('-');
+        const yearSel = document.getElementById(prefix + 'PeriodYear');
+        // Tahun di luar rentang opsi (data lama) tetap harus bisa ditampilkan.
+        if (y && !Array.from(yearSel.options).some(o => o.value === y)) {
+            yearSel.add(new Option(y, y));
+        }
+        _setSelect(prefix + 'PeriodMonth', m);
+        _setSelect(prefix + 'PeriodYear', y);
+    }
+
+    function _adRows() {
+        return Array.from(document.querySelectorAll('#actualDetailTableBody tr[data-item-id]'));
+    }
+
+    // Opsi tahun filter = tahun yang benar-benar dipakai expense item ini.
+    function _adRebuildYearOptions() {
+        const sel = document.getElementById('adFilterYear');
+        const current = sel.value;
+        const years = [...new Set(_adRows().map(tr => (tr.dataset.period || '').slice(0, 4)).filter(Boolean))]
+            .sort().reverse();
+        sel.innerHTML = '<option value="">All Years</option>'
+            + years.map(y => `<option value="${y}">${y}</option>`).join('');
+        _setSelect('adFilterYear', years.includes(current) ? current : '');
+    }
+
+    function _adMatches(period) {
+        const m = document.getElementById('adFilterMonth').value;
+        const y = document.getElementById('adFilterYear').value;
+        return (!m || period.slice(5, 7) === m) && (!y || period.slice(0, 4) === y);
+    }
+
+    /**
+     * Sinkronkan filter setelah daftar berubah. `changedItem` = expense yang
+     * baru ditambah/diedit: kalau period-nya tidak lolos filter aktif, filter
+     * dilepas supaya baris itu tidak "hilang" tepat setelah disimpan.
+     */
+    function _adRefreshFilter(changedItem) {
+        _adRebuildYearOptions();
+        if (changedItem && !_adMatches(changedItem.period ?? '')) {
+            _setSelect('adFilterMonth', '');
+            _setSelect('adFilterYear', '');
+        }
+        _adApplyFilter();
+    }
+
+    // Urutkan baris sesuai _adSort. Period "YYYY-MM" bisa dibandingkan sebagai
+    // string; expense lama tanpa period selalu di bawah. Period sama → urutan input.
+    function _adSortRows(rows) {
+        const seq = tr => Number(tr.dataset.seq) || 0;
+        if (_adSort === 'default') return rows.sort((a, b) => seq(a) - seq(b));
+        const dir = _adSort === 'desc' ? -1 : 1;
+        return rows.sort((a, b) => {
+            const pa = a.dataset.period || '', pb = b.dataset.period || '';
+            if (pa !== pb) {
+                if (!pa) return 1;
+                if (!pb) return -1;
+                return (pa < pb ? -1 : 1) * dir;
+            }
+            return seq(a) - seq(b);
         });
+    }
+
+    function _adRenderSortIndicator() {
+        const icon = document.getElementById('adSortPeriodIcon');
+        const btn  = document.getElementById('adSortPeriodBtn');
+        if (!icon || !btn) return;
+        const state = {
+            default: ['⇅', 'text-gray-400', 'Sort by period: newest first'],
+            desc:    ['↓', 'text-blue-600', 'Newest first — click for oldest first'],
+            asc:     ['↑', 'text-blue-600', 'Oldest first — click to restore input order'],
+        }[_adSort];
+        icon.textContent = state[0];
+        icon.className   = `text-[11px] leading-none ${state[1]}`;
+        btn.title        = state[2];
+        btn.classList.toggle('text-blue-700', _adSort !== 'default');
+    }
+
+    // Urutkan baris, sembunyikan yang di luar period terpilih, nomori ulang
+    // yang terlihat, dan jadikan total footer = jumlah baris yang terlihat.
+    // Kartu "Actual Amount" di atas tetap total seluruh expense (tidak ikut filter).
+    function _adApplyFilter() {
+        const tbody  = document.getElementById('actualDetailTableBody');
+        const active = !!(document.getElementById('adFilterMonth').value || document.getElementById('adFilterYear').value);
+        const rows   = _adSortRows(_adRows());
+        let shown = 0, sum = 0;
+
+        // appendChild memindahkan baris yang sudah ada → DOM ikut urutan baru.
+        rows.forEach(tr => tbody.appendChild(tr));
+        _adRenderSortIndicator();
+
+        rows.forEach(tr => {
+            const ok = _adMatches(tr.dataset.period || '');
+            tr.style.display = ok ? '' : 'none';
+            if (!ok) return;
+            shown++;
+            sum += parseFloat(tr.dataset.amount) || 0;
+            const firstTd = tr.querySelector('td:first-child');
+            if (firstTd) firstTd.textContent = shown;
+        });
+
+        tbody.querySelector('tr[data-filter-empty]')?.remove();
+        if (rows.length && !shown) {
+            tbody.insertAdjacentHTML('beforeend',
+                `<tr data-filter-empty><td colspan="6" class="text-center py-8 text-gray-400 text-sm italic">No expenses in the selected period.</td></tr>`);
+        }
+
+        document.getElementById('adFooterLabel').textContent = active ? 'Total (filtered):' : 'Total:';
+        document.getElementById('adFooterTotal').textContent = fmtRp(active ? sum : _adTotal);
+        document.getElementById('adFilterResetBtn').classList.toggle('hidden', !active);
     }
 
     function _adGetCurrentCount() {
@@ -4072,12 +4370,16 @@
     }
 
     function _adUpdateSummary() {
-        // Actual amount = sum of all expense items. Update header card & footer.
+        // Actual amount = sum of all expense items. Footer total ditulis
+        // _adApplyFilter() karena mengikuti filter period.
         document.getElementById('adTotalItems').textContent  = fmtRp(_adTotal);
-        document.getElementById('adFooterTotal').textContent = fmtRp(_adTotal);
     }
 
-    function _adResetForm() {
+    function _adResetForm(keepPeriod = false) {
+        if (!keepPeriod) {
+            const now = new Date();
+            _setPeriodValue('ad', `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+        }
         document.getElementById('adDescInput').value  = '';
         document.getElementById('adAmountInput').value = '';
         document.getElementById('adFileInput').value   = '';
@@ -10578,9 +10880,60 @@ window.PaymentTermPlan = (function () {
         }
     }
 
+    // ── Export Excel ──────────────────────────────────────────────
+    // Scope "invoiced" = termin yang sudah punya Invoice No (sama dengan filter
+    // di DeliveryProjectPaymentTermController::export()).
+    function invoicedCount() {
+        return _terms.filter(t => String(t.invoice_number ?? '').trim() !== '').length;
+    }
+
+    function openExport() {
+        const all = document.querySelector('input[name="pt_export_scope"][value="all"]');
+        if (all) all.checked = true;
+        renderExportOptions();
+        document.getElementById('paymentTermExportModal').classList.remove('hidden');
+    }
+
+    function closeExport() {
+        document.getElementById('paymentTermExportModal').classList.add('hidden');
+    }
+
+    function renderExportOptions() {
+        const counts = { all: _terms.length, invoiced: invoicedCount() };
+        const label  = n => `${n} term${n === 1 ? '' : 's'}`;
+        document.getElementById('ptExportCountAll').textContent      = label(counts.all);
+        document.getElementById('ptExportCountInvoiced').textContent = label(counts.invoiced);
+        document.getElementById('ptExportLineItemHint').classList.toggle('hidden', _mode !== 'line_item');
+
+        let selected = null;
+        document.querySelectorAll('input[name="pt_export_scope"]').forEach(r => {
+            // Scope tanpa termin tidak bisa dipilih (file-nya akan kosong).
+            r.disabled = counts[r.value] === 0;
+            if (r.disabled) r.checked = false;
+            if (r.checked) selected = r.value;
+            const opt = r.closest('.pt-export-opt');
+            opt.classList.toggle('border-green-500', r.checked);
+            opt.classList.toggle('bg-green-50', r.checked);
+            opt.classList.toggle('border-gray-200', !r.checked);
+            opt.classList.toggle('opacity-50', r.disabled);
+            opt.classList.toggle('cursor-not-allowed', r.disabled);
+            opt.classList.toggle('cursor-pointer', !r.disabled);
+        });
+        document.getElementById('ptExportBtn').disabled = !selected;
+    }
+
+    function confirmExport() {
+        const scope = document.querySelector('input[name="pt_export_scope"]:checked')?.value;
+        if (!scope) return;
+        // Download biasa (bukan axios) supaya browser menangani file-nya.
+        window.location.href = `${BASE_URL}/export?scope=${scope}`;
+        closeExport();
+    }
+
     document.addEventListener('DOMContentLoaded', function () { renderMode(); load(); });
 
     return {
+        openExport, closeExport, renderExportOptions, confirmExport,
         openAdd, openEdit, closeModal, save, openDeleteModal, closeDeleteModal, confirmDelete,
         recalcAmount, toggleInvoiceRequired, togglePaidDateRequired, reload: load,
         switchMode, setBasis, onLineItemChange, onAmountInput, toggleGroup,

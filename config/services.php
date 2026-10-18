@@ -117,6 +117,26 @@ return [
         // longgar; tidak perlu ubah kode, cukup `.env` + `optimize:clear`.
         'attachment_link_days' => (int) env('TEAMS_ATTACHMENT_LINK_DAYS', 0),
 
+        // Lampiran NON-gambar dikirim sebagai kartu berkas asli Teams (dengan
+        // pratinjau), bukan tautan. Caranya: berkas disalin ke OneDrive akun
+        // pengirim, lalu flow 7 memposting pesannya lewat Graph dengan lampiran
+        // bertipe `reference`. Rincian: docs/teams-sync-parity-design.md §6c.
+        //
+        // Default MATI, dan menyalakannya SEBELUM flow 7 diperbarui tetap aman:
+        // payload selalu membawa `message_html` versi tautan, dan flow lama
+        // hanya mengenal itu.
+        'native_files' => (bool) env('TEAMS_SYNC_NATIVE_FILES', false),
+
+        // Berkas melebihi ini tidak disalin ke OneDrive; ia tetap terkirim
+        // sebagai tautan seperti sebelumnya.
+        'native_file_max_mb' => (int) env('TEAMS_SYNC_NATIVE_FILE_MAX_MB', 30),
+
+        // Folder induk di OneDrive akun pengirim. Di bawahnya susunannya meniru
+        // deliverable: {id customer} {NAMA}/TICKETING/{nomor tiket}.
+        // SENGAJA terpisah dari folder tiket deliverable: folder itu
+        // dibagikan ke customer, sedangkan lampiran internal note tidak boleh.
+        'files_path' => env('ONEDRIVE_TEAMS_CHAT_FILES_PATH') ?: 'DELIVERY SUPPORT/TEAMS CHAT FILES',
+
         // Akun pemilik connection Teams di Power Automate. Dua perannya, dan
         // keduanya muncul BERSAMAAN begitu chat dibuat lewat Graph:
         //

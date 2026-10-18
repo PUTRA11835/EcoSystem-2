@@ -810,7 +810,8 @@ class TicketController extends Controller
             abort(403);
         }
 
-        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules'])
+        // 'sla.policy' di-eager load untuk liveSlaSummary() (kolom SLA di list).
+        $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'moduleMaster', 'modules', 'sla.policy'])
             ->whereNull('is_hidden')
             ->orderBy('ticket_id', 'asc');
 
@@ -954,12 +955,43 @@ class TicketController extends Controller
                     . ($ds->type ? ", {$ds->type}" : ''));
             });
 
-        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap) {
+        // Sama seperti index(): activity date terakhir dari timesheet support tiket
+        // (selain yang rejected) dan riwayat pause SLA (hindari N+1 di liveSlaSummary()).
+        $activityDateMap = \App\Models\Timesheet::whereIn('ticket_id', $ticketIds)
+            ->whereNotNull('activity_date')
+            ->whereIn('status', ['draft', 'submitted', 'approved'])
+            ->get()
+            ->groupBy('ticket_id')
+            ->map(fn ($group) => $group->max('activity_date')?->format('Y-m-d'));
+
+        $pausesByTicket = \App\Models\TicketSlaPause::whereIn('ticket_id', $ticketIds)
+            ->get()
+            ->groupBy('ticket_id');
+
+        $rows = $tickets->map(function ($ticket) use ($progressMap, $customerMandaysMap, $deliverySupportMap, $activityDateMap, $pausesByTicket) {
+            $sla = $this->liveSlaSummary($ticket->sla, $ticket, $pausesByTicket->get($ticket->ticket_id));
+
+            // Tutup tiket: end_date, atau (tiket closed lama yang end_date-nya kosong)
+            // resolved_at SLA lalu updated_at — sama dengan kolom Close Date di list.
+            $isFinal  = in_array($ticket->status, ['closed', 'cancelled'], true);
+            $closedAt = $ticket->end_date
+                ?? ($ticket->status === 'closed' ? ($sla['resolved_at'] ?? $ticket->updated_at) : null);
+
+            // Day on Close: dihitung sejak created_at; tiket final dibekukan di waktu tutupnya.
+            $dayEnd = $isFinal ? ($sla['resolved_at'] ?? $ticket->updated_at) : now();
+            $dayOnClose = $ticket->created_at && $dayEnd
+                ? max(0, (int) ceil(($dayEnd->getTimestamp() - $ticket->created_at->getTimestamp()) / 86400))
+                : null;
+
             return [
                 'ticket_number'          => $ticket->ticket_number,
                 'description'            => $ticket->description,
                 'created_at'             => $ticket->created_at,
-                'start_date'             => $ticket->start_date,
+                'last_update'            => $ticket->last_message_at ?? $ticket->created_at,
+                'closed_at'              => $closedAt,
+                'day_on_close'           => $dayOnClose,
+                'activity_date'          => $activityDateMap[$ticket->ticket_id] ?? null,
+                'sla'                    => $sla,
                 'customer'               => ['customer_name' => $ticket->customer?->basicData?->name_1 ?? $ticket->customer?->email],
                 'end_customer_name'      => $ticket->endCustomer?->basicData?->name_1,
                 'employee'               => $ticket->ticketLead ? ['employee_name' => $ticket->ticketLead->basicData?->nick_name ?? $ticket->ticketLead->basicData?->first_name ?? 'Unknown'] : null,
@@ -970,7 +1002,6 @@ class TicketController extends Controller
                 'module'                 => $ticket->module_names,
                 'customer_mandays'       => $customerMandaysMap[$ticket->ticket_id] ?? null,
                 'all_consultant_progress'=> $progressMap[$ticket->ticket_id] ?? (float)($ticket->progress_percentage ?? 0),
-                'end_date'               => $ticket->end_date,
                 'assign_delivery'        => $deliverySupportMap[$ticket->ticket_id] ?? null,
             ];
         });
@@ -2548,9 +2579,18 @@ class TicketController extends Controller
                 $updateData['pic'] = trim($leadName);
             }
 
+            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
             $ticket->update($updateData);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            // PIC baru ikut ditarik ke channel Teams tiket ini. Hanya saat
+            // orangnya benar-benar berganti — menyimpan ulang PIC yang sama
+            // tidak perlu memanggil flow.
+            if ($previousLeadId !== (int) $request->ticket_lead_id) {
+                $this->notifyTeamsTicketPerson($ticket, (int) $request->ticket_lead_id, 'pic', $sessionUser);
+            }
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -2960,11 +3000,22 @@ class TicketController extends Controller
             }
 
             if (!empty($updateData)) {
+                $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
                 $ticket->update($updateData);
 
                 if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
+                }
+
+                // Jalur kedua penetapan PIC (edit tiket / Take This Ticket), sejajar
+                // dengan assignTicketLead().
+                $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']
+                    ? (int) $updateData['ticket_lead_id']
+                    : null;
+                if ($newLeadId && $newLeadId !== $previousLeadId) {
+                    $this->notifyTeamsTicketPerson($ticket, $newLeadId, 'pic', $sessionUser);
                 }
             }
 
@@ -3407,6 +3458,17 @@ class TicketController extends Controller
                     'email' => $sessionUser['email'] ?? null,
                 ])
             );
+
+            // Orang yang baru masuk grup juga diberi hak baca folder berkas chat
+            // tiket ini di OneDrive — tanpa itu kartu berkas yang sudah ada di
+            // grup tampil baginya tetapi tidak bisa dibuka. Setelah response,
+            // dan kegagalannya ditelan di dalam grantForTicket().
+            $ticketId = (int) $ticket->ticket_id;
+            $email    = (string) $person['email'];
+
+            app()->terminating(static function () use ($ticketId, $email) {
+                app(\App\Services\Teams\TeamsFileService::class)->grantForTicket($ticketId, [$email]);
+            });
         } catch (\Throwable $e) {
             Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
                 'ticket_id'   => $ticket->ticket_id,
@@ -3525,6 +3587,9 @@ class TicketController extends Controller
             );
 
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
+
+            // Ikut tarik orangnya ke channel Teams tiket ini.
+            $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
 
             return response()->json([
                 'success' => true,

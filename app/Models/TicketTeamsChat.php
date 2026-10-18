@@ -24,6 +24,7 @@ class TicketTeamsChat extends Model
         'ticket_id',
         'chat_id',
         'topic',
+        'files_folder_id',
         'created_via',
         'sync_enabled',
         'last_message_at',

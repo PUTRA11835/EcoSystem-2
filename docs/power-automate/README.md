@@ -1538,11 +1538,15 @@ membuat grupnya dan menyimpan id-nya.
 Trigger (When an HTTP request is received)
 └─ Condition "Cek Secret Ecosystem"
      └─ True: Condition "Payload bawa kartu?"
-                ├─ True  : Post card in a chat or channel     (jadwal meeting)
-                └─ False : Post message in a chat or channel  (internal note)
+                ├─ ada kartu : Post card in a chat or channel     (jadwal meeting)
+                └─ tidak     : Condition "Payload bawa berkas?"
+                     ├─ tidak : Post message in a chat or channel (internal note)
+                     └─ ada   : Send a Microsoft Graph HTTP request (note + kartu berkas)
+                                  └─ kalau gagal: Post message cadangan (versi tautan)
 ```
 
-Condition kedua ditambahkan **18 September 2026** — lihat langkah 3b.
+Condition kedua ditambahkan **18 September 2026** — lihat langkah 3b. Condition
+ketiga (kartu berkas) ditambahkan **13 Oktober 2026** — lihat langkah 3c.
 
 ### 1. Trigger
 
@@ -1649,6 +1653,79 @@ Kartunya **tidak** ditempel di designer: EcoSystem merakitnya dan mengirimkannya
 sebagai teks JSON di `card` (lihat `TeamsOutboxService::meetingCard()`), sehingga
 mengubah tampilan kartu meeting cukup dari sisi kode tanpa menyentuh flow.
 
+### 3c. Condition — Payload bawa berkas? *(ditambahkan 13 Oktober 2026)*
+
+> **Status: sisi EcoSystem selesai dan teruji; cabang flow ini BELUM pernah
+> dijalankan.** Yang belum terbukti hanya satu hal: apakah aksi *Send a
+> Microsoft Graph HTTP request* mau memposting ke group chat. Karena itu cabang
+> ini dipasang bersama aksi cadangan — kalau Graph menolak, note tetap sampai
+> dalam bentuk tautan seperti sebelumnya.
+
+Lampiran non-gambar kini bisa tampil sebagai **kartu berkas asli Teams** (ikon,
+nama, pratinjau), sama seperti berkas yang dilampirkan orang langsung di Teams.
+Aksi *Post message* tidak punya parameter lampiran, jadi note berlampiran berkas
+dikirim lewat Graph. Rancangannya:
+[`teams-sync-parity-design.md`](../teams-sync-parity-design.md) §6c.
+
+EcoSystem menandai note semacam itu dengan blok `graph_message` di payload.
+Note tanpa berkas (teks saja, atau hanya gambar) **tidak** membawanya dan tetap
+lewat *Post message* persis seperti sekarang.
+
+**Langkah 1 — Condition baru.** Di cabang "tidak ada kartu" dari langkah 3b,
+bungkus aksi *Post message* yang sudah ada ke dalam Condition baru:
+
+| Sisi | Isi |
+|---|---|
+| Kiri (Expression) | `empty(triggerBody()?['graph_message'])` |
+| Operator | **is equal to** |
+| Kanan (Expression) | `true` |
+
+* Cabang **If yes** → aksi *Post message* yang lama (pindahkan ke sini, jangan
+  diubah).
+* Cabang **If no** → dua aksi di bawah.
+
+Kanan Condition harus boolean lewat **fx**, alasan yang sama dengan langkah 3b.
+
+**Langkah 2 — Microsoft Teams → Send a Microsoft Graph HTTP request**, di cabang
+**If no**:
+
+| Field | Isi |
+|---|---|
+| URI | `https://graph.microsoft.com/v1.0/me/chats/@{triggerBody()?['chat']?['id']}/messages` |
+| Method | **POST** |
+| Body | Expression: `triggerBody()?['graph_message']` |
+| Content-Type | `application/json` |
+
+Koneksinya harus `support@eclectic.co.id`, sama dengan aksi lain di flow ini:
+pesannya terkirim atas nama akun itu, dan berkasnya tinggal di OneDrive akun
+yang sama.
+
+**URI harus diawali `/me`.** Aksi ini hanya menerima alamat yang segmen
+pertamanya `/teams`, `/me`, atau `/users`; alamat Graph yang biasa
+(`/v1.0/chats/{id}/messages`) ditolak konektornya sebelum sampai ke Graph. Kalau
+`/me/chats/…` ternyata ditolak, coba
+`https://graph.microsoft.com/v1.0/users/support@eclectic.co.id/chats/@{triggerBody()?['chat']?['id']}/messages`.
+
+**Langkah 3 — aksi cadangan.** Tepat di bawah aksi Graph, tambahkan
+**Microsoft Teams → Post message in a chat or channel** dengan isi yang sama
+persis dengan langkah 3 (`Post as: User`, `Group chat`, chat
+`triggerBody()?['chat']?['id']`, Message `triggerBody()?['message_html']`).
+Lalu buka **⋯ → Configure run after** pada aksi cadangan ini:
+
+* **hilangkan** centang *is successful*;
+* **centang** *has failed* dan *has timed out*.
+
+Dengan begitu aksi cadangan hanya jalan kalau Graph menolak, dan note tidak
+pernah hilang. `message_html` selalu berisi versi lengkap dengan tautan berkas,
+jadi cadangannya tidak kehilangan lampiran.
+
+> **Jangan lupa run after-nya.** Tanpa pengaturan itu aksi cadangan jalan
+> setelah Graph BERHASIL, dan tiap note berlampiran muncul dua kali di grup.
+
+**Di sisi EcoSystem** nyalakan `TEAMS_SYNC_NATIVE_FILES=true` lalu
+`php artisan optimize:clear`. Urutannya bebas: flow lama mengabaikan
+`graph_message`, dan EcoSystem yang belum dinyalakan tidak mengirimkannya.
+
 ### 4. Save → salin URL trigger → `.env`
 
 ```dotenv
@@ -1668,6 +1745,31 @@ Internal note — tanpa `card`, jadi masuk cabang *Post message*:
   "ticket":  { "id": 1378, "number": "26090199", "subject": "…", "url": "…",
                "submitted_by": { "name": "…", "email": "…" } },
   "note":    { "id": 11500, "author": "Tio Pramudya", "text": "Service sudah up." }
+}
+```
+
+Internal note dengan berkas — membawa `graph_message`, jadi masuk cabang Graph.
+`message_html` tetap versi lengkap dengan tautan, untuk aksi cadangan:
+
+```json
+{
+  "event": "teams_post_message",
+  "chat":    { "id": "19:…@thread.v2" },
+  "message_html": "Tio Pramudya · EcoSystem<br>\nLog terlampir.<br><br><a href=\"https://eco…/teams/attachments/2665?signature=…\">zfir_bs_pl.txt</a>",
+  "graph_message": {
+    "body": {
+      "contentType": "html",
+      "content": "Tio Pramudya · EcoSystem<br>\nLog terlampir.<attachment id=\"2115455D-58E9-4045-8E2E-840C7B649192\"></attachment>"
+    },
+    "attachments": [
+      { "id": "2115455D-58E9-4045-8E2E-840C7B649192",
+        "contentType": "reference",
+        "contentUrl": "https://…-my.sharepoint.com/personal/support_eclectic_co_id/Documents/DELIVERY%20SUPPORT/TEAMS%20CHAT%20FILES/001%20ECLECTIC%20CONSULTING/TICKETING/26100294/zfir_bs_pl.txt",
+        "name": "zfir_bs_pl.txt" }
+    ]
+  },
+  "ticket":  { "…": "…" },
+  "note":    { "…": "…" }
 }
 ```
 
