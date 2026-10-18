@@ -236,17 +236,23 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hour)</label>
-                        <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="e.g. 4"
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" name="response_hours" id="addResponseHours" step="0.01" min="0.01" required placeholder="e.g. 4"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hour)</label>
-                        <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="e.g. 24"
+                        <select id="addResponseUnit" onchange="respUnitChange('addResponseHours', 'addResponseUnit')"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="hours">Hours</option>
+                            <option value="minutes">Minutes</option>
+                        </select>
                     </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hour)</label>
+                    <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="e.g. 24"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
                 </div>
 
                 <label id="add24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
@@ -321,17 +327,23 @@
             <form id="editPolicyForm" onsubmit="submitEditPolicy(event)" class="p-6 space-y-4">
                 <input type="hidden" id="editPolicyId">
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hour)</label>
-                        <input type="number" id="editResponseHours" step="0.5" min="0.5" required
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="editResponseHours" step="0.01" min="0.01" required
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hour)</label>
-                        <input type="number" id="editResolutionHours" step="0.5" min="0.5" required
+                        <select id="editResponseUnit" onchange="respUnitChange('editResponseHours', 'editResponseUnit')"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            <option value="hours">Hours</option>
+                            <option value="minutes">Minutes</option>
+                        </select>
                     </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hour)</label>
+                    <input type="number" id="editResolutionHours" step="0.5" min="0.5" required
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
                 </div>
 
                 <label id="edit24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
@@ -763,6 +775,7 @@ function openAddModal() {
     document.getElementById('addPolicyForm').reset();
     document.getElementById('addWorkEnd').setCustomValidity('');
     document.getElementById('addBreakEnd').setCustomValidity('');
+    respUnitAttrs(document.getElementById('addResponseHours'), 'hours');
     hideErr('add');
     updatePreview();
     document.getElementById('addModal').classList.remove('hidden');
@@ -776,7 +789,7 @@ let _editPriority = null;
 
 function openEditModal(p) {
     document.getElementById('editPolicyId').value        = p.id;
-    document.getElementById('editResponseHours').value   = p.response_hours;
+    respSetHours('editResponseHours', 'editResponseUnit', p.response_hours);
     document.getElementById('editResolutionHours').value = p.resolution_hours;
     document.getElementById('editWorkStart').value        = p.work_start_time || '';
     document.getElementById('editWorkEnd').value          = p.work_end_time || '';
@@ -795,6 +808,31 @@ function openEditModal(p) {
     document.getElementById('editModal').classList.remove('hidden');
 }
 function closeEditModal() { document.getElementById('editModal').classList.add('hidden'); }
+
+// ── Response unit (hours / minutes) — always sent to the API in hours ─────────
+function respUnitAttrs(inp, unit) {
+    inp.step = inp.min = unit === 'minutes' ? '1' : '0.01';
+    inp.placeholder = unit === 'minutes' ? 'e.g. 30' : 'e.g. 4';
+}
+function respUnitChange(inputId, unitId) {
+    const inp  = document.getElementById(inputId);
+    const unit = document.getElementById(unitId).value;
+    const v    = parseFloat(inp.value);
+    if (!isNaN(v)) inp.value = unit === 'minutes' ? Math.round(v * 60) : +(v / 60).toFixed(2);
+    respUnitAttrs(inp, unit);
+}
+function respSetHours(inputId, unitId, hours) {
+    const inp  = document.getElementById(inputId);
+    const h    = parseFloat(hours);
+    const unit = h < 1 ? 'minutes' : 'hours';
+    document.getElementById(unitId).value = unit;
+    inp.value = unit === 'minutes' ? Math.round(h * 60) : h;
+    respUnitAttrs(inp, unit);
+}
+function respGetHours(inputId, unitId) {
+    const v = parseFloat(document.getElementById(inputId).value);
+    return document.getElementById(unitId).value === 'minutes' ? Math.round(v / 60 * 100) / 100 : v;
+}
 
 function editUpdate24h() {
     const el24   = document.getElementById('edit24h');
@@ -854,7 +892,7 @@ async function submitAddPolicy(e) {
                 delivery_support_id: parseInt(dsId),
                 priority:            form.priority.value,
                 scale:               form.scale.value,
-                response_hours:      parseFloat(form.response_hours.value),
+                response_hours:      respGetHours('addResponseHours', 'addResponseUnit'),
                 resolution_hours:    parseFloat(form.resolution_hours.value),
                 is_24_hours:         form.is_24_hours.checked,
                 work_start_time:     form.work_start_time.value || null,
@@ -883,7 +921,7 @@ async function submitEditPolicy(e) {
             method: 'PUT', credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf() },
             body: JSON.stringify({
-                response_hours:   parseFloat(document.getElementById('editResponseHours').value),
+                response_hours:   respGetHours('editResponseHours', 'editResponseUnit'),
                 resolution_hours: parseFloat(document.getElementById('editResolutionHours').value),
                 is_24_hours:      document.getElementById('edit24h').checked,
                 work_start_time:  document.getElementById('editWorkStart').value || null,

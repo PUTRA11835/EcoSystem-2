@@ -107,7 +107,7 @@ class SlaController extends Controller
             'delivery_support_id' => 'required|exists:delivery_support,id',
             'priority'            => 'required|in:Low,Medium,High,Very High',
             'scale'               => 'required|in:Simple,Medium,Complex',
-            'response_hours'      => 'required|numeric|min:0.1|max:999',
+            'response_hours'      => 'required|numeric|min:0.01|max:999',
             'resolution_hours'    => 'required|numeric|min:0.1|max:999',
             'is_24_hours'         => 'boolean',
             'work_start_time'     => 'nullable|date_format:H:i',
@@ -161,7 +161,7 @@ class SlaController extends Controller
         }
 
         $v = Validator::make($request->all(), [
-            'response_hours'   => 'sometimes|numeric|min:0.1|max:999',
+            'response_hours'   => 'sometimes|numeric|min:0.01|max:999',
             'resolution_hours' => 'sometimes|numeric|min:0.1|max:999',
             'is_24_hours'      => 'sometimes|boolean',
             'work_start_time'  => 'nullable|date_format:H:i',
