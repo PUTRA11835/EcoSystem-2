@@ -302,6 +302,12 @@ class ReimbursementController extends Controller
             // Payment: Finance records it after approval (slug `general.reimbursement.pay`); the same box reverses a mistake.
             'canPay'      => $this->can('general.reimbursement.pay') && $reimbursementRequest->isPayable(),
             'canReversePayment' => $this->can('general.reimbursement.pay') && $reimbursementRequest->isPaid() && !$reimbursementRequest->trashed(),
+            // The payroll engine can add an approved reimbursement to a payslip (Payroll Settings → include reimbursement). Paying it
+            // here as well would pay it twice, so the payment form says so.
+            'inPayroll'   => \Illuminate\Support\Facades\DB::table('payroll_slip_items as i')
+                ->join('payroll_slips as s', 's.id', '=', 'i.slip_id')->join('payroll_periods as p', 'p.id', '=', 's.period_id')
+                ->where('i.source_type', 'reimbursement_request')->where('i.source_id', $reimbursementRequest->id)
+                ->first(['p.name', 'p.status']),
             'payRoute'    => route('general.reimbursement.pay', $reimbursementRequest),
             'reversePaymentRoute' => route('general.reimbursement.pay.reverse', $reimbursementRequest),
         ]);

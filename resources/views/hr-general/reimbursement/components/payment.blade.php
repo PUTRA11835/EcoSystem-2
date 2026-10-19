@@ -28,6 +28,13 @@
 <form method="POST" action="{{ $payRoute }}" class="mt-1 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
     @csrf
     <p class="text-xs font-bold text-gray-700 uppercase tracking-wide">Record payment</p>
+    @if(!empty($inPayroll))
+        <p class="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <i class="fas fa-triangle-exclamation mr-1"></i>
+            This reimbursement is already part of the payroll <strong>{{ $inPayroll->name }}</strong> ({{ $inPayroll->status }}). It is paid with that salary —
+            record a payment here only if it was also paid separately, otherwise it would be paid twice.
+        </p>
+    @endif
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
             <label class="block text-[11px] font-semibold text-gray-500 uppercase mb-1" for="paidOn">Paid on</label>

@@ -1398,7 +1398,7 @@ class ReimbursementService
                     'employee_id' => $employeeId,
                     'type'        => 'reimbursement_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/reimbursement',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {
