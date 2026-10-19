@@ -101,6 +101,14 @@ class Notification extends Model
             'contract_revision'            => 'A change was requested on a contract',
             'contract_released'            => 'Your contract is ready to download',
             'contract_sign_reminder'       => 'Contract signing reminder',
+            'offboarding_task_due'         => 'An offboarding task is due',
+            'external_timesheet_pending_approval' => 'An external timesheet needs your approval',
+            'external_timesheet_approved'  => 'Your timesheet was approved — upload your invoice',
+            'external_timesheet_returned'  => 'Your timesheet was returned for correction',
+            'external_invoice_pending_verification' => 'An external invoice needs your verification',
+            'external_invoice_verified'    => 'Your invoice was verified',
+            'external_invoice_rejected'    => 'Your invoice was rejected',
+            'external_payment_paid'        => 'Your invoice was paid',
             default                        => $from . ' sent you a notification',
         };
     }

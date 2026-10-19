@@ -114,6 +114,11 @@ class PayrollController extends Controller
 
     public function calculate(int $period): RedirectResponse
     {
+        // Saklar "Enforce" Legal Basis (bawaan MATI): bila menyala, periode tidak dihitung selama aturan hukumnya belum Reviewed.
+        if ($blocked = app(\App\Services\Legal\LegalBasisService::class)->payrollBlockers()) {
+            return redirect()->route('finance.payroll.periods.show', $period)->withErrors(['Payroll cannot be calculated: these legal-basis rules are not reviewed yet — ' . implode(', ', $blocked) . '. Review them in Business & Legal → Legal Basis, or switch Enforce off there.']);
+        }
+
         $summary = null;
         $errors = $this->periods->calculate($period, $this->actor(), $summary);
 

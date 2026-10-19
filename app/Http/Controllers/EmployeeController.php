@@ -814,6 +814,14 @@ class EmployeeController extends Controller
                 ]);
             }
 
+            // Konsultan eksternal juga mendapat role self-service "External Consultant" (profil, timesheet & invoice sendiri).
+            if (mb_strtoupper(trim((string) $request->employee_group)) === 'EXTERNAL'
+                && ($externalRoleId = DB::table('employee_role')->where('name', 'External Consultant')->value('id'))) {
+                DB::table('employee_role_assignment')->insertOrIgnore([
+                    'employee_id' => $employeeId, 'role_id' => $externalRoleId, 'created_at' => $now, 'updated_at' => $now,
+                ]);
+            }
+
             Log::info('Employee record created', [
                 'employee_id' => $employeeId,
                 'eci' => $request->eci,

@@ -17,6 +17,8 @@
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('finance.pph21.components.tabs')
+    {{-- Legal basis of the rules on this page (Register Dasar Hukum; read-only here) --}}
+    @include('partials.legal-basis-panel', ['legalModule' => 'pph21'])
     @include('hr-general.recruitment.components.form-errors')
 
     {{-- Year selector + new year --}}

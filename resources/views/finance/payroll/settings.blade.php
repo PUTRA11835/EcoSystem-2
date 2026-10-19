@@ -28,6 +28,9 @@
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('finance.payroll.components.tabs')
+    {{-- Legal basis of the rules on this page (Register Dasar Hukum; read-only here) --}}
+    @include('partials.legal-basis-panel', ['legalModule' => 'overtime'])
+    @include('partials.legal-basis-panel', ['legalModule' => 'contract'])
     @include('hr-general.recruitment.components.form-errors')
 
     {{-- ───────── Module status (separate permission) ───────── --}}

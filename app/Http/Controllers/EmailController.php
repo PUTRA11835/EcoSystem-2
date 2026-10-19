@@ -485,11 +485,24 @@ class EmailController extends Controller
     // PUBLIC ENDPOINTS
     // =========================================================================
 
+    /** Kotak surat perusahaan: hanya Administrator, Delivery Support dan grup Helpdesk (sama dengan reprocessAttachments). Mengembalikan respons 403 bila tidak berhak. */
+    private function denyUnlessMailStaff()
+    {
+        $sessionUser = session('user');
+        $roleId = $sessionUser['role']['id'] ?? null;
+        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::HELPDESK_GROUP);
+
+        return $roleId !== null && in_array($roleId, $allowed, true) ? null : response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+    }
+
     /**
      * Ambil daftar pesan terbaru dari inbox (untuk debug / preview).
      */
     public function inbox()
     {
+        if ($deny = $this->denyUnlessMailStaff()) {
+            return $deny;
+        }
         $email = config('services.microsoft_graph.sender_email');
 
         $data = $this->graphGet("/users/{$email}/mailFolders/inbox/messages", [
@@ -506,6 +519,9 @@ class EmailController extends Controller
      */
     public function send(Request $request)
     {
+        if ($deny = $this->denyUnlessMailStaff()) {
+            return $deny;
+        }
         $data = $request->validate([
             'to'      => ['required', 'email'],
             'subject' => ['required', 'string', 'max:255'],
@@ -535,6 +551,9 @@ class EmailController extends Controller
      */
     public function reply(Request $request)
     {
+        if ($deny = $this->denyUnlessMailStaff()) {
+            return $deny;
+        }
         $data = $request->validate([
             'to'          => ['required', 'email'],
             'subject'     => ['required', 'string', 'max:255'],
