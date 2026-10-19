@@ -80,7 +80,10 @@ class OvertimeSettingController extends Controller
             $request,
             OvertimeApprovalStep::class,
             OvertimeApprovalStep::MODULE_OVERTIME,
-            ['name' => true],
+            ['name' => true, 'dynamic' => [
+                'supervisor'   => OvertimeApprovalStep::TYPE_DIRECT_MANAGER,
+                'project_lead' => OvertimeApprovalStep::TYPE_PROJECT_LEAD,
+            ]],
             'general.overtime.settings.edit',
             documents: 'requests',
         );
@@ -202,10 +205,7 @@ class OvertimeSettingController extends Controller
     {
         $validated = $request->validate([
             'name'                    => ['required', 'string', 'max:100'],
-            // `direct_manager` sengaja TIDAK ada di daftar ini: nilainya sudah
-            // terdaftar di model supaya pengaktifannya nanti tidak memerlukan
-            // migrasi, tetapi belum dapat dipilih karena hierarki atasan belum
-            // ada di basis data.
+            // Tipe atasan / pemimpin proyek (dinamis) dicari dari data pemohon saat pengajuan dibuat.
             'approver_type'           => ['required', Rule::in(OvertimeApprovalStep::SELECTABLE_TYPES)],
             'approver_role_id'        => ['nullable', 'integer', 'exists:employee_role,id',
                                           'required_if:approver_type,' . OvertimeApprovalStep::TYPE_ROLE],
@@ -219,7 +219,9 @@ class OvertimeSettingController extends Controller
 
         // Bersihkan field yang tidak relevan dengan tipe yang dipilih, supaya
         // tidak ada sisa nilai lama yang membingungkan saat tipenya diganti.
-        if ($validated['approver_type'] === OvertimeApprovalStep::TYPE_ROLE) {
+        if (in_array($validated['approver_type'], OvertimeApprovalStep::DYNAMIC_TYPES, true)) {
+            $validated['approver_employee_ids'] = null;      // role (if any) = the fallback
+        } elseif ($validated['approver_type'] === OvertimeApprovalStep::TYPE_ROLE) {
             $validated['approver_employee_ids'] = null;
         } else {
             $validated['approver_role_id'] = null;

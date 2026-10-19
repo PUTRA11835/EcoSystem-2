@@ -22,6 +22,8 @@ use Illuminate\Support\Facades\DB;
  *                     the `select` label (Reimbursement: Accounting / Cashier / Approver)
  *   select     null | ['field' => 'signs_as'|'actor_role', 'label' => ..., 'options' => [value => label]]
  *   mandatory  bool   writes `requester_selectable` (= not mandatory); needs candidates the requester can choose from
+ *   dynamic    null | ['supervisor' => type, 'project_lead' => type]  an "Approver" column: the step may follow the requester
+ *              (their supervisor / project leader) instead of naming people; the chosen position is then only the fallback
  *
  * Names ticked → the step is `employee`; otherwise `role`. The chosen position is kept either way so the page shows
  * it again.
@@ -184,8 +186,24 @@ trait SyncsApprovalWorkflow
             }
         }
 
+        $role = (int) ($row['approver_role_id'] ?? 0);
+
+        // A step that follows the requester: no names; the position (if any) is the fallback.
+        $source = (string) ($row['source'] ?? 'fixed');
+        if (!empty($cfg['dynamic']) && isset($cfg['dynamic'][$source])) {
+            if ($role && !EmployeeRole::whereKey($role)->exists()) {
+                return 'the chosen position no longer exists.';
+            }
+
+            return $data + [
+                'approver_type'         => $cfg['dynamic'][$source],
+                'approver_role_id'      => $role ?: null,
+                'approver_employee_ids' => null,
+                'is_active'             => !empty($row['is_active']),
+            ];
+        }
+
         $names = array_values(array_unique(array_filter(array_map('intval', (array) ($row['approver_employee_ids'] ?? [])))));
-        $role  = (int) ($row['approver_role_id'] ?? 0);
 
         if ($names !== [] && Employee::whereIn('employee_id', $names)->count() !== count($names)) {
             return 'one of the chosen names no longer exists.';

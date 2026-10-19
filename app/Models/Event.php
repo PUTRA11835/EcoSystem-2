@@ -23,6 +23,7 @@ class Event extends Model
         'location',
         'type',
         'all_day',
+        'is_public',
         'color',
         'created_by',
         'employee_id',
@@ -33,6 +34,7 @@ class Event extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'all_day' => 'boolean',
+        'is_public' => 'boolean',
     ];
 
     // UPDATE: Gunakan employee_id sebagai foreign key
@@ -61,6 +63,17 @@ class Event extends Model
                   $q2->where('start_date', '<=', $startDate)
                      ->where('end_date', '>=', $endDate);
               });
+        });
+    }
+
+    /** What one employee may see: every company-wide event plus their own personal ones. */
+    public function scopeVisibleTo($query, ?int $employeeId)
+    {
+        return $query->where(function ($q) use ($employeeId) {
+            $q->where('is_public', true);
+            if ($employeeId) {
+                $q->orWhere('created_by', $employeeId);
+            }
         });
     }
 

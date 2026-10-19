@@ -824,11 +824,12 @@ Route::middleware(['web'])->group(function () {
     });
 
     // Holiday management (Manajemen → Hari Libur)
-    Route::get('/management/holidays',         [\App\Http\Controllers\HolidayManagementController::class, 'index']);
-    Route::post('/management/holidays',        [\App\Http\Controllers\HolidayManagementController::class, 'store']);
-    Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update']);
-    Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
-    Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy']);
+    // Holidays apply to every employee, so only HR changes them: the Create / Edit / Delete boxes of management.holidays.
+    Route::get('/management/holidays',         [\App\Http\Controllers\HolidayManagementController::class, 'index'])->middleware('menu:management.holidays');
+    Route::post('/management/holidays',        [\App\Http\Controllers\HolidayManagementController::class, 'store'])->middleware('menu.can:management.holidays,create');
+    Route::put('/management/holidays/{id}',    [\App\Http\Controllers\HolidayManagementController::class, 'update'])->middleware('menu.can:management.holidays,edit');
+    Route::delete('/management/holidays/{id}', [\App\Http\Controllers\HolidayManagementController::class, 'destroy'])->middleware('menu.can:management.holidays,delete');
+    Route::post('/management/holidays/{id}/delete', [\App\Http\Controllers\HolidayManagementController::class, 'destroy'])->middleware('menu.can:management.holidays,delete');
 
     // Employee ↔ Role assignment
     // Menentukan role seseorang = menentukan izinnya, jadi digate sama dengan

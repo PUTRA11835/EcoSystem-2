@@ -3,7 +3,7 @@
 
     Parameters: $wf   — the editor's configuration (see editor.blade.php): grid, name, select, mandatory
                 $key  — row key ("k0", "k1"… or "__KEY__")
-                $row  — array: id, name, sign, approver_role_id, ids[], mandatory, is_active
+                $row  — array: id, name, sign, source, approver_role_id, ids[], mandatory, is_active
                 $roles · $people · $employeeRoles · $cell
 --}}
 @php
@@ -48,6 +48,19 @@
         </div>
     @endif
 
+    {{-- Who approves — only for workflows whose approver can follow the REQUESTER (Overtime): a fixed position / names, the
+         requester's supervisor, or the leader of the requester's project. The position below then becomes the fallback. --}}
+    @if($wf['dynamic'])
+        <div>
+            <select name="{{ $field('source') }}" data-source class="{{ $cell }}">
+                <option value="fixed" @selected(($row['source'] ?? 'fixed') === 'fixed')>Fixed position / names</option>
+                <option value="supervisor" @selected(($row['source'] ?? '') === 'supervisor')>Employee's supervisor</option>
+                <option value="project_lead" @selected(($row['source'] ?? '') === 'project_lead')>Project leader</option>
+            </select>
+            <p class="mt-1 text-[10px] text-gray-500 leading-tight hidden" data-source-hint></p>
+        </div>
+    @endif
+
     <div>
         <select name="{{ $field('approver_role_id') }}" data-position data-searchable="true" data-search-placeholder="Search position…" class="{{ $cell }}">
             <option value="">— any / by name —</option>
@@ -64,7 +77,7 @@
         </p>
     </div>
 
-    <div>
+    <div data-names-cell>
         @include('hr-general.partials.approval-workflow.people-picker', [
             'people' => $people, 'ticked' => $ticked, 'fieldName' => $field('approver_employee_ids') . '[]',
         ])

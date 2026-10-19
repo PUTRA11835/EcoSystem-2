@@ -49,9 +49,33 @@ const eventTypeColors = {
     reminder: { bg: 'bg-yellow-500', text: 'text-yellow-700', bgLight: 'bg-yellow-50', border: 'border-yellow-200', gradient: 'from-yellow-600 to-yellow-700' }
 };
 
+// What the signed-in employee may do (set by events.blade.php; the API enforces the same rules again).
+// Everyone can keep a personal agenda; only HR can publish company-wide events.
+const calendarPerms = window.calendarPerms || { canPublish: false };
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// Local Y-m-d. (toISOString() is UTC, which moves a local midnight to the previous day in UTC+7.)
+function toDateStr(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Events that fall on a day — a multi-day event shows on every day from its start to its end.
+function eventsOn(dateStr) {
+    return events.filter(e => e.start_date <= dateStr && (e.end_date || e.start_date) >= dateStr);
+}
+
+function visibilityIcon(event) {
+    return event.is_public
+        ? '<i class="fas fa-globe text-[9px] mr-1 opacity-80" title="Company-wide"></i>'
+        : '<i class="fas fa-lock text-[9px] mr-1 opacity-80" title="Only you"></i>';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadEvents();
-    
+
     // All day checkbox handler
     document.getElementById('allDayEvent').addEventListener('change', function() {
         const startTime = document.getElementById('eventStartTime');
@@ -168,7 +192,7 @@ function renderMonthView() {
             }
 
             // Add events for this day
-            const dayEvents = events.filter(e => e.start_date === dateStr);
+            const dayEvents = eventsOn(dateStr);
             const eventsContainer = document.createElement('div');
             eventsContainer.className = 'space-y-1';
 
@@ -176,7 +200,8 @@ function renderMonthView() {
                 const eventEl = document.createElement('div');
                 const colors = eventTypeColors[event.type];
                 eventEl.className = `${colors.bg} text-white text-xs px-2 py-1 rounded truncate hover:shadow-md transition-all`;
-                eventEl.textContent = event.title;
+                eventEl.innerHTML = `${visibilityIcon(event)}${escapeHtml(event.title)}`;
+                eventEl.title = event.is_public ? 'Company-wide' : 'Only you';
                 eventEl.onclick = (e) => {
                     e.stopPropagation();
                     showEventDetails(event.id);
@@ -225,7 +250,7 @@ function renderWeekView() {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + i);
         const isToday = new Date().toDateString() === date.toDateString();
-        const weekDateStr = date.toISOString().split('T')[0];
+        const weekDateStr = toDateStr(date);
         const weekHoliday = getHoliday(weekDateStr);
 
         const headerDiv = document.createElement('div');
@@ -253,8 +278,8 @@ function renderWeekView() {
         for (let day = 0; day < 7; day++) {
             const date = new Date(weekStart);
             date.setDate(weekStart.getDate() + day);
-            const dateStr = date.toISOString().split('T')[0];
-            
+            const dateStr = toDateStr(date);
+
             const dayCell = document.createElement('div');
             dayCell.className = 'border-r border-b border-gray-200 p-1 min-h-[40px] hover:bg-gray-50 cursor-pointer transition-all';
             
@@ -269,7 +294,7 @@ function renderWeekView() {
                 const eventEl = document.createElement('div');
                 const colors = eventTypeColors[event.type];
                 eventEl.className = `${colors.bg} text-white text-xs px-2 py-1 rounded mb-1 truncate hover:shadow-md transition-all`;
-                eventEl.textContent = `${event.start_time} ${event.title}`;
+                eventEl.innerHTML = `${visibilityIcon(event)}${escapeHtml(event.start_time)} ${escapeHtml(event.title)}`;
                 eventEl.onclick = (e) => {
                     e.stopPropagation();
                     showEventDetails(event.id);
@@ -294,7 +319,7 @@ function renderDayView() {
     const dayGrid = document.getElementById('dayGrid');
     dayGrid.innerHTML = '';
 
-    const dateStr = currentDate.toISOString().split('T')[0];
+    const dateStr = toDateStr(currentDate);
     const dayHoliday = getHoliday(dateStr);
 
     if (dayHoliday) {
@@ -304,7 +329,7 @@ function renderDayView() {
         dayGrid.appendChild(banner);
     }
 
-    const dayEvents = events.filter(e => e.start_date === dateStr).sort((a, b) => {
+    const dayEvents = eventsOn(dateStr).sort((a, b) => {
         return a.start_time.localeCompare(b.start_time);
     });
 
@@ -323,11 +348,12 @@ function renderDayView() {
         eventCard.innerHTML = `
             <div class="flex items-start justify-between">
                 <div class="flex-1">
-                    <h4 class="font-bold text-gray-900 mb-1">${event.title}</h4>
-                    <p class="text-sm text-gray-600 mb-2">${event.description || 'No description'}</p>
+                    <h4 class="font-bold text-gray-900 mb-1">${escapeHtml(event.title)}</h4>
+                    <p class="text-sm text-gray-600 mb-2">${escapeHtml(event.description || 'No description')}</p>
                     <div class="flex items-center gap-4 text-xs text-gray-500">
-                        <span><i class="fas fa-clock mr-1"></i>${event.start_time} - ${event.end_time || event.start_time}</span>
-                        <span><i class="fas fa-map-marker-alt mr-1"></i>${event.location || 'No location'}</span>
+                        <span><i class="fas fa-clock mr-1"></i>${escapeHtml(event.start_time)} - ${escapeHtml(event.end_time || event.start_time)}</span>
+                        <span><i class="fas fa-map-marker-alt mr-1"></i>${escapeHtml(event.location || 'No location')}</span>
+                        <span><i class="fas ${event.is_public ? 'fa-globe' : 'fa-lock'} mr-1"></i>${event.is_public ? 'Company-wide' : 'Only you'}</span>
                     </div>
                 </div>
                 <span class="px-3 py-1 rounded-full text-xs font-semibold ${colors.bgLight} ${colors.text}">
@@ -394,7 +420,12 @@ function openEventModal(date = null, time = null) {
     document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-plus"></i> Create New Event';
     document.getElementById('eventForm').reset();
     document.getElementById('eventId').value = '';
-    
+    document.getElementById('eventStartTime').disabled = false;
+    document.getElementById('eventEndTime').disabled = false;
+    // A new event is personal unless HR picks company-wide.
+    const visibility = document.getElementById('eventVisibilityInput');
+    if (visibility) visibility.value = 'personal';
+
     if (date) {
         document.getElementById('eventStartDate').value = date;
         document.getElementById('eventEndDate').value = date;
@@ -421,10 +452,18 @@ function showEventDetails(eventId) {
     
     document.getElementById('eventTitle').textContent = event.title;
     document.getElementById('eventDescription').textContent = event.description || 'No description';
-    document.getElementById('eventTime').textContent = event.all_day 
-        ? 'All day event' 
+    document.getElementById('eventTime').textContent = event.all_day
+        ? 'All day event'
         : `${event.start_time} - ${event.end_time || event.start_time}`;
     document.getElementById('eventLocation').textContent = event.location || 'No location';
+    document.getElementById('eventVisibility').textContent = event.is_public
+        ? `Company-wide — every employee sees this${event.created_by_name ? ' · by ' + event.created_by_name : ''}`
+        : 'Personal — only you see this';
+
+    // Edit / Delete only when the API says this viewer may (HR for company-wide events, the owner for personal ones).
+    document.getElementById('btnEditEvent').classList.toggle('hidden', !event.can_edit);
+    document.getElementById('btnDeleteEvent').classList.toggle('hidden', !event.can_delete);
+    document.getElementById('eventActions').classList.toggle('hidden', !event.can_edit && !event.can_delete);
     
     const typeEl = document.getElementById('eventType');
     typeEl.textContent = event.type.charAt(0).toUpperCase() + event.type.slice(1);
@@ -459,11 +498,12 @@ function editEvent() {
     document.getElementById('eventLocationInput').value = event.location || '';
     document.getElementById('eventTypeInput').value = event.type;
     document.getElementById('allDayEvent').checked = event.all_day;
-    
-    if (event.all_day) {
-        document.getElementById('eventStartTime').disabled = true;
-        document.getElementById('eventEndTime').disabled = true;
-    }
+    const visibility = document.getElementById('eventVisibilityInput');
+    if (visibility) visibility.value = event.is_public ? 'public' : 'personal';
+
+    const lockTimes = !!event.all_day;
+    document.getElementById('eventStartTime').disabled = lockTimes;
+    document.getElementById('eventEndTime').disabled = lockTimes;
     
     document.getElementById('eventModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden';
@@ -500,6 +540,7 @@ async function handleFormSubmit(e) {
     e.preventDefault();
     
     const eventId = document.getElementById('eventId').value;
+    const visibilityField = document.getElementById('eventVisibilityInput');
     const eventData = {
         title: document.getElementById('eventTitleInput').value,
         description: document.getElementById('eventDescriptionInput').value,
@@ -509,9 +550,13 @@ async function handleFormSubmit(e) {
         end_time: document.getElementById('eventEndTime').value || document.getElementById('eventStartTime').value,
         location: document.getElementById('eventLocationInput').value,
         type: document.getElementById('eventTypeInput').value,
-        all_day: document.getElementById('allDayEvent').checked
+        all_day: document.getElementById('allDayEvent').checked,
+        // Without the visibility field (everyone except HR) a new event is personal and an edited one keeps its visibility.
+        is_public: visibilityField
+            ? visibilityField.value === 'public'
+            : !!events.find(e => String(e.id) === String(eventId))?.is_public
     };
-    
+
     try {
         const url = eventId ? `/api/events/${eventId}` : '/api/events';
         const method = eventId ? 'PUT' : 'POST';

@@ -11,9 +11,11 @@
             <h2 class="text-2xl font-bold text-gray-900">Holidays</h2>
             <p class="text-sm text-gray-500 mt-1">Manage national holidays, collective leave, and custom holidays used by the system calendar &amp; date pickers.</p>
         </div>
+        @if($canDo('management.holidays', 'create'))
         <button onclick="openCreateHolidayModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
             <i class="fas fa-plus mr-2"></i> Add Holiday
         </button>
+        @endif
     </div>
 
     <!-- Filters -->
@@ -111,6 +113,9 @@
 
 <script>
 let holidaysData = [];
+// Holidays apply to every employee, so only HR changes them (Create / Edit / Delete boxes of this menu).
+const CAN_EDIT_HOLIDAY   = @json($canDo('management.holidays', 'edit'));
+const CAN_DELETE_HOLIDAY = @json($canDo('management.holidays', 'delete'));
 
 const TYPE_BADGE = {
     national:     { label: 'National Holiday', cls: 'bg-red-50 text-red-700 border border-red-200' },
@@ -154,7 +159,7 @@ function renderHolidays() {
         : holidaysData;
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">${query ? 'No holidays match your search.' : 'No holidays yet. Click "Add Holiday".'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">${query ? 'No holidays match your search.' : 'No holidays yet.'}</td></tr>`;
         return;
     }
 
@@ -176,14 +181,14 @@ function renderHolidays() {
             </td>
             <td class="px-4 py-3">
                 <div class="flex items-center gap-2">
-                    <button onclick="openEditHolidayModal(${h.id})"
+                    ${CAN_EDIT_HOLIDAY ? `<button onclick="openEditHolidayModal(${h.id})"
                         class="px-3 py-1.5 text-xs font-semibold bg-gray-100 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-200 transition-colors">
                         <i class="fas fa-pen mr-1"></i> Edit
-                    </button>
-                    <button onclick="deleteHoliday(${h.id})"
+                    </button>` : ''}
+                    ${CAN_DELETE_HOLIDAY ? `<button onclick="deleteHoliday(${h.id})"
                         class="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
                         <i class="fas fa-trash mr-1"></i> Delete
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>`;

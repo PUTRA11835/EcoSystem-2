@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'Events')
 @section('page-title', 'Events')
-@section('page-subtitle', 'Manage your events and schedule')
+@section('page-subtitle', 'Company events and your own agenda')
 
 @section('content')
 <div class="space-y-6">
@@ -9,13 +9,14 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Events Calendar</h2>
-            <p class="text-gray-600 mt-1">View and manage your events</p>
+            <p class="text-gray-600 mt-1">
+                Company events and holidays set by HR, plus your own agenda that only you can see.
+            </p>
         </div>
-        @if($can('calendar.events.create'))
+        {{-- Everyone can add to their own agenda; the "company-wide" choice inside the form is HR's. --}}
         <button onclick="openEventModal()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-            Create Event
+            {{ $canPublish ? 'Create Event' : 'Add to My Agenda' }}
         </button>
-        @endif
     </div>
 
     <!-- Calendar Controls & View Selector -->
@@ -122,6 +123,14 @@
                 <div class="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
                 <span class="text-sm text-red-600 font-medium">Hari Libur Nasional</span>
             </div>
+            <div class="flex items-center gap-2 pl-4 border-l border-gray-200">
+                <i class="fas fa-globe text-xs text-gray-500"></i>
+                <span class="text-sm text-gray-600">Company-wide</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <i class="fas fa-lock text-xs text-gray-500"></i>
+                <span class="text-sm text-gray-600">Only you</span>
+            </div>
         </div>
     </div>
 </div>
@@ -159,13 +168,18 @@
                         <i class="fas fa-tag w-5 text-gray-500"></i>
                         <span id="eventType" class="px-3 py-1 rounded-full text-sm font-semibold"></span>
                     </div>
+                    <div class="flex items-center gap-3 text-gray-700">
+                        <i class="fas fa-eye w-5 text-gray-500"></i>
+                        <span id="eventVisibility"></span>
+                    </div>
                 </div>
 
-                <div class="flex gap-3 pt-4 border-t border-gray-200">
-                    <button onclick="editEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                {{-- Shown only for what the viewer may change: HR for company-wide events, the owner for personal ones. --}}
+                <div id="eventActions" class="flex gap-3 pt-4 border-t border-gray-200">
+                    <button id="btnEditEvent" onclick="editEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Edit
                     </button>
-                    <button onclick="deleteEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
+                    <button id="btnDeleteEvent" onclick="deleteEvent()" class="flex-1 inline-flex items-center justify-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
                         Delete
                     </button>
                 </div>
@@ -232,6 +246,23 @@
                             </div>
                         </div>
                     </div>
+
+                    {{-- HR only: a company-wide event shows on every employee's calendar; anything else stays on the creator's own. --}}
+                    @if($canPublish)
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1.5">Visible to</label>
+                        <select id="eventVisibilityInput"
+                            class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                            <option value="personal">Only me (my agenda)</option>
+                            <option value="public">All employees (company-wide)</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Company-wide events appear on every employee's calendar.</p>
+                    </div>
+                    @else
+                    <p class="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                        <i class="fas fa-lock mr-1 text-gray-400"></i> This goes on your own agenda — only you can see it.
+                    </p>
+                    @endif
 
                     <!-- Description -->
                     <div>
@@ -315,6 +346,7 @@
 </div>
 
 @push('scripts')
+<script>window.calendarPerms = @json(['canPublish' => $canPublish, 'canEditPublic' => $canEditPublic, 'canDeletePublic' => $canDeletePublic]);</script>
 <script src="/js/calendar-events.js"></script>
 @endpush
 @endsection
