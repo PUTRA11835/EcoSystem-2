@@ -223,6 +223,25 @@
         if ($isExternalEmp) {
             $visibleSections = array_diff_key($visibleSections, array_flip(['family', 'contract', 'payment', 'compensation']));
         }
+        // 16 Okt 2026 — Compensation DIGABUNG ke tab Contract (tampilan saja): Riwayat Kontrak, Salary Components, dan Tax & BPJS
+        // tampil dalam satu tab. Datanya tetap tiga sumber dan izinnya tetap tiga (employee.section.contract / salary / compensation):
+        // kartu hanya muncul bagi yang berizin, dan My Profile TIDAK pernah menampilkan kartu Tax & BPJS.
+        $ownView     = isset($isOwnProfile) && $isOwnProfile;
+        $compVisible = isset($visibleSections['compensation']) && !$ownView;
+        $contractReal = isset($visibleSections['contract']);     // pembuka tab punya izin Contract sendiri (riwayat kontrak)
+        unset($visibleSections['compensation']);
+        if ($compVisible && !$contractReal) {
+            // Pemegang izin Compensation tanpa izin Contract: tab Contract tetap disediakan sebagai tuan rumah (tanpa riwayat kontrak).
+            $ordered = [];
+            foreach ($allSections as $k => $def) {
+                if ($k === 'compensation') { continue; }
+                if (isset($visibleSections[$k]) || $k === 'contract') { $ordered[$k] = $def; }
+            }
+            $visibleSections = $ordered;
+        }
+        if ($compVisible && isset($visibleSections['contract'])) {
+            $visibleSections['contract'][1] = 'Contract & Compensation';
+        }
         // HC-D54: fragmen data HR yang diletakkan di tab lain (golongan darah/ibu kandung di Basic Data, kontak darurat di Family).
         // Hanya untuk yang punya izin seksi hr_profile dan karyawan Internal (form konsultan ESH tidak memilikinya).
         $hrShow = !($hidden['hr_profile'] ?? true) && ((($employee->employee_type ?? null) ?: 'Internal') !== 'External');
@@ -321,7 +340,9 @@
             <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }} {{ $allows($key, 'create') ? '' : 'sec-no-create' }} {{ $allows($key, 'delete') ? '' : 'sec-no-delete' }}">
                 {{-- My Profile shows Basic Payment as a paystub recap (read-only); Master keeps the payment records. --}}
                 @php $ownProfile = isset($isOwnProfile) && $isOwnProfile; @endphp
-                @include('master.employee.sections.' . ($ownProfile && $key === 'payment' ? 'payment-recap' : $partial), $sec + $hrFrag + ['isReadonly' => (bool)($ro[$key] ?? false)])
+                @if($key !== 'contract' || $contractReal)
+                    @include('master.employee.sections.' . ($ownProfile && $key === 'payment' ? 'payment-recap' : $partial), $sec + $hrFrag + ['isReadonly' => (bool)($ro[$key] ?? false)])
+                @endif
                 {{-- My Profile: read-only salary recap under the contract history. Fed by its own self-only endpoint
                      (/api/profile/salary-summary), so it needs no salary permission and widens nothing. --}}
                 @if($key === 'contract' && $ownProfile)
@@ -338,6 +359,12 @@
                             'canEdit'   => $crud['salary']['edit'] ?? false,
                             'canDelete' => $allows('salary', 'delete'),
                         ])
+                    </div>
+                @endif
+                {{-- Tax & BPJS (dulu tab Compensation): penanda PTKP/BPJS untuk payroll. Izin sendiri (employee.section.compensation.*), hanya Master. --}}
+                @if($key === 'contract' && $compVisible)
+                    <div class="mt-6 {{ $allows('compensation', 'create') ? '' : 'sec-no-create' }} {{ $allows('compensation', 'delete') ? '' : 'sec-no-delete' }}">
+                        @include('master.employee.sections.compensation', $sec + ['isReadonly' => (bool)($ro['compensation'] ?? false)])
                     </div>
                 @endif
                 {{-- HC-D51: foto, tanda tangan, status kepegawaian, data darurat, (konsultan) engagement ditampilkan di DALAM tab
@@ -937,7 +964,8 @@
 
         // HC-D14: tautan ?section=<tab-id> (dari halaman Onboarding) membuka tab yang diminta.
         // Nilai tak dikenal diabaikan — tab pertama tetap terbuka.
-        const requestedSection = new URLSearchParams(window.location.search).get('section');
+        let requestedSection = new URLSearchParams(window.location.search).get('section');
+        if (requestedSection === 'compensation') { requestedSection = 'contract'; }   // tab Compensation sudah digabung ke Contract
         if (requestedSection && document.getElementById('section-' + requestedSection)) {
             switchSection(requestedSection);
         }

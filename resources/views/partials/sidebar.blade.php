@@ -1399,14 +1399,37 @@
     function sbPlaceFlyout(sec) {
         var body = sec.querySelector('.sb-sec-body'), btn = sec.querySelector('.sb-sec-btn'), aside = document.getElementById('sidebar');
         if (!body || !btn || !aside) { return; }
+        var margin = 12;
         var asideTop = aside.getBoundingClientRect().top, btnTop = btn.getBoundingClientRect().top - asideTop;
-        var avail = window.innerHeight - asideTop - 16;
+        var avail = Math.max(120, window.innerHeight - asideTop - margin);   // ruang vertikal total yang boleh dipakai panel
+        // Tinggi isi yang sebenarnya (scrollHeight, bukan offsetHeight yang sudah terpotong max-height sebelumnya).
         body.style.setProperty('--fly-max', avail + 'px');
-        body.style.setProperty('--fly-top', btnTop + 'px');
-        var h = body.offsetHeight;
-        var top = Math.max(0, Math.min(btnTop, avail - h));
+        var h = Math.min(body.scrollHeight, avail);
+        // Panel menempel di ikon yang diklik dan MEMANJANG KE BAWAH; isi yang panjang digulir di dalam panel (bukan
+        // menggeser panel ke atas sampai memenuhi tinggi layar). Hanya bila ruang di bawah ikon kurang dari tinggi
+        // minimum yang nyaman dipakai (280 px, atau tinggi isinya bila lebih pendek), panel digeser ke atas seperlunya.
+        var need = Math.min(h, 280);
+        var top = (avail - btnTop >= need) ? btnTop : Math.max(0, avail - need);
         body.style.setProperty('--fly-top', top + 'px');
+        // Batas tinggi = sisa ruang DI BAWAH posisi panel (bukan tinggi layar penuh), jadi tak pernah keluar layar.
+        body.style.setProperty('--fly-max', (avail - top) + 'px');
     }
+    // Tempatkan ulang saat isi panel berubah (membuka/menutup submenu di dalamnya) dan saat jendela diubah ukurannya.
+    function sbReplaceOpenFlyout() {
+        var sec = document.querySelector('#sidebar .sb-sec.rail-open');
+        if (sec) { sbPlaceFlyout(sec); }
+    }
+    (function () {
+        var queued = false;
+        function queue() { if (queued) { return; } queued = true; requestAnimationFrame(function () { queued = false; sbReplaceOpenFlyout(); }); }
+        window.addEventListener('resize', queue);
+        var aside = document.getElementById('sidebar');
+        if (aside && window.MutationObserver) {
+            // Hanya perubahan class/anak (buka-tutup submenu); perubahan style (--fly-*) sengaja tidak diamati agar tak berulang.
+            new MutationObserver(queue).observe(aside, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+        }
+        if (aside) { aside.addEventListener('click', function () { setTimeout(queue, 220); }); }   // setelah transisi submenu
+    })();
     function sbApplyLayout(rail, persist) {
         if (rail && !sbRailAllowed()) { rail = false; }
         if (rail) { document.documentElement.setAttribute('data-sb-layout', 'rail'); }
