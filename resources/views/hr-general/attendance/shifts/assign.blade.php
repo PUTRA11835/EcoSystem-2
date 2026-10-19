@@ -44,7 +44,7 @@
             <h3 class="text-lg font-bold text-gray-900 mb-1">Assigned Employees</h3>
             <p class="text-sm text-gray-500 mb-4">Releasing an employee ends the assignment; past attendance records are unaffected.</p>
 
-            <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <div class="border border-gray-200 rounded-lg overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="bg-gray-50 border-b border-gray-200">
                         <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">

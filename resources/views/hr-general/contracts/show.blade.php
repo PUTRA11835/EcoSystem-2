@@ -220,7 +220,7 @@
                 <div><label class="{{ $label }}" for="fSign">Company signatory</label>
                     <select id="fSign" name="signatory_employee_id" data-searchable="true" data-search-placeholder="Search signer…" class="{{ $input }}"><option value="">Template default (if the template sets one)</option>
                         @foreach($signatories as $p)<option value="{{ $p['id'] }}">{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach</select>
-                    <p class="text-[10px] text-gray-400 mt-1">From Letter Templates → Settings → Signers.@if($canDo('general.letter-templates')) <a href="{{ route('general.letters.settings.index', ['section' => 'signers']) }}" class="underline font-semibold">Manage signers</a>@endif</p></div>
+                    <p class="text-[10px] text-gray-400 mt-1">From Document Identity → Signers.@if($canDo('general.letters.settings.signers')) <a href="{{ route('general.document-identity.index', ['section' => 'signers']) }}" class="underline font-semibold">Manage signers</a>@endif</p></div>
 
                 @if($canSalary)
                     <div class="md:col-span-2 border-t border-gray-100 pt-4">

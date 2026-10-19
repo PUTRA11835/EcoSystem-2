@@ -51,6 +51,8 @@ class PayrollPeriodService
             'status' => PayrollPeriodRules::OPEN, 'notes' => isset($in['notes']) ? mb_substr(trim((string) $in['notes']), 0, 1000) : null,
             'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now(),
         ]);
+        PayrollAudit::record(PayrollAudit::CREATED, $id, "Created \"{$clean['name']}\" ({$clean['period_start']} – {$clean['period_end']})", $actorId,
+            ['name' => $clean['name'], 'period_start' => $clean['period_start'], 'period_end' => $clean['period_end'], 'pay_date' => $clean['pay_date']]);
 
         return [];
     }
@@ -66,6 +68,8 @@ class PayrollPeriodService
         } catch (InvalidArgumentException $e) {
             return [$e->getMessage()];
         }
+        PayrollAudit::record(PayrollAudit::CALCULATED, $periodId,
+            'Calculated ' . ($summary['employees'] ?? 0) . ' employee(s)' . (!empty($summary['skipped']) ? ', ' . $summary['skipped'] . ' skipped' : ''), $actorId, (array) $summary);
 
         return [];
     }
@@ -90,6 +94,11 @@ class PayrollPeriodService
             }
             DB::table('payroll_periods')->where('id', $periodId)->update([
                 'status' => PayrollPeriodRules::LOCKED, 'locked_at' => now(), 'locked_by' => $actorId, 'updated_at' => now(),
+            ]);
+            $slips = DB::table('payroll_slips')->where('period_id', $periodId);
+            PayrollAudit::record(PayrollAudit::LOCKED, $periodId, 'Locked "' . $p->name . '" — closed for changes', $actorId, [
+                'name' => $p->name, 'payslips' => (clone $slips)->count(),
+                'total_take_home' => round((float) (clone $slips)->sum('take_home_pay'), 2), 'total_gross' => round((float) (clone $slips)->sum('gross_earnings'), 2),
             ]);
 
             return [];
@@ -130,6 +139,9 @@ class PayrollPeriodService
                 $count++;
             }
             DB::table('payroll_periods')->where('id', $periodId)->update(['slips_generated_at' => $now, 'slips_generated_by' => $actorId, 'updated_at' => $now]);
+            if ($count > 0) {
+                PayrollAudit::record(PayrollAudit::SLIPS_GENERATED, $periodId, "Generated {$count} payslip(s)", $actorId, ['count' => $count]);
+            }
 
             return [];
         });
@@ -160,6 +172,9 @@ class PayrollPeriodService
             $count = DB::table('payroll_slips')->where('period_id', $periodId)->whereNotNull('slip_no')->whereNull('published_at')
                 ->update(['published_at' => $now, 'published_by' => $actorId, 'updated_at' => $now]);
             DB::table('payroll_periods')->where('id', $periodId)->update(['published_at' => $now, 'published_by' => $actorId, 'updated_at' => $now]);
+            if ($count > 0) {
+                PayrollAudit::record(PayrollAudit::SLIPS_PUBLISHED, $periodId, "Published {$count} payslip(s) to employees", $actorId, ['count' => $count]);
+            }
 
             return [];
         });
@@ -182,19 +197,27 @@ class PayrollPeriodService
         }
         try {
             DB::transaction(function () use ($periodId, $employeeId, $toggles, $actorId, &$name) {
+                $switches = null;
                 if ($toggles !== null) {
                     $vals = [];
                     foreach (['bpjs_health', 'bpjs_employment', 'pph21'] as $k) {
                         $vals[$k] = !empty($toggles[$k]);
                     }
                     $key = ['period_id' => $periodId, 'employee_id' => $employeeId];
-                    if (DB::table('payroll_employee_overrides')->where($key)->exists()) {
+                    $before = DB::table('payroll_employee_overrides')->where($key)->first(['bpjs_health', 'bpjs_employment', 'pph21']);
+                    if ($before) {
                         DB::table('payroll_employee_overrides')->where($key)->update($vals + ['updated_by' => $actorId, 'updated_at' => now()]);
                     } else {
                         DB::table('payroll_employee_overrides')->insert($key + $vals + ['updated_by' => $actorId, 'created_at' => now(), 'updated_at' => now()]);
                     }
+                    $switches = ['before' => $before ? array_map('boolval', (array) $before) : null, 'after' => $vals];
                 }
                 $name = $this->engine->calculateEmployee($periodId, $employeeId, $actorId)['name'];
+
+                if ($switches !== null && $switches['before'] !== $switches['after']) {
+                    PayrollAudit::record(PayrollAudit::SWITCHES_CHANGED, $periodId, "BPJS / PPh 21 switches changed for {$name}", $actorId, $switches, $employeeId);
+                }
+                PayrollAudit::record(PayrollAudit::EMPLOYEE_RECALCULATED, $periodId, "Recalculated {$name}", $actorId, ['employee' => $name], $employeeId);
             });
         } catch (InvalidArgumentException $e) {
             return [$e->getMessage()];
@@ -204,7 +227,7 @@ class PayrollPeriodService
     }
 
     /** Hapus periode terbuka beserta slip & koreksinya (cascade). @return string[] */
-    public function delete(int $periodId): array
+    public function delete(int $periodId, ?int $actorId = null): array
     {
         if ($e = $this->disabledError()) {
             return [$e];
@@ -220,6 +243,7 @@ class PayrollPeriodService
             return ['Payslips have already been generated for this period, so it cannot be deleted.'];
         }
         DB::table('payroll_periods')->where('id', $periodId)->delete();
+        PayrollAudit::record(PayrollAudit::DELETED, $periodId, "Deleted \"{$p->name}\"", $actorId, ['name' => $p->name, 'period_start' => $p->period_start, 'period_end' => $p->period_end]);
 
         return [];
     }
@@ -266,19 +290,23 @@ class PayrollPeriodService
             return $errors;
         }
 
-        DB::table('payroll_adjustments')->insert([
+        $adjustmentId = DB::table('payroll_adjustments')->insertGetId([
             'period_id' => $periodId, 'employee_id' => $employeeId, 'kind' => $kind, 'category' => $category,
             'source_period_id' => $source, 'component' => $component !== '' ? $component : null, 'name' => $name,
             'amount' => round($amount, 2), 'taxable' => $kind === 'earning' && ($category === 'underpaid' || !empty($in['taxable'])),
             'notes' => isset($in['notes']) ? mb_substr(trim((string) $in['notes']), 0, 500) : null,
             'created_by' => $actorId, 'created_at' => now(), 'updated_at' => now(),
         ]);
+        PayrollAudit::record(PayrollAudit::CORRECTION_ADDED, $periodId, ucfirst($category) . ' ' . $kind . ' of ' . Money::format(round($amount, 2)) . ": {$name}", $actorId, [
+            'adjustment_id' => $adjustmentId, 'category' => $category, 'kind' => $kind, 'amount' => round($amount, 2), 'name' => $name,
+            'component' => $component !== '' ? $component : null, 'source_period_id' => $source, 'taxable' => $kind === 'earning' && ($category === 'underpaid' || !empty($in['taxable'])),
+        ], $employeeId);
 
         return [];
     }
 
     /** @return string[] */
-    public function deleteAdjustment(int $periodId, int $adjustmentId): array
+    public function deleteAdjustment(int $periodId, int $adjustmentId, ?int $actorId = null): array
     {
         if ($e = $this->disabledError()) {
             return [$e];
@@ -287,7 +315,13 @@ class PayrollPeriodService
         if (!$p || !PayrollPeriodRules::isEditable($p->status)) {
             return ['Corrections can only be changed on an open payroll period.'];
         }
-        DB::table('payroll_adjustments')->where('id', $adjustmentId)->where('period_id', $periodId)->delete();
+        $row = DB::table('payroll_adjustments')->where('id', $adjustmentId)->where('period_id', $periodId)->first();
+        if ($row) {
+            DB::table('payroll_adjustments')->where('id', $adjustmentId)->delete();
+            PayrollAudit::record(PayrollAudit::CORRECTION_REMOVED, $periodId, ucfirst((string) $row->category) . ' ' . $row->kind . ' of ' . Money::format((float) $row->amount) . ": {$row->name}", $actorId, [
+                'adjustment_id' => $adjustmentId, 'category' => $row->category, 'kind' => $row->kind, 'amount' => (float) $row->amount, 'name' => $row->name,
+            ], (int) $row->employee_id);
+        }
 
         return [];
     }

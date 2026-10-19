@@ -39,7 +39,7 @@ class OvertimeReviewController extends Controller
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('overtime_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         $counts = OvertimeRequest::query()

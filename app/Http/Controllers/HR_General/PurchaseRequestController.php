@@ -51,7 +51,7 @@ class PurchaseRequestController extends Controller
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('request_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         // Hak mengubah dihitung PER DOKUMEN, bukan sekali untuk seluruh halaman:
@@ -102,13 +102,13 @@ class PurchaseRequestController extends Controller
         return view('hr-general.purchase-request.show', [
             'request'      => $purchaseRequest,
             'signatures'   => $service->signatureColumns($purchaseRequest),
-            'backRoute'    => route('general.purchase-request.index'),
+            'backRoute'    => $this->reviewBack('general.purchase-request', 'general.purchase-request.index'),
             'printRoute'   => route('general.purchase-request.print', $purchaseRequest),
 
             // Tombol putusan hanya dirender bila pemegang slugnya. Apakah ia
             // benar-benar boleh menyetujui DOKUMEN INI ditentukan lapis kedua —
             // langkah persetujuan — yang dihitung di canAct().
-            'canApprove'   => $this->can('general.purchase-request.approve'),
+            'canApprove'   => $this->mayDecide('purchase-request', 'general.purchase-request.approve'),
             'waitingForMe' => $service->canAct($purchaseRequest, $actorId, $this->canManage())['allowed'],
             'approveRoute' => route('general.purchase-request.approve', $purchaseRequest),
             'rejectRoute'  => route('general.purchase-request.reject', $purchaseRequest),
@@ -118,10 +118,10 @@ class PurchaseRequestController extends Controller
             'editRoute'   => $this->canEditDocument($purchaseRequest, $service)
                 ? route('general.purchase-request.edit', $purchaseRequest)
                 : null,
-            'deleteRoute' => $this->canManage() && !$purchaseRequest->trashed()
+            'deleteRoute' => $this->canDeleteDocument() && !$purchaseRequest->trashed()
                 ? route('general.purchase-request.destroy', $purchaseRequest)
                 : null,
-            'exportRoute' => $this->can('general.purchase-request.export')
+            'exportRoute' => $this->canExportDocument()
                 ? route('general.purchase-request.export.single', $purchaseRequest)
                 : null,
 
@@ -289,6 +289,8 @@ class PurchaseRequestController extends Controller
 
     public function destroy(Request $request, PurchaseRequest $purchaseRequest, PurchaseRequestService $service)
     {
+        abort_unless($this->canDeleteDocument(), 403);
+
         $validated = $request->validate([
             'delete_reason' => ['required', 'string', 'min:3', 'max:255'],
         ], [
@@ -316,6 +318,8 @@ class PurchaseRequestController extends Controller
     /** Satu dokumen. */
     public function exportSingle(PurchaseRequest $purchaseRequest, PurchaseRequestService $service)
     {
+        abort_unless($this->canExportDocument(), 403);
+
         $purchaseRequest->load([
             'items.branch', 'items.project', 'approvals.actor.basicData', 'employee.basicData',
         ]);
@@ -564,11 +568,25 @@ class PurchaseRequestController extends Controller
             return false;
         }
 
-        if (!$this->can('general.purchase-request.approve')) {
+        // HR holds the module's approve slug; an approver named only on the workflow needs the "My Approvals › Edit" box too.
+        if (!$this->can('general.purchase-request.approve')
+            && !($this->mayDecide('purchase-request', 'general.purchase-request.approve') && $this->approverMay('edit'))) {
             return false;
         }
 
         return $service->canAct($request, (int) session('user.id'), false)['allowed'];
+    }
+
+    /** Delete: HR (`.manage`), or a designated approver given the "My Approvals › Delete" box. */
+    protected function canDeleteDocument(): bool
+    {
+        return $this->canManage() || $this->approverMay('delete');
+    }
+
+    /** Export: HR (`.export`), or a designated approver given "My Approvals › Export". */
+    protected function canExportDocument(): bool
+    {
+        return $this->can('general.purchase-request.export') || $this->approverMay('export');
     }
 
     /**

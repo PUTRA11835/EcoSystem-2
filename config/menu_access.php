@@ -62,6 +62,8 @@ return [
         'general.recruitment.offers',
         'general.recruitment.offers.settings',
         'general.letter-templates',
+        'general.letters.settings.letterheads',  // Edit = add / change / delete a letterhead (shared by HR letters and Legal contracts)
+        'general.letters.settings.signers',      // Edit = add / change / remove a signer (shared by HR letters and Legal contracts)
         'general.contracts.list',
         'general.contracts.templates',
         'general.contracts.settings',            // Create = add a position type, Edit = rename / switch an option, Delete = delete an unused position type
@@ -85,6 +87,7 @@ return [
         'hr_general.leave_permit.tab-inbox',    // Edit = approve / reject / ask for revision
         'hr_general.leave_permit.tab-types',    // Create = add a leave type, Edit = edit / (de)activate a type
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
+        'general.approvals',                     // Edit = adjust / Delete = delete the document an approver (named on a workflow) reviews — the extra powers; deciding needs only the naming
         'calendar.events',                       // Create / Edit / Delete = make / change / remove COMPANY-WIDE events (anyone keeps personal ones) — enforced in CalendarController
         'management.holidays',                   // Create / Edit / Delete = add / change / remove a holiday
         // Tab Master Employee yang berisi daftar rekaman: Create/Delete = flag pada baris `.view`-nya (middleware
@@ -115,9 +118,11 @@ return [
         ['key' => 'purchase-req',   'label' => 'Purchase Management', 'tabs' => ['general.purchase-request', 'general.purchase-order', 'general.settings.purchase-request', 'general.approval-workflow.purchase-request']],
         ['key' => 'cash-advance',   'label' => 'Cash Advance Management', 'tabs' => ['general.cash-advance-dashboard', 'general.cash-advance', 'general.cash-advance-report', 'management.cash-advance-settings', 'management.approval-workflow.cash-advance', 'management.approval-workflow.cash-advance-report']],
         ['key' => 'my-cash-advance', 'label' => 'My Cash Advance',    'tabs' => ['general.my-cash-advance', 'general.my-cash-advance-report']],
+        ['key' => 'approvals',     'label' => 'My Approvals',         'tabs' => ['general.approvals', 'general.approvals.export']],
         ['key' => 'recruitment',    'label' => 'Recruitment',         'tabs' => ['general.recruitment', 'general.recruitment.candidates', 'general.recruitment.schedule', 'general.recruitment.jobs', 'general.recruitment.settings']],
         ['key' => 'offering',       'label' => 'Offering Letter',     'tabs' => ['general.recruitment.offers', 'general.recruitment.offers.settings']],
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
+        ['key' => 'doc-identity',  'label' => 'Document Identity',    'tabs' => ['general.letters.settings.letterheads', 'general.letters.settings.signers']],
         ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates', 'general.contracts.settings']],
         ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.contracts', 'general.external.contracts.settings', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
         ['key' => 'inventory',     'label' => 'Inventory & Assets',   'tabs' => ['general.inventory.overview', 'general.inventory.items', 'general.inventory.assets', 'general.inventory.settings']],
@@ -174,6 +179,9 @@ return [
         'employee.section.attachment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.salary.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'general.external.consultants' => ['c' => 'Add a consultant'],
+        'general.letters.settings.letterheads' => ['e' => 'Add, change or delete a letterhead'],
+        'general.letters.settings.signers'    => ['e' => 'Add, change or remove a signer'],
+        'general.approvals'                   => ['e' => 'Adjust the document being reviewed (when its module allows approvers to adjust)', 'd' => 'Delete the document being reviewed'],
         'calendar.events'                     => ['c' => 'Create a company-wide event', 'e' => 'Edit a company-wide event', 'd' => 'Delete a company-wide event'],
         'management.holidays'                 => ['c' => 'Add a holiday', 'e' => 'Edit a holiday', 'd' => 'Delete a holiday'],
         'external.section.address.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
@@ -190,7 +198,7 @@ return [
      * dan Legal. Barisnya tetap ada di tabel `menu` dan hibah yang sudah tersimpan tidak disentuh; hapus slug dari
      * daftar ini begitu halamannya sungguhan dibangun.
      */
-    'hidden' => ['general', 'financial', 'financial.*', 'business', 'business.*', 'legal', 'legal.*'],
+    'hidden' => ['general', 'financial', 'financial.*', 'business', 'business.*'],
 
     // Urutan tampil di kolom kiri, dan NAMA GRUP sama dengan judul seksi di sidebar (partials/sidebar.blade.php).
     // `match` = pola slug (Str::is). Pola pertama yang cocok menang.
@@ -199,22 +207,27 @@ return [
     'modules' => [
         // My Workspace
         ['key' => 'ess',         'label' => 'My Workspace (ESS)',        'group' => 'My Workspace', 'short' => 'Self-service (ESS)', 'match' => ['ess', 'ess.*', 'general.my-*', 'my-leave-permit', 'profile.my', 'my-profile', 'my-profile.*', 'general.my-kpi*']],
-        ['key' => 'calendar',    'label' => 'Calendar & Timesheet',      'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
+        ['key' => 'approvals',   'label' => 'My Approvals',              'group' => 'My Workspace', 'short' => 'My Approvals',
+            'about' => 'Being NAMED on an approval workflow already lets a person open the My Approvals inbox and decide the documents waiting on them — no box needed. These boxes add EXTRA powers while reviewing: Edit adjusts the document, Delete removes it, and Export downloads it. All off by default.',
+            'match' => ['general.approvals', 'general.approvals.*']],
+        ['key' => 'calendar',    'label' => 'Calendar & Timesheet',     'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
         // Human Capital
         ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Capital', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.shifts*', 'general.settings.attendance*']],
         ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Capital', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*', 'general.approval-workflow.overtime']],
         ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'group' => 'Human Capital', 'short' => 'Recruitment & Offering', 'match' => [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
-        ['key' => 'hr-contract', 'label' => 'HR · Contract',             'group' => 'Human Capital', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
-        ['key' => 'hr-docs',     'label' => 'HR · Docs & Letters',       'group' => 'Human Capital', 'short' => 'Docs & Letters', 'match' => [
+        ['key' => 'doc-identity', 'label' => 'Document Identity',        'group' => 'Business & Legal', 'short' => 'Document Identity',
+            'about' => 'Letterheads and signers, shared by HR letters and Legal contracts. Give this to Legal instead of the whole Letter Templates settings (numbering, letter types and request types stay HR\'s).',
+            'match' => ['general.letters.settings.letterheads', 'general.letters.settings.signers']],
+        ['key' => 'hr-docs',     'label' => 'HR · Docs & Letters',      'group' => 'Human Capital', 'short' => 'Docs & Letters', 'match' => [
             'general.letter-templates', 'general.letter-templates.*', 'general.letters', 'general.letters.*',
         ]],
         ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Capital', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
         ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Capital', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
         ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Capital', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
-        // General Affairs — directly under Human Capital
-        ['key' => 'ga-inventory', 'label' => 'General Affairs · Inventory & Assets', 'group' => 'General Affairs', 'short' => 'Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
+        // Inventory & Assets (General Affairs) lives inside Human Capital, like the sidebar
+        ['key' => 'ga-inventory', 'label' => 'HR · Inventory & Assets', 'group' => 'Human Capital', 'short' => 'Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         // External — one entry per sidebar sub menu
         ['key' => 'ext-consultants', 'label' => 'External · Consultants', 'group' => 'External', 'short' => 'External Consultants',
             'about' => "The consultant list and every tab of a consultant's detail page (Basic Data, Address, Bank, ...).",
@@ -236,6 +249,11 @@ return [
         ['key' => 'ticketing',   'label' => 'Ticketing',                 'group' => 'Work & Service', 'short' => 'Ticketing', 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging', 'staging.*']],
         ['key' => 'delivery',    'label' => 'Delivery',                  'group' => 'Work & Service', 'short' => 'Delivery', 'match' => ['delivery', 'delivery.*', 'delivery-project.*', 'delivery-support.*']],
         ['key' => 'sla-rpmo',    'label' => 'SLA & RPMO',                'group' => 'Work & Service', 'short' => 'SLA & RPMO', 'match' => ['sla', 'sla.*', 'rpmo', 'rpmo.*']],
+        // Business & Legal — Contract moved here from Human Capital, like the sidebar
+        ['key' => 'legal-dashboard', 'label' => 'Legal · Dashboard',     'group' => 'Business & Legal', 'short' => 'Legal dashboard',
+            'about' => 'Opens the Legal summary. Each card on it still follows the person\'s own Contract, External Contract and Document Identity access.',
+            'match' => ['legal', 'legal.*']],
+        ['key' => 'legal-contract','label' => 'Legal · Contract',       'group' => 'Business & Legal', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
         ['key' => 'reporting',   'label' => 'Reporting',                 'match' => ['reporting', 'reporting.*']],
         // Administration
         ['key' => 'management',  'label' => 'Management',                'group' => 'Administration', 'short' => 'Management', 'match' => ['management', 'management.*']],

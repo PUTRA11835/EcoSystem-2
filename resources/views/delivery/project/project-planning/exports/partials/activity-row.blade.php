@@ -19,6 +19,6 @@
 {{-- Child Activities (recursive) --}}
 @if(!empty($activity['children']))
     @foreach($activity['children'] as $child)
-        @include('project-planning.exports.partials.activity-row', ['activity' => $child, 'level' => $level + 1])
+        @include('delivery.project.project-planning.exports.partials.activity-row', ['activity' => $child, 'level' => $level + 1])
     @endforeach
 @endif

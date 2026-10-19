@@ -16,7 +16,7 @@
 {{-- Sub-groups --}}
 @if(!empty($group['sub_groups']))
     @foreach($group['sub_groups'] as $subGroup)
-        @include('project-planning.exports.partials.gantt-group', ['group' => $subGroup, 'level' => $level + 1])
+        @include('delivery.project.project-planning.exports.partials.gantt-group', ['group' => $subGroup, 'level' => $level + 1])
     @endforeach
 @endif
 

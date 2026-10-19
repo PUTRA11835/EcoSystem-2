@@ -140,9 +140,9 @@
 
     {{-- Employees --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
+        <div class="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 class="text-sm font-bold text-gray-900">Employees</h3>
-            <input type="search" id="empFilter" placeholder="Search name, ID or position…" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+            <input type="search" id="empFilter" placeholder="Search name, ID or position…" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-indigo-200">
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -223,6 +223,11 @@
             </table>
         </div>
     </div>
+</div>
+
+{{-- Activity log: every manual step on this period — who, what, when (payroll_audit_logs). --}}
+<div class="w-full px-1 lg:px-2 mt-6">
+    @include('finance.payroll.components.audit-trail', ['trail' => $auditTrail])
 </div>
 
 {{-- Add correction modal --}}

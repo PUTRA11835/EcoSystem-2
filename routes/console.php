@@ -19,6 +19,10 @@ Schedule::command('activities:recompute-status')->dailyAt('00:05');
 // - TOP invoice jatuh tempo (estimated_date) yang belum diisi Submit Invoice Date
 Schedule::command('notifications:project-reminders')->dailyAt('07:00');
 
+// Remind requesters to file the report (CAR) of an approved cash advance: before the deadline, on the day, and while overdue.
+// One reminder per document per day at most, so running it again the same day is harmless.
+Schedule::command('cash-advance:car-reminders')->dailyAt('08:30')->withoutOverlapping();
+
 // Contracts waiting for a signature (employee deadline close / approver waiting): one bell reminder per person per day.
 Schedule::command('contracts:signing-reminders')->dailyAt('08:00');
 

@@ -10,7 +10,7 @@
     $action     = 'hr-general.recruitment.components.icon-action';
 
     // "Open" is the default view, so it is the "no filter" row of the status funnel.
-    $statusOptions = ['approved' => 'Approved', 'rejected' => 'Rejected', 'all' => 'All'];
+    $statusOptions = ['approved' => 'Approved', 'awaiting_payment' => 'Approved · awaiting payment', 'paid' => 'Approved · paid', 'rejected' => 'Rejected', 'all' => 'All'];
     if ($canManage) {
         $statusOptions['deleted'] = 'Deleted';
     }
@@ -19,6 +19,7 @@
         ['label' => 'Waiting for You', 'value' => $counts['mine'],     'class' => 'text-red-800',   'icon' => 'fa-hourglass-half', 'href' => route('general.reimbursement.index', ['scope' => 'mine'])],
         ['label' => 'Pending Total',   'value' => $counts['pending'],  'class' => 'text-amber-600', 'icon' => 'fa-clock'],
         ['label' => 'Approved',        'value' => $counts['approved'], 'class' => 'text-green-600', 'icon' => 'fa-circle-check'],
+        ['label' => 'Awaiting Payment', 'value' => $counts['awaiting_payment'], 'class' => 'text-amber-700', 'icon' => 'fa-money-bill-transfer', 'href' => route('general.reimbursement.index', ['status' => 'awaiting_payment']), 'statusKey' => 'awaiting_payment'],
         ['label' => 'Rejected',        'value' => $counts['rejected'], 'class' => 'text-red-600',   'icon' => 'fa-circle-xmark'],
     ];
 @endphp
@@ -31,12 +32,12 @@
 
 <div class="space-y-5">
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         @foreach($cards as $card)
-            @php $isActive = !empty($card['href']) && $filters['scope'] === 'mine'; @endphp
+            @php $isActive = !empty($card['href']) && (isset($card['statusKey']) ? $filters['status'] === $card['statusKey'] : $filters['scope'] === 'mine'); @endphp
             @if(!empty($card['href']))
             <a href="{{ $isActive ? route('general.reimbursement.index') : $card['href'] }}"
-               title="{{ $isActive ? 'Show everyone again' : 'Show only documents waiting for you' }}"
+               title="{{ $isActive ? 'Clear this filter' : (isset($card['statusKey']) ? 'Show approved documents still to be paid' : 'Show only documents waiting for you') }}"
                class="block bg-white rounded-xl p-5 shadow-sm border transition-all hover:shadow-md {{ $isActive ? 'border-red-800 ring-1 ring-red-800' : 'border-transparent' }}">
             @else
             <div class="bg-white rounded-xl p-5 shadow-sm border border-transparent">
@@ -214,6 +215,9 @@
                                     {{ ucfirst($request->status) }}: {{ $request->completed_at->format('d M Y') }}
                                 @endif
                             </div>
+                            @if($request->paymentStatus())
+                                <div class="text-[10px] font-semibold mt-0.5 {{ $request->isPaid() ? 'text-emerald-700' : 'text-amber-700' }}">{{ $request->paymentLabel() }}</div>
+                            @endif
                             @if($isDeleted && $request->delete_reason)
                                 <div class="text-[10px] text-gray-500 italic mt-1">"{{ $request->delete_reason }}"</div>
                             @endif

@@ -63,9 +63,9 @@
                         @endforeach
                     </select>
                     <p class="{{ $hint }}">
-                        Printed on a letterhead from Letter Templates → Settings → Letterheads.
-                        @if($can('general.letter-templates'))
-                            <a href="{{ route('general.letters.settings.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>
+                        Printed on a letterhead from Document Identity → Letterheads.
+                        @if($can('general.letters.settings.letterheads'))
+                            <a href="{{ route('general.document-identity.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>
                         @endif
                     </p>
                     @error('letterhead_id')<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror

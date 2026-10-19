@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <form method="GET" action="{{ route('general.attendance.shifts.index') }}"
+    <form id="listFilters" method="GET" action="{{ route('general.attendance.shifts.index') }}"
           class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
             <div class="md:col-span-7">
@@ -147,9 +147,7 @@
         </table>
     </div>
 
-    @if($shifts->hasPages())
-    <div class="mt-4">{{ $shifts->links() }}</div>
-    @endif
+    @include('hr-general.recruitment.components.pagination', ['paginator' => $shifts, 'form' => 'listFilters', 'perPage' => $shifts->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
 
     <div class="mt-5 flex items-start gap-2 text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-lg p-3">
         <i class="fas fa-info-circle text-blue-400 mt-0.5"></i>

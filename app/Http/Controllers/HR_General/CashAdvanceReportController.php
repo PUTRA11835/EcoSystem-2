@@ -51,7 +51,7 @@ class CashAdvanceReportController extends Controller
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('report_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         $counts = CashAdvanceReport::query()
@@ -113,7 +113,7 @@ class CashAdvanceReportController extends Controller
 
         // DUA syarat, keduanya wajib: slug membuka pintunya, langkah menentukan
         // apakah dokumen ini menunggu dirinya.
-        $canDecide = $this->can('general.cash-advance-report.approve')
+        $canDecide = $this->mayDecide('cash-advance-report', 'general.cash-advance-report.approve')
             && $service->canAct($cashAdvanceReport, (int) session('user.id'), $this->canManage())['allowed'];
 
         // 🔴 `report-show.blade.php` dipakai ULANG, tidak dibuat ulang — pola
@@ -121,9 +121,10 @@ class CashAdvanceReportController extends Controller
         return view('hr-general.cash-advance.report-show', [
             'report'       => $cashAdvanceReport,
             'signatures'   => $service->signatureColumns($cashAdvanceReport),
-            'backRoute'    => route('general.cash-advance-report.index'),
+            'backRoute'    => $this->reviewBack('general.cash-advance-report', 'general.cash-advance-report.index'),
             'printRoute'   => route('general.cash-advance-report.print', $cashAdvanceReport),
-            'advanceRoute' => route('general.cash-advance.show', $cashAdvanceReport->cash_advance_id),
+            // The parent cash advance is another document: only offered to those who may open the CA list.
+            'advanceRoute' => $this->can('general.cash-advance') ? route('general.cash-advance.show', $cashAdvanceReport->cash_advance_id) : null,
             'canApprove'   => $canDecide,
             'approveRoute' => $canDecide ? route('general.cash-advance-report.approve', $cashAdvanceReport) : null,
             'rejectRoute'  => $canDecide ? route('general.cash-advance-report.reject', $cashAdvanceReport) : null,
@@ -136,12 +137,12 @@ class CashAdvanceReportController extends Controller
                 ? route('general.cash-advance-report.edit', $cashAdvanceReport)
                 : null,
 
-            'deleteRoute'  => $this->can('general.cash-advance-report.manage')
+            'deleteRoute'  => $this->canDeleteDocument()
                 && ! $cashAdvanceReport->trashed()
                 ? route('general.cash-advance-report.destroy', $cashAdvanceReport)
                 : null,
 
-            'exportRoute'  => $this->can('general.cash-advance-report.export')
+            'exportRoute'  => $this->canExportDocument()
                 ? route('general.cash-advance-report.export.single', $cashAdvanceReport)
                 : null,
         ]);
@@ -346,6 +347,8 @@ class CashAdvanceReportController extends Controller
      */
     public function destroy(Request $request, CashAdvanceReport $cashAdvanceReport, CashAdvanceReportService $service)
     {
+        abort_unless($this->canDeleteDocument(), 403);
+
         $validated = $request->validate([
             'delete_reason' => ['required', 'string', 'min:5', 'max:255'],
         ], [
@@ -374,6 +377,8 @@ class CashAdvanceReportController extends Controller
     /** Satu dokumen. */
     public function exportSingle(CashAdvanceReport $cashAdvanceReport, CashAdvanceReportService $service)
     {
+        abort_unless($this->canExportDocument(), 403);
+
         $cashAdvanceReport->load([
             'cashAdvance', 'items.branch', 'items.project',
             'approvals.actor.basicData', 'approvals.role', 'employee.basicData',
@@ -480,6 +485,18 @@ class CashAdvanceReportController extends Controller
         return $this->can('general.cash-advance-report.manage')
             && ! $report->trashed()
             && in_array($report->status, CashAdvanceReport::OPEN_STATUSES, true);
+    }
+
+    /** Delete: HR (`.manage`), or a designated approver given the "My Approvals › Delete" box. */
+    protected function canDeleteDocument(): bool
+    {
+        return $this->can('general.cash-advance-report.manage') || $this->approverMay('delete');
+    }
+
+    /** Export: HR (`.export`), or a designated approver given "My Approvals › Export". */
+    protected function canExportDocument(): bool
+    {
+        return $this->can('general.cash-advance-report.export') || $this->approverMay('export');
     }
 
     /** Kalimat penolakan yang menyebut SEBABNYA. */

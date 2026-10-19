@@ -1,26 +1,40 @@
 @extends('dashboard')
 @section('title', 'Legal')
 @section('page-title', 'Legal')
-@section('page-subtitle', 'Legal and compliance module')
+@section('page-subtitle', 'Contracts, signing and document identity at a glance')
 
 @section('content')
-<div class="bg-white rounded-xl p-6 shadow-sm">
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <div>
-            <h2 class="text-2xl font-bold text-gray-900">Legal</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Legal and compliance module</p>
-        </div>
-    </div>
+@php
+    $tones = ['green' => 'text-green-600', 'amber' => 'text-amber-600', 'red' => 'text-red-600', 'gray' => 'text-gray-900'];
+@endphp
 
-    <div class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mb-5">
-            <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                      d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
-            </svg>
+<div class="w-full space-y-6 px-1 lg:px-2">
+    @forelse($cards as $card)
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3">
+                <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fas fa-{{ $card['icon'] }} text-gray-400"></i> {{ $card['title'] }}
+                </h3>
+                <a href="{{ $card['link'] }}" class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50">
+                    Open <i class="fas fa-arrow-right ml-1 text-[10px]"></i>
+                </a>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
+                @foreach($card['stats'] as $stat)
+                    <div>
+                        <p class="text-xs text-gray-500">{{ $stat[0] }}</p>
+                        <p class="text-3xl font-bold mt-1 {{ $tones[$stat[2]] ?? 'text-gray-900' }}">
+                            @if(!empty($stat[3]))<a href="{{ $stat[3] }}" class="hover:underline">{{ number_format($stat[1]) }}</a>@else{{ number_format($stat[1]) }}@endif
+                        </p>
+                    </div>
+                @endforeach
+            </div>
         </div>
-        <h3 class="text-lg font-bold text-gray-700 mb-2">Coming Soon</h3>
-        <p class="text-sm text-gray-400 max-w-xs">The Legal module is currently under development. Please check back later.</p>
-    </div>
+    @empty
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center">
+            <p class="text-sm font-semibold text-gray-700">Nothing to summarise yet</p>
+            <p class="text-xs text-gray-500 mt-1">The Legal summary shows a card for each Legal sub menu your position can open. Ask an administrator for access to Contract, External Contract or Document Identity.</p>
+        </div>
+    @endforelse
 </div>
 @endsection

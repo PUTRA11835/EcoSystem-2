@@ -48,7 +48,9 @@ class MyCashAdvanceController extends Controller
                 ->eligibleAdvanceIds($requests),
 
             'summary'  => $ca->monthlySummary($employeeId, (int) $now->format('Y'), (int) $now->format('n')),
-            'settings' => CashAdvanceSetting::current(),
+            'settings' => $settings = CashAdvanceSetting::current(),
+            // Approved advances this person still has to report, and how many are past the deadline (shown as a card and badges).
+            'overdueCount' => $requests->filter(fn ($r) => $r->reportDue($settings)['state'] === \App\Support\CashAdvance\CarDueRules::OVERDUE)->count(),
             'month'    => $now->format('F Y'),
         ]);
     }

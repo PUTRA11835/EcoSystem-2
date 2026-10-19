@@ -110,6 +110,9 @@
                             <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold {{ $badge }}">
                                 {{ $request->statusLabel() }}
                             </span>
+                            @if($request->paymentStatus())
+                                <span class="block mt-1 text-[11px] font-semibold {{ $request->isPaid() ? 'text-emerald-700' : 'text-amber-700' }}">{{ $request->paymentLabel() }}</span>
+                            @endif
                         </td>
 
                         <td class="px-4 py-3">

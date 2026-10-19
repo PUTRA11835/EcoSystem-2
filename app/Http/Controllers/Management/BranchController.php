@@ -37,7 +37,7 @@ class BranchController extends Controller
             ->when($status === 'inactive', fn ($q) => $q->where('is_active', false))
             ->orderByDesc('is_head_office')
             ->orderBy('name')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         return view('management.branches.index', compact('branches', 'search', 'status'));

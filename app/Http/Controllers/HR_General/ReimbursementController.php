@@ -92,6 +92,7 @@ class ReimbursementController extends Controller
                 'approved' => (int) ($counts[ReimbursementRequest::STATUS_APPROVED]->total ?? 0),
                 'rejected' => (int) ($counts[ReimbursementRequest::STATUS_REJECTED]->total ?? 0),
                 'mine'     => count($mineIds),
+                'awaiting_payment' => ReimbursementRequest::query()->awaitingPayment()->count(),
             ],
         ]);
     }
@@ -275,13 +276,13 @@ class ReimbursementController extends Controller
         return view('hr-general.reimbursement.show', [
             'request'      => $reimbursementRequest,
             'signatories'  => $reimbursement->signatories($reimbursementRequest),
-            'backRoute'    => route('general.reimbursement.index'),
+            'backRoute'    => $this->reviewBack('general.reimbursement', 'general.reimbursement.index'),
             'printRoute'   => route('general.reimbursement.print', $reimbursementRequest),
 
             // Tombol putusan hanya dirender bila pemegang slugnya. Apakah ia
             // benar-benar boleh menyetujui DOKUMEN INI ditentukan lapis kedua —
             // langkah persetujuan — yang dihitung di canAct().
-            'canApprove'   => $this->can('general.reimbursement.approve'),
+            'canApprove'   => $this->mayDecide('reimbursement', 'general.reimbursement.approve'),
             'waitingForMe' => $reimbursement->canAct($reimbursementRequest, $actorId, $this->canManage())['allowed'],
             'approveRoute' => route('general.reimbursement.approve', $reimbursementRequest),
             'rejectRoute'  => route('general.reimbursement.reject', $reimbursementRequest),
@@ -291,13 +292,47 @@ class ReimbursementController extends Controller
             'editRoute'   => $this->canEditDocument($reimbursementRequest, $reimbursement)
                 ? route('general.reimbursement.edit', $reimbursementRequest)
                 : null,
-            'deleteRoute' => $this->canManage() && !$reimbursementRequest->trashed()
+            'deleteRoute' => $this->canDeleteDocument() && !$reimbursementRequest->trashed()
                 ? route('general.reimbursement.destroy', $reimbursementRequest)
                 : null,
-            'exportRoute' => $this->can('general.reimbursement.export')
+            'exportRoute' => $this->canExportDocument()
                 ? route('general.reimbursement.export.single', $reimbursementRequest)
                 : null,
+
+            // Payment: Finance records it after approval (slug `general.reimbursement.pay`); the same box reverses a mistake.
+            'canPay'      => $this->can('general.reimbursement.pay') && $reimbursementRequest->isPayable(),
+            'canReversePayment' => $this->can('general.reimbursement.pay') && $reimbursementRequest->isPaid() && !$reimbursementRequest->trashed(),
+            'payRoute'    => route('general.reimbursement.pay', $reimbursementRequest),
+            'reversePaymentRoute' => route('general.reimbursement.pay.reverse', $reimbursementRequest),
         ]);
+    }
+
+    /** Finance records that an approved reimbursement was paid. */
+    public function pay(Request $request, ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
+    {
+        $data = $request->validate([
+            'paid_on'   => ['nullable', 'date', 'before_or_equal:today'],
+            'reference' => ['nullable', 'string', 'max:100'],
+            'note'      => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $result = $reimbursement->markPaid($reimbursementRequest, (int) session('user.id'), $data);
+
+        return $result['allowed']
+            ? back()->with('success', 'Payment recorded for ' . $reimbursementRequest->request_no . '. The requester has been told.')
+            : back()->with('error', $result['reason']);
+    }
+
+    /** Undo a payment recorded by mistake (reason required). */
+    public function reversePayment(Request $request, ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:5', 'max:200']], ['reason.required' => 'Say why the payment is reversed.']);
+
+        $result = $reimbursement->reversePayment($reimbursementRequest, (int) session('user.id'), $data['reason']);
+
+        return $result['allowed']
+            ? back()->with('success', 'Payment reversed — the document is awaiting payment again.')
+            : back()->with('error', $result['reason']);
     }
 
     public function print(ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
@@ -456,6 +491,8 @@ class ReimbursementController extends Controller
 
     public function destroy(Request $request, ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
     {
+        abort_unless($this->canDeleteDocument(), 403);
+
         $validated = $request->validate([
             'delete_reason' => ['required', 'string', 'min:3', 'max:255'],
         ], [
@@ -483,6 +520,8 @@ class ReimbursementController extends Controller
     /** Satu dokumen. */
     public function exportSingle(ReimbursementRequest $reimbursementRequest, ReimbursementService $reimbursement)
     {
+        abort_unless($this->canExportDocument(), 403);
+
         $reimbursementRequest->load(['items.branch', 'approvals.actor.basicData', 'employee.basicData']);
 
         return $this->download(
@@ -635,7 +674,10 @@ class ReimbursementController extends Controller
             ->with(['employee.basicData', 'approver.basicData', 'approvals.actor.basicData', 'approvals.role', 'items'])
             ->when($filters['status'] === 'open',
                 fn ($q) => $q->whereIn('status', ReimbursementRequest::OPEN_STATUSES))
-            ->when(!in_array($filters['status'], ['open', 'all', 'deleted'], true),
+            // Payment is its own pair of facts on an approved document (paid_at), listed as two extra rows of the status funnel.
+            ->when($filters['status'] === 'awaiting_payment', fn ($q) => $q->awaitingPayment())
+            ->when($filters['status'] === 'paid', fn ($q) => $q->paid())
+            ->when(!in_array($filters['status'], ['open', 'all', 'deleted', 'awaiting_payment', 'paid'], true),
                 fn ($q) => $q->where('status', $filters['status']))
 
             // Dokumen terhapus hanya dapat dilihat pemegang hak kelola
@@ -728,11 +770,25 @@ class ReimbursementController extends Controller
             return false;
         }
 
-        if (!$this->can('general.reimbursement.approve')) {
+        // HR holds the module's approve slug; an approver named only on the workflow needs the "My Approvals › Edit" box too.
+        if (!$this->can('general.reimbursement.approve')
+            && !($this->mayDecide('reimbursement', 'general.reimbursement.approve') && $this->approverMay('edit'))) {
             return false;
         }
 
         return $reimbursement->canAct($request, (int) session('user.id'), false)['allowed'];
+    }
+
+    /** Delete: HR (`.manage`), or a designated approver given the "My Approvals › Delete" box. */
+    protected function canDeleteDocument(): bool
+    {
+        return $this->canManage() || $this->approverMay('delete');
+    }
+
+    /** Export: HR (`.export`), or a designated approver given "My Approvals › Export". */
+    protected function canExportDocument(): bool
+    {
+        return $this->can('general.reimbursement.export') || $this->approverMay('export');
     }
 
     /** Pesan yang menyebut sebab penolakan, bukan sekadar "tidak boleh". */

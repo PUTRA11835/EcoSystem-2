@@ -1,7 +1,9 @@
 @extends('dashboard')
-@section('title', 'Letter Templates — Settings')
-@section('page-title', 'Letter Templates')
-@section('page-subtitle', 'Set up letters in order: how they are numbered, what each letter uses, what they are printed on, and what employees can ask for.')
+@section('title', $identity ? 'Document Identity' : 'Letter Templates — Settings')
+@section('page-title', $identity ? 'Document Identity' : 'Letter Templates')
+@section('page-subtitle', $identity
+    ? 'The letterheads documents are printed on and the signers who sign them — shared by HR letters and Legal contracts.'
+    : 'Set up letters in order: how they are numbered, what each letter uses, and what employees can ask for.')
 
 @php
     // Capabilities of this tab, as ticked in Management → Roles.
@@ -17,21 +19,29 @@
     $deleteButton = 'w-8 h-8 inline-flex items-center justify-center rounded-lg border bg-white transition-all shrink-0 border-red-200 text-red-600 hover:bg-red-50';
 
     // The set-up flow, in order. The open step is kept in the address (?section=), so saving comes back to it.
-    $steps = [
+    // Document Identity (letterheads, signers) has its own page and slugs, shared by HR and Legal; Letter Templates settings keeps
+    // numbering, letter types and employee requests. Each page lists only the steps the viewer's slug opens.
+    $slugSigners = 'general.letters.settings.signers';
+    $slugHeads   = 'general.letters.settings.letterheads';
+    $allSteps = [
         'numbering'   => ['Numbering & Codes', 'How a letter number is built, and the codes in it', 'hashtag'],
         'types'       => ['Letter Types', 'The code and language each letter uses', 'file-lines'],
-        'signers'     => ['Signers', 'Who can be picked to sign a letter', 'signature'],
-        'letterheads' => ['Letterheads', 'The page each letter is printed on', 'image'],
+        'signers'     => ['Signers', 'Who can be picked to sign a letter or a contract', 'signature'],
+        'letterheads' => ['Letterheads', 'The page each document is printed on', 'image'],
         'requests'    => ['Employee Requests', 'What employees can ask HR for', 'inbox'],
     ];
+    $steps = $identity
+        ? array_filter($allSteps, fn ($k) => ($k === 'signers' && $can($slugSigners)) || ($k === 'letterheads' && $can($slugHeads)), ARRAY_FILTER_USE_KEY)
+        : array_diff_key($allSteps, ['signers' => 1, 'letterheads' => 1]);
     $section = request('section');
     if (!isset($steps[$section])) {
         $section = match (true) {
-            old('_letterhead') !== null                                      => 'letterheads',
-            old('_new_code') !== null || old('outgoing_number_format') !== null => 'numbering',
-            old('types') !== null                                            => 'types',
-            old('_signer') !== null                                          => 'signers',
-            default                                                          => 'numbering',
+            $identity && old('_letterhead') !== null && isset($steps['letterheads']) => 'letterheads',
+            $identity && old('_signer') !== null && isset($steps['signers'])         => 'signers',
+            $identity                                                                => array_key_first($steps),
+            old('_new_code') !== null || old('outgoing_number_format') !== null      => 'numbering',
+            old('types') !== null                                                    => 'types',
+            default                                                                  => 'numbering',
         };
     }
     // The Excel menu in the header follows the open step: only the table that step edits.
@@ -47,7 +57,9 @@
 
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
-    @include('hr-general.letters.components.tabs')
+    @unless($identity)
+        @include('hr-general.letters.components.tabs')
+    @endunless
     @include('hr-general.recruitment.components.form-errors')
 
     {{-- ── Settings: step list on the left, the open step on the right ───────── --}}
@@ -76,6 +88,11 @@
                     </a>
                 @endforeach
             </nav>
+            @if(!$identity && ($can($slugSigners) || $can($slugHeads)))
+                <a href="{{ route('general.document-identity.index') }}" class="mt-2 flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200 text-[12px] font-semibold text-gray-700 hover:bg-gray-50">
+                    <i class="fas fa-id-card text-gray-400"></i> Letterheads &amp; Signers → Document Identity
+                </a>
+            @endif
         </aside>
 
         <div class="min-w-0 space-y-6">
@@ -322,6 +339,7 @@
 
     {{-- ── ③ Signers ────────────────────────────────────────────────────── --}}
     @if($section === 'signers')
+    @php $canCreate = $canEdit = $canDelete = $canDo($slugSigners, 'edit'); @endphp
     <section data-panel="signers">
         <div class="grid grid-cols-1 2xl:grid-cols-5 gap-6 items-start">
             <div class="2xl:col-span-3 bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -455,6 +473,7 @@
 
     {{-- ── ④ Letterheads ────────────────────────────────────────────────── --}}
     @if($section === 'letterheads')
+    @php $canCreate = $canEdit = $canDelete = $canDo($slugHeads, 'edit'); @endphp
     <section data-panel="letterheads">
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div class="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
