@@ -1732,11 +1732,37 @@ function openSlaAddModal() {
     document.getElementById('slaAddForm').reset();
     document.getElementById('slaAddError').classList.add('hidden');
     document.getElementById('slaAddWorkEnd').setCustomValidity('');
+    respUnitAttrs(document.getElementById('slaAddResponse'), 'hours');
     slaUpdateAdd24h();
     document.getElementById('slaAddModal').classList.remove('hidden');
 }
 function closeSlaAddModal() {
     document.getElementById('slaAddModal').classList.add('hidden');
+}
+
+// ── Response unit (hours / minutes) — always sent to the API in hours ─────────
+function respUnitAttrs(inp, unit) {
+    inp.step = inp.min = unit === 'minutes' ? '1' : '0.01';
+    inp.placeholder = unit === 'minutes' ? 'e.g. 30' : 'e.g. 4';
+}
+function respUnitChange(inputId, unitId) {
+    const inp  = document.getElementById(inputId);
+    const unit = document.getElementById(unitId).value;
+    const v    = parseFloat(inp.value);
+    if (!isNaN(v)) inp.value = unit === 'minutes' ? Math.round(v * 60) : +(v / 60).toFixed(2);
+    respUnitAttrs(inp, unit);
+}
+function respSetHours(inputId, unitId, hours) {
+    const inp  = document.getElementById(inputId);
+    const h    = parseFloat(hours);
+    const unit = h < 1 ? 'minutes' : 'hours';
+    document.getElementById(unitId).value = unit;
+    inp.value = unit === 'minutes' ? Math.round(h * 60) : h;
+    respUnitAttrs(inp, unit);
+}
+function respGetHours(inputId, unitId) {
+    const v = parseFloat(document.getElementById(inputId).value);
+    return document.getElementById(unitId).value === 'minutes' ? Math.round(v / 60 * 100) / 100 : v;
 }
 function slaUpdateAdd24h() {
     const prio   = document.getElementById('slaAddPriority').value;
@@ -1776,6 +1802,7 @@ async function submitSlaAddPolicy(e) {
     const fd = new FormData(form);
     fd.set('delivery_support_id', SLA_DS_ID);
     const payload = Object.fromEntries(fd.entries());
+    payload.response_hours = respGetHours('slaAddResponse', 'slaAddResponseUnit');
     payload.is_24_hours = form.querySelector('[name=is_24_hours]').checked;
     payload.work_start_time  = payload.work_start_time || null;
     payload.work_end_time    = payload.work_end_time || null;
@@ -1810,7 +1837,7 @@ function openSlaEditModal(p) {
     document.getElementById('slaEditId').value         = p.id;
     document.getElementById('slaEditPriority').value   = p.priority;
     document.getElementById('slaEditScale').value      = p.scale;
-    document.getElementById('slaEditResponse').value   = p.response_hours;
+    respSetHours('slaEditResponse', 'slaEditResponseUnit', p.response_hours);
     document.getElementById('slaEditResolution').value = p.resolution_hours;
     document.getElementById('slaEdit24h').checked      = p.is_24_hours;
     document.getElementById('slaEditWorkStart').value  = p.work_start_time || '';
@@ -1868,7 +1895,7 @@ async function submitSlaEditPolicy(e) {
     const payload = {
         priority:         document.getElementById('slaEditPriority').value,
         scale:            document.getElementById('slaEditScale').value,
-        response_hours:   document.getElementById('slaEditResponse').value,
+        response_hours:   respGetHours('slaEditResponse', 'slaEditResponseUnit'),
         resolution_hours: document.getElementById('slaEditResolution').value,
         is_24_hours:      document.getElementById('slaEdit24h').checked,
         work_start_time:  document.getElementById('slaEditWorkStart').value || null,
@@ -1965,17 +1992,22 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
                         </select>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hours) <span class="text-red-500">*</span></label>
-                        <input type="number" name="response_hours" step="0.5" min="0.5" required placeholder="e.g. 4"
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response <span class="text-red-500">*</span></label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" name="response_hours" id="slaAddResponse" step="0.01" min="0.01" required placeholder="e.g. 4"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours) <span class="text-red-500">*</span></label>
-                        <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="e.g. 24"
+                        <select id="slaAddResponseUnit" onchange="respUnitChange('slaAddResponse', 'slaAddResponseUnit')"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                            <option value="hours">Hours</option>
+                            <option value="minutes">Minutes</option>
+                        </select>
                     </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours) <span class="text-red-500">*</span></label>
+                    <input type="number" name="resolution_hours" step="0.5" min="0.5" required placeholder="e.g. 24"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
                 </div>
                 <label id="slaAdd24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
                     <input type="checkbox" name="is_24_hours" id="slaAdd24h" onchange="slaUpdateAdd24h()" class="mt-0.5 w-4 h-4 rounded accent-red-700">
@@ -2062,17 +2094,22 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
                         </select>
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response (Hours)</label>
-                        <input type="number" id="slaEditResponse" step="0.5" min="0.5" required
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="number" id="slaEditResponse" step="0.01" min="0.01" required
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours)</label>
-                        <input type="number" id="slaEditResolution" step="0.5" min="0.5" required
+                        <select id="slaEditResponseUnit" onchange="respUnitChange('slaEditResponse', 'slaEditResponseUnit')"
                             class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                            <option value="hours">Hours</option>
+                            <option value="minutes">Minutes</option>
+                        </select>
                     </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Resolution (Hours)</label>
+                    <input type="number" id="slaEditResolution" step="0.5" min="0.5" required
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
                 </div>
                 <label id="slaEdit24hLabel" class="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50/80 cursor-pointer hover:bg-gray-100 transition">
                     <input type="checkbox" id="slaEdit24h" onchange="slaUpdateEdit24h()" class="mt-0.5 w-4 h-4 rounded accent-blue-600">
