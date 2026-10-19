@@ -21,6 +21,7 @@ Schedule::command('notifications:project-reminders')->dailyAt('07:00');
 
 // Contracts waiting for a signature (employee deadline close / approver waiting): one bell reminder per person per day.
 Schedule::command('contracts:signing-reminders')->dailyAt('08:00');
+Schedule::command('offboarding:process')->dailyAt('00:10');
 
 // Periksa & perbaiki share link OneDrive tiap hari 02:30 — link bisa mati sendiri
 // (kebijakan expiry "Anyone links", scope diturunkan tenant, izin dicabut manual)

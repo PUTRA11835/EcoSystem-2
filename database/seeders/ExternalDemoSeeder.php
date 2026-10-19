@@ -25,6 +25,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Penanda: kontrak & surat memakai catatan "Seeder demo (External)"; baris engagement memakai vendor "Demo Vendor (External seeder)";
  * karyawan DEMO-EXT03..05 hanya dihapus bila ECI-nya persis itu. DEMO-EXT01/02 TIDAK dihapus (milik seeder lain).
+ * DEMO-EXT03..05 juga dibuatkan akun login (username = ECI, kata sandi password123) dengan role External Consultant.
  * Aman diulang, tidak ada di DatabaseSeeder, menolak production. Pagar kesiapan data dimatikan HANYA selama seeder berjalan.
  * Nomor surat yang terpakai tidak dikembalikan (urutan surat keluar tidak pernah memakai ulang nomor).
  */
@@ -142,8 +143,96 @@ class ExternalDemoSeeder extends Seeder
             $this->say('Belum ada penanda tangan (Letter Templates → Settings → Signers) — surat demo dilewati.');
         }
 
-        $this->say('Selesai. Buka HR & General → External: 5 konsultan (Eka, Eko, Arga, Nara, Raka), kontrak Active ×2 + Draft ×2 dari seeder ini, ' . $letters . ' surat.');
+        $timesheets = $this->timesheets($ids, $actor);
+
+        $this->say('Selesai. Buka HR & General → External: 5 konsultan (Eka, Eko, Arga, Nara, Raka), kontrak Active ×2 + Draft ×2 dari seeder ini, ' . $letters . ' surat, ' . $timesheets . ' lembar timesheet (Paid, menunggu verifikasi invoice, Submitted, Returned, Draft).');
         $this->say('Bersihkan: EXTERNAL_DEMO_CLEAN=1 php artisan db:seed --class=ExternalDemoSeeder');
+    }
+
+    /**
+     * Timesheet demo lewat layanan yang sama dengan layar (aturan tanggal, tarif beku, penyetuju, nomor):
+     *   Arga (Mandays)  Agustus → Approved + invoice Paid · September → Approved + invoice menunggu verifikasi · Oktober → Submitted
+     *   Nara (Monthly)  September → Returned (dengan alasan) · Oktober → Draft
+     * Pemberitahuan yang tercipta selama seeder dibuang lagi supaya kotak notifikasi pengguna tidak ramai.
+     */
+    private function timesheets(array $ids, int $actor): int
+    {
+        $svc = app(\App\Services\External\ExternalTimesheetService::class);
+        $inv = app(\App\Services\External\ExternalInvoiceService::class);
+        $started = now();
+        $made = 0;
+
+        $contractOf = fn (int $employeeId) => (int) DB::table('employee_contract')->where('employee_id', $employeeId)->where('notes', 'like', self::MARK . '%')
+            ->whereIn(DB::raw('UPPER(contract_type)'), ['EXTERNAL'])->where('lifecycle_status', 'active')->orderBy('contract_id')->value('contract_id');
+        // n hari kerja berurutan mulai $from (Sen–Jum), tidak lewat hari ini.
+        $days = function (string $from, int $n): array {
+            $out = [];
+            for ($d = new \DateTimeImmutable($from); count($out) < $n && $d->format('Y-m-d') <= now()->toDateString(); $d = $d->modify('+1 day')) {
+                if ((int) $d->format('N') <= 5) {
+                    $out[] = $d->format('Y-m-d');
+                }
+            }
+
+            return $out;
+        };
+        $rows = fn (array $dates, string $project, string $activity, string $loc = 'ONSITE') => array_map(fn ($date) => [
+            'work_date' => $date, 'start_time' => '08:00', 'end_time' => '17:00', 'project_label' => $project, 'location' => $loc, 'activity' => $activity,
+        ], $dates);
+        $pdf = fn (string $no) => new \Illuminate\Http\UploadedFile($this->pdf($no), $no . '.pdf', 'application/pdf', null, true);
+        $today = now();
+
+        // ── Arga ──
+        $arga = (int) $ids['DEMO-EXT03'];
+        $contract = $contractOf($arga);
+        if ($contract) {
+            $aug = $svc->open($arga, $contract, 2026, 8, $actor);
+            $svc->save($aug, $rows($days('2026-08-20', 8), 'Implementation S/D', 'Fit-gap workshop and configuration'), $actor);
+            $svc->submit($aug, $arga);
+            $svc->approve($aug, $actor);
+            $gross = (float) DB::table('external_timesheets')->where('id', $aug)->value('gross_amount');
+            $inv->upload($aug, ['invoice_no' => 'INV/ARGA/2026/08', 'invoice_date' => '2026-09-01', 'amount' => (string) $gross], $pdf('INV-ARGA-08'), $arga);
+            $inv->verify($aug, $actor);
+            $inv->markPaid($aug, $actor, '2026-09-14', 'TRF-2026-09-0142');
+
+            $sep = $svc->open($arga, $contract, 2026, 9, $actor);
+            $svc->save($sep, $rows($days('2026-09-01', 10), 'Implementation S/D', 'Sales order scenarios and UAT support', 'REMOTE'), $actor);
+            $svc->submit($sep, $arga);
+            $svc->approve($sep, $actor);
+            $gross = (float) DB::table('external_timesheets')->where('id', $sep)->value('gross_amount');
+            $inv->upload($sep, ['invoice_no' => 'INV/ARGA/2026/09', 'invoice_date' => '2026-10-02', 'amount' => (string) $gross], $pdf('INV-ARGA-09'), $arga);
+
+            $oct = $svc->open($arga, $contract, 2026, 10, $actor);
+            $svc->save($oct, $rows($days('2026-10-01', 4), 'Implementation S/D', 'Data migration rehearsal'), $actor);
+            $svc->submit($oct, $arga);
+            $made += 3;
+        }
+
+        // ── Nara ──
+        $nara = (int) $ids['DEMO-EXT04'];
+        $contract = $contractOf($nara);
+        if ($contract) {
+            $sep = $svc->open($nara, $contract, 2026, 9, $actor);
+            $svc->save($sep, $rows($days('2026-09-21', 6), 'Finance rollout', 'Month-end closing support', 'REMOTE'), $actor);
+            $svc->submit($sep, $nara);
+            $svc->returnSheet($sep, $actor, 'Please add the project name for 22–25 September and submit again.');
+
+            $oct = $svc->open($nara, $contract, 2026, 10, $actor);
+            $svc->save($oct, $rows($days('2026-10-05', 3), 'Finance rollout', 'Cash management configuration', 'REMOTE'), $actor);
+            $made += 2;
+        }
+
+        DB::table('notifications')->where('type', 'like', 'external\_%')->where('created_at', '>=', $started)->delete();
+
+        return $made;
+    }
+
+    /** PDF kecil sungguhan untuk invoice demo. */
+    private function pdf(string $no): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'inv');
+        file_put_contents($path, \Barryvdh\DomPDF\Facade\Pdf::loadHTML('<h2>Invoice ' . e($no) . '</h2><p>Demo invoice (External seeder).</p>')->output());
+
+        return $path;
     }
 
     /** Konsultan demo baru (tanpa akun login) lengkap dengan data induk yang dibaca profil & dokumen. */
@@ -183,12 +272,33 @@ class ExternalDemoSeeder extends Seeder
             ['employee_id' => $employeeId, 'document_type' => 'NPWP', 'document_title' => 'NPWP', 'file_name' => 'npwp-demo.pdf', 'file_size' => 1024, 'mime_type' => 'application/pdf', 'uploaded_by' => 'DemoSeeder', 'created_at' => $now, 'updated_at' => $now],
         ]);
 
+        // Akun login demo (username = ECI, kata sandi password123) supaya halaman konsultan dapat dicoba langsung.
+        $roleIds = array_filter([
+            DB::table('employee_role')->where('name', 'User System Registered')->value('id'),
+            DB::table('employee_role')->where('name', 'EC User')->value('id'),
+            DB::table('employee_role')->where('name', 'External Consultant')->value('id'),
+        ]);
+        foreach ($roleIds as $roleId) {
+            DB::table('employee_role_assignment')->insertOrIgnore(['employee_id' => $employeeId, 'role_id' => $roleId, 'created_at' => $now, 'updated_at' => $now]);
+        }
+        DB::table('auth_users')->updateOrInsert(['employee_id' => $employeeId], [
+            'customer_id' => null, 'username' => $eci, 'email' => strtolower($eci) . '@ecosystem.local',
+            'password' => \Illuminate\Support\Facades\Hash::make('password123'), 'is_active' => true, 'is_already_cp' => true,
+            'created_at' => $now, 'updated_at' => $now,
+        ]);
+
         return $employeeId;
     }
 
     /** Hapus HANYA yang bertanda seeder ini (lihat docblok). */
     private function clean(bool $quiet = false): void
     {
+        // Berkas invoice demo (lembar & invoice terhapus bersama kontrak lewat cascade, berkasnya tidak).
+        $sheetIds = DB::table('external_timesheets as t')->join('employee_contract as c', 'c.contract_id', '=', 't.contract_id')
+            ->where('c.notes', 'like', self::MARK . '%')->pluck('t.id');
+        foreach ($sheetIds as $sheetId) {
+            \Illuminate\Support\Facades\Storage::disk('local')->deleteDirectory("external-invoices/{$sheetId}");
+        }
         $letters = Letter::withTrashed()->where('notes', 'like', self::MARK . '%')->whereIn('template_key', \App\Support\External\ExternalRules::templateKeys())->forceDelete();
         // Ketentuan kontrak ikut terhapus bersama kontrak (cascade).
         $contracts = EmployeeContract::where('notes', 'like', self::MARK . '%')->delete();
@@ -197,7 +307,7 @@ class ExternalDemoSeeder extends Seeder
         $ids = DB::table('employee')->whereIn('eci', self::OWN)->pluck('employee_id')->all();
         if ($ids) {
             DB::transaction(function () use ($ids) {
-                foreach (['employee_attachment', 'employee_bank', 'employee_address', 'employee_identification', 'employee_contract', 'employee_engagement', 'employee_basic_data'] as $table) {
+                foreach (['auth_users', 'employee_role_assignment', 'employee_attachment', 'employee_bank', 'employee_address', 'employee_identification', 'employee_contract', 'employee_engagement', 'employee_basic_data'] as $table) {
                     DB::table($table)->whereIn('employee_id', $ids)->delete();
                 }
                 DB::table('employee')->whereIn('employee_id', $ids)->whereIn('eci', self::OWN)->delete();
@@ -205,7 +315,7 @@ class ExternalDemoSeeder extends Seeder
         }
 
         if (!$quiet) {
-            $this->say("Dibersihkan: {$letters} surat, {$contracts} kontrak, {$engagement} baris engagement, " . count($ids) . ' konsultan demo (DEMO-EXT03..05).');
+            $this->say("Dibersihkan: {$letters} surat, {$sheetIds->count()} timesheet, {$contracts} kontrak, {$engagement} baris engagement, " . count($ids) . ' konsultan demo (DEMO-EXT03..05).');
         }
     }
 

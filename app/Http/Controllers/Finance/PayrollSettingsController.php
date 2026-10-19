@@ -135,6 +135,10 @@ class PayrollSettingsController extends Controller
             return redirect()->route('finance.payroll.settings')->withErrors(['Payroll cannot be switched off while a calculated period is still open. Lock it first.']);
         }
 
+        if ($on && ($blocked = app(\App\Services\Legal\LegalBasisService::class)->payrollBlockers())) {
+            return redirect()->route('finance.payroll.settings')->withErrors(['Payroll cannot be switched on: these legal-basis rules are not reviewed yet — ' . implode(', ', $blocked) . '. Review them in Business & Legal → Legal Basis, or switch Enforce off there.']);
+        }
+
         $actor = session('user.id') ? (int) session('user.id') : null;
         $row->forceFill(['module_enabled' => $on, 'enabled_at' => now(), 'enabled_by' => $actor])->save();
         Log::info('Payroll module ' . ($on ? 'switched ON' : 'switched OFF'), ['by' => $actor]);

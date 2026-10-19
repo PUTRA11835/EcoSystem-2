@@ -675,7 +675,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== LEAVE & PERMIT ATTENDANCE ROUTES ====================
     Route::get('/my-leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'myLeavePermitIndex'])->name('my-leave-permit');
-    Route::get('/hr-general/leave-permit', [\App\Http\Controllers\HR\LeavePermitController::class, 'index'])->name('hr-general.leave-permit');
 });
 
 // ==================== ROOT REDIRECT ====================
@@ -706,3 +705,7 @@ require __DIR__ . '/finance.php';
 // ==================== EXTERNAL (KONSULTAN EKSTERNAL) ROUTES ====================
 // Consultants, Timesheet & Payment (placeholder), External Contract, dan tiga surat konsultan (berkas baru; modul aditif)
 require __DIR__ . '/hr-external.php';
+
+// ==================== OFFBOARDING + REGISTER DASAR HUKUM ROUTES ====================
+// Offboarding (HR & General) dan Legal Basis (Finance) — berkas baru; modul aditif
+require __DIR__ . '/hr-offboarding.php';

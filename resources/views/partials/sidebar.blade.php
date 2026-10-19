@@ -61,6 +61,10 @@
         <nav class="py-4 px-3 space-y-1">
             @php
                 $essConfig    = \App\Http\Controllers\Management\EssSettingsController::getEssSettings();
+                // Konsultan eksternal tidak melihat menu karyawan yang tak relevan (config/external_ess.php); Internal tidak berubah.
+                if (($sessionEmployee = \App\Models\Employee::find(session('user.id'))) && $sessionEmployee->isExternalConsultant()) {
+                    foreach (config('external_ess.hidden_nav', []) as $essHideKey) { $essConfig[$essHideKey] = false; }
+                }
                 $essGroupData = \App\Http\Controllers\Management\EssSettingsController::getEssGroups();
 
                 $essNav = [
@@ -427,6 +431,18 @@
             @endif
 @php $sb['contracts'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
+            {{-- Offboarding — daftar + Settings (two tabs, two slugs); opens the first tab this person holds. --}}
+            @if($can('general.offboarding.list') || $can('general.offboarding.settings'))
+                @include('partials.ess-nav-item', ['href' => $can('general.offboarding.list') ? route('general.offboarding.index') : route('general.offboarding.settings.index'), 'icon' => 'fas fa-user-minus', 'label' => 'Offboarding', 'active' => Request::is('general/offboarding*'), 'nested' => false])
+            @endif
+@php $sb['offboarding'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- Business & Legal → Legal Basis (Register Dasar Hukum; dipusatkan di sini, dipakai Payroll/BPJS/PPh 21/Offboarding). --}}
+            @if($can('finance.legal-basis'))
+                @include('partials.ess-nav-item', ['href' => route('finance.legal-basis.index'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal/basis*'), 'nested' => false])
+            @endif
+@php $sb['legal_basis'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
             {{-- External (konsultan eksternal) — six pages, each with its own Menu Access slug; the section shows only when one passes. --}}
             @foreach([
                 ['general.external.consultants', 'general.external.consultants.index', 'general/external/consultants*', 'fas fa-user-tie', 'External Consultants'],
@@ -436,11 +452,24 @@
                 ['general.external.employment-certificates', 'general.external.employment-certificates.index', 'general/external/employment-certificates*', 'fas fa-file-circle-check', 'Employment Certificate'],
                 ['general.external.reference-letters', 'general.external.reference-letters.index', 'general/external/reference-letters*', 'fas fa-file-signature', 'Reference Letter'],
             ] as [$extSlug, $extRoute, $extActive, $extIcon, $extLabel])
-                @if($can($extSlug))
+                @php
+                    // Timesheet & Payment has three tabs with their own slugs: the entry opens the first tab this person holds.
+                    $extHas = $can($extSlug) || ($extSlug === 'general.external.timesheet' && ($can('general.external.timesheet.invoices') || $can('general.external.timesheet.settings')));
+                    if ($extSlug === 'general.external.timesheet' && !$can($extSlug)) {
+                        $extRoute = $can('general.external.timesheet.invoices') ? 'general.external.timesheet.invoices' : 'general.external.timesheet.settings.index';
+                    }
+                @endphp
+                @if($extHas)
                     @include('partials.ess-nav-item', ['href' => route($extRoute), 'icon' => $extIcon, 'label' => $extLabel, 'active' => Request::is($extActive), 'nested' => false])
                 @endif
             @endforeach
 @php $sb['external'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
+            {{-- My Timesheet & Invoice — the external consultant's own page (role External Consultant); internal staff keep My Timesheet. --}}
+            @if($can('general.external.my-timesheet'))
+                @include('partials.ess-nav-item', ['href' => route('general.external.my-timesheet.index'), 'icon' => 'fas fa-file-invoice-dollar', 'label' => 'My Timesheet & Invoice', 'active' => Request::is('general/external/my-timesheet*'), 'nested' => false])
+            @endif
+@php $sb['my_ext_timesheet'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             {{-- Commercial & Finance → PPh 21 (Payroll Fase 1) — opens its first tab (Settings). --}}
             @if($can('finance.pph21.settings') || $can('finance.pph21.report'))
@@ -1175,14 +1204,14 @@
 
             @php
                 $sbSections = [
-                    ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'calendar']],
-                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
+                    ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'my_ext_timesheet', 'calendar']],
+                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'offboarding', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
                     ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
                     ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
                     ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
-                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal']],
+                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal', 'legal_basis']],
                     ['id' => 'Reporting', 'title' => 'Reporting',           'icon' => 'chart-histogram', 'keys' => ['reporting']],
                     ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'control_center']],
                 ];
