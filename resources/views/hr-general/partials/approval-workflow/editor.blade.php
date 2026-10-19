@@ -14,6 +14,7 @@
       name_placeholder
       select        null | ['field' => 'signs_as', 'label' => 'Signs as', 'options' => [value => label]]
       mandatory     bool   the "Mandatory" column (steps the requester may have to choose)
+      dynamic       bool   an "Approver" column: fixed position / names, the requester's supervisor, or the leader of the requester's project (Overtime)
       mandatory_hint  explanation printed under the table
       open_count    int|null  documents in progress that a NEW step could also be applied to
       open_label    "document(s)" / "request(s)" …
@@ -24,13 +25,14 @@
     $cell   = 'w-full px-2 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-red-800 bg-white';
     $people = $employees->map(fn ($e) => ['id' => (int) $e->employee_id, 'name' => $e->fullNameLabel()])->values();
 
-    $wf += ['module' => null, 'name' => false, 'select' => null, 'mandatory' => false, 'open_count' => null, 'open_label' => 'document(s)', 'note' => null];
+    $wf += ['module' => null, 'name' => false, 'select' => null, 'mandatory' => false, 'dynamic' => false, 'open_count' => null, 'open_label' => 'document(s)', 'note' => null];
 
     // Column widths follow the columns this workflow actually has.
     $columns = array_values(array_filter([
         '4.5rem',
         $wf['name'] ? '11rem' : null,
         $wf['select'] ? '9.5rem' : null,
+        $wf['dynamic'] ? '11rem' : null,
         '13rem',
         'minmax(14rem,1fr)',
         $wf['mandatory'] ? '6rem' : null,
@@ -38,7 +40,7 @@
         '3rem',
     ]));
     $wf['grid'] = implode(' ', $columns);
-    $minWidth = 40 + (int) $wf['name'] * 11 + (int) (bool) $wf['select'] * 9.5 + (int) $wf['mandatory'] * 6;
+    $minWidth = 40 + (int) $wf['name'] * 11 + (int) (bool) $wf['select'] * 9.5 + (int) $wf['mandatory'] * 6 + (int) $wf['dynamic'] * 11;
 
     // After a failed save only the editor that was submitted shows what was typed (Cash Advance has two).
     $submitted = old('steps') !== null && (old('module') === null || old('module') === ($wf['module'] ?? old('module')));
@@ -46,17 +48,18 @@
 
     $rows = $submitted
         ? collect(old('steps'))->map(fn ($r) => [
-            'id' => $r['id'] ?? '', 'name' => $r['name'] ?? '', 'sign' => $field ? ($r[$field] ?? '') : '',
+            'id' => $r['id'] ?? '', 'name' => $r['name'] ?? '', 'sign' => $field ? ($r[$field] ?? '') : '', 'source' => $r['source'] ?? 'fixed',
             'approver_role_id' => $r['approver_role_id'] ?? '',
             'ids' => $r['approver_employee_ids'] ?? [], 'mandatory' => !empty($r['mandatory']), 'is_active' => !empty($r['is_active']),
         ])->values()
         : $steps->map(fn ($s) => [
             'id' => $s->id, 'name' => $s->name, 'sign' => $field ? ($s->{$field} ?? '') : '',
+            'source' => ['direct_manager' => 'supervisor', 'project_lead' => 'project_lead'][$s->approver_type ?? ''] ?? 'fixed',
             'approver_role_id' => $s->approver_role_id, 'ids' => $s->approver_employee_ids ?? [],
             'mandatory' => !($s->requester_selectable ?? false), 'is_active' => $s->is_active,
         ]);
 
-    $blank = ['id' => '', 'name' => '', 'sign' => '', 'approver_role_id' => '', 'ids' => [], 'mandatory' => true, 'is_active' => true];
+    $blank = ['id' => '', 'name' => '', 'sign' => '', 'source' => 'fixed', 'approver_role_id' => '', 'ids' => [], 'mandatory' => true, 'is_active' => true];
     $savedFlag = session('workflow_saved') === ($wf['module'] ?: true) || session('workflow_saved') === true;
 @endphp
 
@@ -100,7 +103,8 @@
                 <span>Order</span>
                 @if($wf['name'])<span>Step name</span>@endif
                 @if($wf['select'])<span>{{ $wf['select']['label'] }}</span>@endif
-                <span>Position</span>
+                @if($wf['dynamic'])<span>Approver</span>@endif
+                <span>{{ $wf['dynamic'] ? 'Position / fallback' : 'Position' }}</span>
                 <span>Name</span>
                 @if($wf['mandatory'])
                     <span class="text-center" title="Checked: the person on this row always acts and the requester only sees it. Unchecked: the requester must choose.">Mandatory</span>
@@ -133,6 +137,9 @@
                 <p><strong>Mandatory</strong> — {{ $wf['mandatory_hint'] ?? 'checked: the person here always acts and the requester does not choose. Unchecked: the requester must choose from them.' }}</p>
             @endif
             <p>Steps run top to bottom; one person per step is enough. Empty names = everyone holding the position.</p>
+            @if($wf['dynamic'])
+                <p><strong>Employee's supervisor</strong> / <strong>Project leader</strong> — found from each requester's own data when the request is made (Direct Supervision in the employee data; Lead / Project Manager / Co Project Manager of the project they are in). The position is then the <strong>fallback</strong> when there is nobody; without one, a requester with no supervisor or project cannot submit.</p>
+            @endif
             @if(($wf['open_count'] ?? 0) > 0)
                 <label class="inline-flex items-center gap-1.5 text-amber-800"
                        title="Documents in progress also need the NEW steps. Approved or rejected ones are never touched.">
@@ -191,6 +198,24 @@
                 if (badge) badge.classList.toggle('hidden', !dirty);
             }
 
+            // "Approver" (dynamic workflows): the supervisor / project leader come from the requester, so names are not used and the
+            // position becomes the fallback.
+            function applySource(row) {
+                const src = row.querySelector('[data-source]');
+                if (!src) return;
+                const dyn = src.value !== 'fixed';
+                const cell = row.querySelector('[data-names-cell]');
+                cell.classList.toggle('opacity-40', dyn);
+                cell.classList.toggle('pointer-events-none', dyn);
+                cell.querySelectorAll('input[type="checkbox"]').forEach(box => { box.disabled = dyn; });
+                const pos = row.querySelector('[data-position]');
+                pos.options[0].textContent = dyn ? '— no fallback —' : '— any / by name —';
+                const hint = row.querySelector('[data-source-hint]');
+                hint.classList.toggle('hidden', !dyn);
+                hint.textContent = src.value === 'supervisor' ? "The requester's Direct Supervision. Fallback: the position here."
+                    : src.value === 'project_lead' ? "Lead / Project Manager of the requester's project. Fallback: the position here." : '';
+            }
+
             // A chosen position narrows the names to its holders; ticked names always stay.
             function applyPosition(row) {
                 const role = row.querySelector('[data-position]').value;
@@ -222,6 +247,7 @@
                 const search = row.querySelector('[data-pp-search]');
 
                 row.querySelector('[data-position]').addEventListener('change', () => applyPosition(row));
+                row.querySelector('[data-source]')?.addEventListener('change', () => applySource(row));
 
                 picker.addEventListener('change', function () {
                     // The summary line shows WHO is chosen, not how many.
@@ -266,6 +292,7 @@
 
                 sortPicker(picker);
                 applyPosition(row);
+                applySource(row);
                 row.dataset.initial = serialize(row);
                 mark(row);
             }
@@ -296,7 +323,9 @@
                     const sign = row.querySelector('[data-sign]');
                     const role = row.querySelector('[data-position]').value;
                     const names = row.querySelectorAll('[data-pp] input:checked').length;
-                    const ok = (!nameInput || nameInput.value.trim() !== '') && (!sign || sign.value !== '') && (role !== '' || names > 0);
+                    const src = row.querySelector('[data-source]');
+                    const dyn = !!src && src.value !== 'fixed';
+                    const ok = (!nameInput || nameInput.value.trim() !== '') && (!sign || sign.value !== '') && (dyn || role !== '' || names > 0);
                     row.classList.toggle('border-red-400', !ok);
                     if (!ok && !bad) bad = row;
                 });

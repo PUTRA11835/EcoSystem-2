@@ -92,11 +92,8 @@ class OvertimeRequestApproval extends Model
             OvertimeApprovalStep::TYPE_EMPLOYEE
                 => in_array($employeeId, array_map('intval', $this->approver_employee_ids ?? []), true),
 
-            // Belum dapat dijalankan: hierarki atasan belum ada di basis data.
-            // Dikembalikan false secara eksplisit, bukan dibiarkan jatuh ke
-            // default, supaya jelas ini keadaan yang disengaja.
-            OvertimeApprovalStep::TYPE_DIRECT_MANAGER => false,
-
+            // Atasan / pemimpin proyek sudah diselesaikan menjadi penyetuju BERNAMA saat pengajuan dibuat
+            // (OvertimeService::resolveSteps), jadi tipe dinamis tidak pernah sampai ke baris ini.
             default => false,
         };
     }
@@ -110,8 +107,6 @@ class OvertimeRequestApproval extends Model
 
             OvertimeApprovalStep::TYPE_EMPLOYEE
                 => count($this->approver_employee_ids ?? []) . ' selected employee(s)',
-
-            OvertimeApprovalStep::TYPE_DIRECT_MANAGER => 'Direct manager (not available yet)',
 
             default => $this->approver_type,
         };

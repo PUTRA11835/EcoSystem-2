@@ -38,31 +38,36 @@ class OvertimeApprovalStep extends Model
     public const TYPE_EMPLOYEE = 'employee';
 
     /**
-     * Atasan langsung pemohon.
-     *
-     * 🔴 BELUM DAPAT DIJALANKAN. Tabel `employee` tidak punya `reports_to_id`,
-     * dan `employee_basic_data.direct_supervision` / `.manager` 100% NULL untuk
-     * seluruh karyawan. Nilainya didaftarkan sejak awal supaya pengaktifannya
-     * nanti tidak memerlukan migrasi — pilihannya dinonaktifkan di UI.
+     * Atasan langsung PEMOHON (Master Employee › Basic Data › Direct Supervision). Tidak menyebut nama tetap:
+     * saat pengajuan dibuat, orangnya dicari dari data pemohon dan disalin ke langkah pengajuan itu sebagai
+     * penyetuju bernama. `approver_role_id` di sini = role CADANGAN bila pemohon tak punya atasan.
      */
     public const TYPE_DIRECT_MANAGER = 'direct_manager';
+
+    /**
+     * Pemimpin proyek pemohon: Lead / Project Manager / Co Project Manager dari proyek delivery yang diikuti pemohon
+     * pada tanggal lembur. Pemohon yang tak ada di proyek mana pun memakai role cadangan (`approver_role_id`).
+     */
+    public const TYPE_PROJECT_LEAD = 'project_lead';
 
     public const TYPES = [
         self::TYPE_ROLE,
         self::TYPE_EMPLOYEE,
         self::TYPE_DIRECT_MANAGER,
+        self::TYPE_PROJECT_LEAD,
     ];
 
-    /** Tipe yang benar-benar dapat dipilih hari ini. */
-    public const SELECTABLE_TYPES = [
-        self::TYPE_ROLE,
-        self::TYPE_EMPLOYEE,
-    ];
+    /** Tipe yang dapat dipilih. */
+    public const SELECTABLE_TYPES = self::TYPES;
+
+    /** Tipe yang orangnya ditentukan per pemohon, bukan per langkah. */
+    public const DYNAMIC_TYPES = [self::TYPE_DIRECT_MANAGER, self::TYPE_PROJECT_LEAD];
 
     public const TYPE_LABELS = [
         self::TYPE_ROLE           => 'By Role',
         self::TYPE_EMPLOYEE       => 'Specific Employees',
-        self::TYPE_DIRECT_MANAGER => 'Direct Manager',
+        self::TYPE_DIRECT_MANAGER => "Employee's Supervisor",
+        self::TYPE_PROJECT_LEAD   => 'Project Leader',
     ];
 
     // ── Relationships ───────────────────────────────────────────────────────
