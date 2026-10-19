@@ -85,6 +85,8 @@ return [
         'hr_general.leave_permit.tab-inbox',    // Edit = approve / reject / ask for revision
         'hr_general.leave_permit.tab-types',    // Create = add a leave type, Edit = edit / (de)activate a type
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
+        'calendar.events',                       // Create / Edit / Delete = make / change / remove COMPANY-WIDE events (anyone keeps personal ones) — enforced in CalendarController
+        'management.holidays',                   // Create / Edit / Delete = add / change / remove a holiday
         // Tab Master Employee yang berisi daftar rekaman: Create/Delete = flag pada baris `.view`-nya (middleware
         // employee.section:<tab>,create|delete), Edit = slug `.update` seperti sebelumnya.
         'general.external.consultants',          // Create = add a consultant
@@ -172,6 +174,8 @@ return [
         'employee.section.attachment.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.salary.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'general.external.consultants' => ['c' => 'Add a consultant'],
+        'calendar.events'                     => ['c' => 'Create a company-wide event', 'e' => 'Edit a company-wide event', 'd' => 'Delete a company-wide event'],
+        'management.holidays'                 => ['c' => 'Add a holiday', 'e' => 'Edit a holiday', 'd' => 'Delete a holiday'],
         'external.section.address.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'external.section.identification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'external.section.education.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],

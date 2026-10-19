@@ -10,6 +10,7 @@ use App\Models\Overtime\OvertimeRequest;
 use App\Models\Overtime\OvertimeRequestApproval;
 use App\Models\Overtime\OvertimeSetting;
 use App\Models\ReportingPeriod;
+use App\Services\Approval\ApproverResolver;
 use App\Services\HolidayService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -99,7 +100,14 @@ class OvertimeService
             ];
         }
 
-        $request = DB::transaction(function () use ($employeeId, $date, $payload, $crosses, $duration, $settings, $steps) {
+        // Atasan / pemimpin proyek ditentukan dari data PEMOHON sekarang; bila tak ada siapa pun dan tak ada role cadangan,
+        // pengajuan ditolak di sini — bukan lahir tanpa penyetuju.
+        $resolved = $this->resolveSteps($steps, $employeeId, $date);
+        if (is_string($resolved)) {
+            return ['allowed' => false, 'reason' => $resolved, 'request' => null];
+        }
+
+        $request = DB::transaction(function () use ($employeeId, $date, $payload, $crosses, $duration, $settings, $steps, $resolved) {
             $record = $this->attendanceFor($employeeId, $date);
 
             $request = OvertimeRequest::create([
@@ -121,7 +129,7 @@ class OvertimeService
                 'period_month'                => (int) $date->format('n'),
             ]);
 
-            $this->snapshotSteps($request, $steps);
+            $this->snapshotSteps($request, $resolved);
 
             return $request;
         });
@@ -438,6 +446,11 @@ class OvertimeService
                         => $step->approver_role_id !== null && in_array((int) $step->approver_role_id, $roleIds, true),
                     OvertimeApprovalStep::TYPE_EMPLOYEE
                         => in_array($employeeId, array_map('intval', $step->approver_employee_ids ?? []), true),
+                    // Siapa pun yang menjadi atasan / pemimpin proyek seseorang boleh membuka halaman peninjauan.
+                    OvertimeApprovalStep::TYPE_DIRECT_MANAGER
+                        => app(ApproverResolver::class)->supervisesAnyone($employeeId),
+                    OvertimeApprovalStep::TYPE_PROJECT_LEAD
+                        => app(ApproverResolver::class)->leadsAnyProject($employeeId),
                     default => false,
                 };
             });
@@ -743,18 +756,61 @@ class OvertimeService
         $this->addFlag($request, OvertimeRequest::FLAG_TIME_ADJUSTED);
     }
 
-    /** Salin definisi langkah ke pengajuan — lihat docblock migrasinya. */
-    private function snapshotSteps(OvertimeRequest $request, Collection $steps): void
+    /**
+     * Ubah langkah konfigurasi menjadi langkah KONKRET untuk satu pemohon.
+     *
+     * Langkah bertipe atasan / pemimpin proyek tidak menyebut nama: orangnya dicari dari data pemohon (atasan langsung di
+     * Master Employee; Lead / Project Manager dari proyek yang diikuti pemohon pada tanggal lembur) lalu disalin sebagai
+     * penyetuju BERNAMA, sehingga seluruh sisa alur (siapa boleh bertindak, daftar "menunggu saya", notifikasi) bekerja
+     * sama seperti langkah biasa. Pemohon sendiri tidak pernah menjadi penyetujunya. Tak ada siapa pun → role cadangan
+     * langkah itu; tak ada cadangan → pesan untuk pemohon.
+     *
+     * @return array<int,array<string,mixed>>|string  baris langkah, atau alasan pengajuan tidak dapat dibuat
+     */
+    private function resolveSteps(Collection $steps, int $employeeId, Carbon $date): array|string
     {
+        $resolver = app(ApproverResolver::class);
+        $rows = [];
+
         foreach ($steps as $step) {
-            OvertimeRequestApproval::create([
-                'overtime_request_id'   => $request->id,
-                'order_seq'             => $step->order_seq,
-                'step_name'             => $step->name,
-                'approver_type'         => $step->approver_type,
-                'approver_role_id'      => $step->approver_role_id,
-                'approver_employee_ids' => $step->approver_employee_ids,
-                'status'                => OvertimeRequestApproval::STATUS_WAITING,
+            $row = [
+                'order_seq' => $step->order_seq, 'step_name' => $step->name, 'approver_type' => $step->approver_type,
+                'approver_role_id' => $step->approver_role_id, 'approver_employee_ids' => $step->approver_employee_ids,
+            ];
+
+            if (in_array($step->approver_type, OvertimeApprovalStep::DYNAMIC_TYPES, true)) {
+                $ids = $step->approver_type === OvertimeApprovalStep::TYPE_DIRECT_MANAGER
+                    ? array_filter([$resolver->supervisorOf($employeeId)])
+                    : $resolver->projectLeadersOf($employeeId, $date->toDateString());
+                $ids = array_values(array_filter($ids, fn ($id) => (int) $id !== $employeeId));
+
+                if ($ids) {
+                    $row['approver_type'] = OvertimeApprovalStep::TYPE_EMPLOYEE;
+                    $row['approver_employee_ids'] = $ids;
+                    $row['approver_role_id'] = null;
+                } elseif ($step->approver_role_id) {
+                    $row['approver_type'] = OvertimeApprovalStep::TYPE_ROLE;      // cadangan
+                    $row['approver_employee_ids'] = null;
+                } else {
+                    return $step->approver_type === OvertimeApprovalStep::TYPE_DIRECT_MANAGER
+                        ? 'Step "' . $step->name . '" needs your supervisor, and none is set for you. Ask HR to fill in your Direct Supervision in your employee data.'
+                        : 'Step "' . $step->name . '" needs the leader of your project, and you are not a member of a project on that date. Ask HR to change the approval step or add you to the project.';
+                }
+            }
+
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
+    /** Salin langkah (sudah konkret, lihat resolveSteps) ke pengajuan — lihat docblock migrasinya. */
+    private function snapshotSteps(OvertimeRequest $request, array $rows): void
+    {
+        foreach ($rows as $row) {
+            OvertimeRequestApproval::create($row + [
+                'overtime_request_id' => $request->id,
+                'status'              => OvertimeRequestApproval::STATUS_WAITING,
             ]);
         }
     }
