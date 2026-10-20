@@ -58,14 +58,19 @@ class TeamsFileService
     /**
      * Baris `ticket_attachment` ini bisa disalin ke OneDrive?
      *
-     * Hanya berkas yang byte-nya ada di disk EcoSystem. Lampiran email (hidup
-     * di Graph) dan berkas Teams (sudah di SharePoint) tidak disalin: internal
-     * note yang ditulis di EcoSystem selalu menyimpan lampirannya di disk, jadi
-     * dua jenis itu tidak pernah lewat jalur ini.
+     * Dua sumber yang bisa: berkas yang byte-nya ada di disk EcoSystem
+     * (lampiran internal note, lampiran staging), dan lampiran email customer
+     * yang hidup di mailbox helpdesk (sejak 19 Okt 2026, saat email customer
+     * mulai diteruskan ke Teams). Berkas dari Teams (`attachment_type='link'`,
+     * sudah di SharePoint) tidak disalin.
      */
     public function canCopy(object $row): bool
     {
-        if (empty($row->file_path) || !empty($row->graph_message_id)) {
+        if (($row->attachment_type ?? null) === 'link') {
+            return false;
+        }
+
+        if (empty($row->file_path) && !self::isMailAttachment($row)) {
             return false;
         }
 
@@ -157,6 +162,12 @@ class TeamsFileService
      * tidak berbentuk begitu, `sharepointIds.listItemUniqueId` memuat GUID yang
      * sama (terbukti pada probe 13 Okt 2026).
      */
+    /** Lampiran email yang byte-nya bisa diambil dari mailbox helpdesk. */
+    private static function isMailAttachment(object $row): bool
+    {
+        return !empty($row->graph_message_id) && !empty($row->graph_attachment_id);
+    }
+
     public static function attachmentGuid(array $item): ?string
     {
         if (preg_match('/\{([0-9a-fA-F-]{36})\}/', (string) ($item['eTag'] ?? ''), $m)) {
@@ -285,25 +296,48 @@ class TeamsFileService
         }
 
         $path = (string) $attachment->file_path;
-
-        if ($path === '' || $attachment->graph_message_id
-            || str_contains($path, '..') || str_starts_with($path, '/') || str_starts_with($path, '\\')) {
-            throw new RuntimeException('Lampiran bukan berkas lokal yang bisa disalin.');
-        }
-
         $disk = Storage::disk('public');
 
-        if (!$disk->exists($path)) {
+        if ($attachment->attachment_type === 'link') {
+            throw new RuntimeException('Lampiran bukan berkas yang bisa disalin.');
+        }
+
+        // Disk lebih dulu: lebih murah, dan gambar inline email yang sudah
+        // disimpan lokal tidak perlu diunduh ulang dari mailbox.
+        $local = $path !== ''
+            && !str_contains($path, '..') && !str_starts_with($path, '/') && !str_starts_with($path, '\\')
+            && $disk->exists($path);
+
+        if ($local) {
+            $size   = (int) $disk->size($path);
+            $stream = null;
+        } elseif (self::isMailAttachment($attachment)) {
+            if (!empty($attachment->file_size) && (int) $attachment->file_size > $this->maxBytes()) {
+                throw new RuntimeException('Berkas melebihi batas TEAMS_SYNC_NATIVE_FILE_MAX_MB.');
+            }
+
+            $bytes  = $this->drive->downloadMailAttachment(
+                (string) $attachment->graph_message_id,
+                (string) $attachment->graph_attachment_id
+            );
+            $size   = strlen($bytes);
+            $stream = fopen('php://temp', 'r+b');
+            fwrite($stream, $bytes);
+            rewind($stream);
+            unset($bytes);
+        } else {
             throw new RuntimeException('Berkas lampiran tidak ada di disk.');
         }
 
-        $size = (int) $disk->size($path);
-
         if ($size > $this->maxBytes()) {
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+
             throw new RuntimeException('Berkas melebihi batas TEAMS_SYNC_NATIVE_FILE_MAX_MB.');
         }
 
-        $stream = $disk->readStream($path);
+        $stream ??= $disk->readStream($path);
 
         try {
             $uploaded = $this->drive->uploadStream(

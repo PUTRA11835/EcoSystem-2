@@ -539,6 +539,13 @@ class PowerAutomateService
                 // 'member' = baris ticket_member, 'pic' = ticket_lead_id.
                 'role'        => $role,
                 'role_label'  => $role === 'pic' ? 'PIC' : 'Member',
+                // `teams_id` = rujukan user untuk konektor Teams, dipakai flow 6
+                // di "Add a user to a chat" dan "Get an @mention token": email
+                // untuk internal, object id untuk guest (alamat Gmail ditolak
+                // konektor, object id diterima — terbukti 20 Okt 2026). Guest
+                // sudah dimasukkan EcoSystem lewat Graph lebih dulu.
+                'is_guest'    => false,
+                'teams_id'    => $person['email'] ?? null,
             ],
             'added_by' => [
                 'id'    => $actor['id'] ?? null,

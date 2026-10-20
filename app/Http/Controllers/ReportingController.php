@@ -29,6 +29,16 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReportingController extends Controller
 {
+    /**
+     * Batasan filter periode Collection Outlook (project & support). Dipakai juga oleh
+     * dropdown tahun & validasi klien di view, jadi server dan UI selalu sinkron.
+     * Rentang yang melewati batas ditolak dengan pesan jelas (bukan dipotong diam-diam
+     * seperti batas 36 bulan sebelumnya).
+     */
+    public const COLLECTION_OUTLOOK_PAST_YEARS   = 3;   // tahun ke belakang dari tahun berjalan
+    public const COLLECTION_OUTLOOK_FUTURE_YEARS = 15;  // tahun ke depan (kontrak s/d 2030+)
+    public const COLLECTION_OUTLOOK_MAX_MONTHS   = 240; // maks kolom bulan (20 tahun)
+
     // ── Web: Reporting page ───────────────────────────────────────────────
 
     public function index()
@@ -1070,27 +1080,17 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
-            $fromMonth = (int) $request->input('from_month', now()->month);
-            $fromYear  = (int) $request->input('from_year',  now()->year);
-            $toMonth   = (int) $request->input('to_month',   now()->month);
-            $toYear    = (int) $request->input('to_year',    now()->year);
-
-            // Guard bulan agar valid 1..12
-            $fromMonth = min(max($fromMonth, 1), 12);
-            $toMonth   = min(max($toMonth, 1), 12);
-
-            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
-            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
-            if ($start->gt($end)) {
-                [$start, $end] = [$end, $start];
+            [$start, $end, $rangeError] = $this->collectionOutlookRange($request);
+            if ($rangeError) {
+                return response()->json(['success' => false, 'message' => $rangeError], 422);
             }
 
-            // Bangun daftar kolom bulan (batasi maks 36 bulan agar tabel wajar)
+            // Bangun daftar kolom bulan (rentang sudah divalidasi ≤ MAX_MONTHS; guard hanya pengaman).
             $months    = [];
             $monthKeys = [];
             $cursor    = $start->copy();
             $guard     = 0;
-            while ($cursor->lte($end) && $guard < 36) {
+            while ($cursor->lte($end) && $guard < self::COLLECTION_OUTLOOK_MAX_MONTHS) {
                 $key         = $cursor->format('Y-m');
                 $months[]    = [
                     'key'         => $key,
@@ -1284,22 +1284,16 @@ class ReportingController extends Controller
                 abort(403, 'Access denied.');
             }
 
-            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
-            $fromYear  = (int) $request->input('from_year',  now()->year);
-            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
-            $toYear    = (int) $request->input('to_year',    now()->year);
-            $filterAe  = trim((string) $request->input('ae', ''));
-
-            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
-            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
-            if ($start->gt($end)) {
-                [$start, $end] = [$end, $start];
+            [$start, $end, $rangeError] = $this->collectionOutlookRange($request);
+            if ($rangeError) {
+                return back()->with('error', $rangeError);
             }
+            $filterAe  = trim((string) $request->input('ae', ''));
 
             $monthKeys = [];
             $cursor    = $start->copy();
             $guard     = 0;
-            while ($cursor->lte($end) && $guard < 36) {
+            while ($cursor->lte($end) && $guard < self::COLLECTION_OUTLOOK_MAX_MONTHS) {
                 $monthKeys[] = $cursor->format('Y-m');
                 $cursor->addMonth();
                 $guard++;
@@ -1353,6 +1347,48 @@ class ReportingController extends Controller
         }
     }
 
+    /**
+     * Parse & validasi filter periode Collection Outlook (project & support, halaman & export).
+     * Return [Carbon $start, Carbon $end, null] bila valid, atau [null, null, string $error]
+     * berisi alasan penolakan yang siap ditampilkan ke user.
+     */
+    private function collectionOutlookRange(Request $request): array
+    {
+        $minYear = now()->year - self::COLLECTION_OUTLOOK_PAST_YEARS;
+        $maxYear = now()->year + self::COLLECTION_OUTLOOK_FUTURE_YEARS;
+
+        $input = [
+            'From' => [$request->input('from_month', now()->month), $request->input('from_year', now()->year)],
+            'To'   => [$request->input('to_month', now()->month), $request->input('to_year', now()->year)],
+        ];
+
+        $dates = [];
+        foreach ($input as $label => [$month, $year]) {
+            if (!is_numeric($month) || (int) $month < 1 || (int) $month > 12) {
+                return [null, null, "Invalid {$label} month \"{$month}\". Month must be between January (1) and December (12)."];
+            }
+            if (!is_numeric($year) || (int) $year < $minYear || (int) $year > $maxYear) {
+                return [null, null, "{$label} year \"{$year}\" is outside the allowed range. Choose a year between {$minYear} and {$maxYear} ("
+                    . self::COLLECTION_OUTLOOK_PAST_YEARS . ' years back up to ' . self::COLLECTION_OUTLOOK_FUTURE_YEARS . ' years ahead).'];
+            }
+            $dates[$label] = Carbon::create((int) $year, (int) $month, 1)->startOfMonth();
+        }
+
+        [$start, $end] = [$dates['From'], $dates['To']];
+        if ($start->gt($end)) {
+            return [null, null, "From period ({$start->format('M Y')}) is after To period ({$end->format('M Y')}). "
+                . 'Choose a From period that is the same as or earlier than To.'];
+        }
+
+        $monthCount = ($end->year - $start->year) * 12 + ($end->month - $start->month) + 1;
+        if ($monthCount > self::COLLECTION_OUTLOOK_MAX_MONTHS) {
+            return [null, null, "Selected period {$start->format('M Y')} – {$end->format('M Y')} spans {$monthCount} months, exceeding the maximum of "
+                . self::COLLECTION_OUTLOOK_MAX_MONTHS . ' months (' . intdiv(self::COLLECTION_OUTLOOK_MAX_MONTHS, 12) . ' years). Please narrow the period.'];
+        }
+
+        return [$start, $end, null];
+    }
+
     /** Sumber baris Collection Outlook (halaman & export) — semua TOP project + konteksnya. */
     private function collectionOutlookTerms(string $filterAe): \Illuminate\Support\Collection
     {
@@ -1403,22 +1439,16 @@ class ReportingController extends Controller
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
             }
 
-            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
-            $fromYear  = (int) $request->input('from_year',  now()->year);
-            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
-            $toYear    = (int) $request->input('to_year',    now()->year);
-
-            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
-            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
-            if ($start->gt($end)) {
-                [$start, $end] = [$end, $start];
+            [$start, $end, $rangeError] = $this->collectionOutlookRange($request);
+            if ($rangeError) {
+                return response()->json(['success' => false, 'message' => $rangeError], 422);
             }
 
             $months    = [];
             $monthKeys = [];
             $cursor    = $start->copy();
             $guard     = 0;
-            while ($cursor->lte($end) && $guard < 36) {
+            while ($cursor->lte($end) && $guard < self::COLLECTION_OUTLOOK_MAX_MONTHS) {
                 $key         = $cursor->format('Y-m');
                 $months[]    = [
                     'key'         => $key,
@@ -1590,22 +1620,16 @@ class ReportingController extends Controller
                 abort(403, 'Access denied.');
             }
 
-            $fromMonth = min(max((int) $request->input('from_month', now()->month), 1), 12);
-            $fromYear  = (int) $request->input('from_year',  now()->year);
-            $toMonth   = min(max((int) $request->input('to_month',   now()->month), 1), 12);
-            $toYear    = (int) $request->input('to_year',    now()->year);
-            $filterType = trim((string) $request->input('type', ''));
-
-            $start = Carbon::create($fromYear, $fromMonth, 1)->startOfMonth();
-            $end   = Carbon::create($toYear,  $toMonth,  1)->startOfMonth();
-            if ($start->gt($end)) {
-                [$start, $end] = [$end, $start];
+            [$start, $end, $rangeError] = $this->collectionOutlookRange($request);
+            if ($rangeError) {
+                return back()->with('error', $rangeError);
             }
+            $filterType = trim((string) $request->input('type', ''));
 
             $monthKeys = [];
             $cursor    = $start->copy();
             $guard     = 0;
-            while ($cursor->lte($end) && $guard < 36) {
+            while ($cursor->lte($end) && $guard < self::COLLECTION_OUTLOOK_MAX_MONTHS) {
                 $monthKeys[] = $cursor->format('Y-m');
                 $cursor->addMonth();
                 $guard++;

@@ -882,6 +882,31 @@ class OneDriveService
     }
 
     /**
+     * Isi mentah satu lampiran email di mailbox helpdesk.
+     *
+     * Dipakai untuk menyalin lampiran email customer ke OneDrive supaya tampil
+     * sebagai kartu berkas asli di group chat Teams. Lewat `/$value` dan bukan
+     * `contentBytes`: hasilnya byte langsung, tanpa base64 yang membengkakkan
+     * memori sepertiga lebih besar.
+     */
+    public function downloadMailAttachment(string $messageId, string $attachmentId): string
+    {
+        $mailbox = config('services.microsoft_graph.sender_email');
+
+        $response = Http::withToken($this->getAccessToken())
+            ->timeout(120)
+            ->get("{$this->baseUrl}/users/{$mailbox}/messages/{$messageId}/attachments/{$attachmentId}/\$value");
+
+        if (!$response->successful()) {
+            throw new \RuntimeException(
+                'Gagal mengambil lampiran email dari Graph (HTTP ' . $response->status() . ').'
+            );
+        }
+
+        return $response->body();
+    }
+
+    /**
      * Ambil satu driveItem dengan field pilihan pemanggil.
      */
     public function getItem(string $itemId, string $select = 'id,name,eTag,webUrl'): array

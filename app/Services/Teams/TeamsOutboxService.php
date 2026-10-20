@@ -28,6 +28,9 @@ use Illuminate\Support\Facades\URL;
  */
 class TeamsOutboxService
 {
+    /** Garis pemisah antara header pengirim dan isi pesan di Teams. */
+    private const DIVIDER = '-----------------------------------------';
+
     public function __construct(
         private readonly PowerAutomateService $powerAutomate,
         private readonly TeamsFileService $files,
@@ -74,8 +77,125 @@ class TeamsOutboxService
             'ticket_id'         => $message->ticket_id,
             'chat_id'           => $chat->chat_id,
             'ticket_message_id' => $message->id,
-            'payload'           => $this->buildPayload($message, $chat),
+            'payload'           => $this->buildPayload(
+                $message,
+                $chat,
+                ($message->sender_name ?: 'EcoSystem') . ' · EcoSystem'
+            ),
         ]);
+    }
+
+    /**
+     * Masukkan pesan customer yang masuk ke tiket (email, atau balasan lewat
+     * Jarvies) ke antrean kirim.
+     *
+     * Jalur masuk KETIGA ke outbox, dan seperti queueMeeting() sengaja tidak
+     * menumpang shouldSend(): pesan customer bukan internal note, dan aturan
+     * "hanya internal note" itu tetap benar untuk jalur note. Pesan customer
+     * diteruskan supaya tim di group chat ikut melihat balasan customer tanpa
+     * membuka tiket (permintaan 19 Okt 2026).
+     *
+     * Tidak ada risiko gema: flow 7 memposting atas nama akun koneksi, dan pesan
+     * dari akun itu diabaikan TeamsInboundService — jadi salinan ini tidak akan
+     * kembali ke tiket sebagai internal note.
+     */
+    public function queueCustomerMessage(TicketMessage $message): ?TeamsOutboxItem
+    {
+        if (!$this->isEnabled()) {
+            return null;
+        }
+
+        if ($message->is_internal_note || $message->sender_type === 'employee' || $message->is_deleted) {
+            return null;
+        }
+
+        $chat = TicketTeamsChat::where('ticket_id', $message->ticket_id)->first();
+
+        if (!$chat || !$chat->sync_enabled) {
+            return null;
+        }
+
+        if (TeamsOutboxItem::where('ticket_message_id', $message->id)->exists()) {
+            return null;
+        }
+
+        $from = trim((string) $message->sender_email) ?: trim((string) $message->sender_name);
+
+        if ($this->plainBody($message) === '') {
+            return null;
+        }
+
+        return TeamsOutboxItem::create([
+            'ticket_id'         => $message->ticket_id,
+            'chat_id'           => $chat->chat_id,
+            'ticket_message_id' => $message->id,
+            'payload'           => $this->buildPayload(
+                $message,
+                $chat,
+                'From Customer' . ($from !== '' ? ' (' . $from . ')' : '')
+            ),
+        ]);
+    }
+
+    /**
+     * Antre pesan customer yang belum masuk outbox — jaring pengaman untuk
+     * pesan yang tidak melewati hook queueCustomerMessage().
+     *
+     * Kasus utamanya JARVIES: balasan customer dari portal ditulis LANGSUNG ke
+     * tabel `ticket_message` bersama (TicketController::addComment di JARVIES),
+     * bukan lewat API EcoSystem. Terbukti 19 Okt 2026.
+     *
+     * Batasannya disengaja:
+     *  - hanya pesan yang dibuat SETELAH group chatnya ada (pesan pertama
+     *    tiket diantre saat approve, lihat StagingTicketController);
+     *  - hanya dalam jendela customer_sweep_minutes, supaya menyalakan fitur ini
+     *    tidak membanjiri grup dengan pesan lama;
+     *  - pesan berumur < 30 detik ditunda ke sapuan berikutnya: lampirannya
+     *    ditulis JARVIES sesaat SETELAH barisnya, dan pesan yang tersapu di
+     *    antaranya akan terkirim tanpa berkas.
+     *
+     * @return int jumlah pesan yang diantre
+     */
+    public function sweepCustomerMessages(): int
+    {
+        if (!$this->isEnabled()) {
+            return 0;
+        }
+
+        $minutes = max(1, (int) config('services.teams_sync.customer_sweep_minutes', 120));
+        $helpdesk = mb_strtolower(trim((string) config('services.microsoft_graph.sender_email')));
+        $outbox   = (new TeamsOutboxItem())->getTable();
+
+        $ids = DB::table('ticket_message as m')
+            ->join('ticket_teams_chat as c', 'c.ticket_id', '=', 'm.ticket_id')
+            ->where('c.sync_enabled', true)
+            ->where('m.is_internal_note', false)
+            ->where(fn ($q) => $q->where('m.is_deleted', false)->orWhereNull('m.is_deleted'))
+            // Customer, atau pengirim email yang tidak cocok dengan data
+            // customer (processInbox menyimpannya sebagai 'system'). Pesan
+            // sistem EcoSystem sendiri tidak punya sender_email eksternal.
+            ->where(fn ($q) => $q->where('m.sender_type', 'customer')
+                ->orWhere(fn ($q) => $q->where('m.sender_type', 'system')
+                    ->where('m.channel', 'email')
+                    ->whereNotNull('m.sender_email')
+                    ->whereRaw('LOWER(m.sender_email) <> ?', [$helpdesk])))
+            ->whereColumn('m.created_at', '>=', 'c.created_at')
+            ->where('m.created_at', '>=', now()->subMinutes($minutes))
+            ->where('m.created_at', '<=', now()->subSeconds(30))
+            ->whereNotExists(fn ($q) => $q->from($outbox . ' as o')->whereColumn('o.ticket_message_id', 'm.id'))
+            ->orderBy('m.id')
+            ->limit(50)
+            ->pluck('m.id');
+
+        $queued = 0;
+
+        foreach (TicketMessage::whereIn('id', $ids)->orderBy('id')->get() as $message) {
+            if ($this->queueCustomerMessage($message)) {
+                $queued++;
+            }
+        }
+
+        return $queued;
     }
 
     /**
@@ -280,17 +400,14 @@ class TeamsOutboxService
      * disimpan, bukan dirakit ulang saat flush, supaya yang terkirim persis isi
      * note saat ditulis walau note-nya kemudian diedit.
      */
-    private function buildPayload(TicketMessage $message, TicketTeamsChat $chat): array
+    private function buildPayload(TicketMessage $message, TicketTeamsChat $chat, string $header): array
     {
-        // html_entity_decode WAJIB. Kolom `message` menyimpan hasil strip_tags,
-        // dan strip_tags TIDAK menyentuh entitas: note berisi "->" tersimpan
-        // sebagai "-&gt;". Tanpa decode, e() di wrap() meng-escape "&"-nya lagi
-        // dan yang sampai di Teams jadi "-&amp;gt;". Terbukti 23 Sep 2026.
-        $body = trim(html_entity_decode(
-            (string) ($message->message ?: strip_tags((string) $message->message_html)),
-            ENT_QUOTES | ENT_HTML5
-        ));
-        $text = ($message->sender_name ?: 'EcoSystem') . " · EcoSystem\n" . $body;
+        // Header, garis pemisah, lalu isi (format 19 Okt 2026):
+        //
+        //   Putra Palampang Tarung · EcoSystem        From Customer (a@b.co.id)
+        //   -----------------------------------       -------------------------
+        //   Oke baik Pak                              Oke baik Pak
+        $text = $header . "\n" . self::DIVIDER . "\n" . $this->plainBody($message);
 
         $links = $this->attachmentLinks($message);
 
@@ -307,6 +424,42 @@ class TeamsOutboxService
         }
 
         return $payload;
+    }
+
+    /**
+     * Isi pesan sebagai teks polos dengan baris yang tetap terjaga.
+     *
+     * Dibaca dari `message_html` lebih dulu, bukan kolom `message`: kolom itu
+     * hasil strip_tags mentah, jadi "<p>a</p><p>b</p>" tersimpan sebagai "ab"
+     * dan paragrafnya hilang. Untuk email customer bedanya lebih parah — HTML
+     * Outlook membawa blok <style> yang isinya ikut lolos lewat strip_tags.
+     *
+     * html_entity_decode WAJIB: tanpa itu, e() di wrap() meng-escape "&" dari
+     * entitas yang tersisa dan yang sampai di Teams jadi "-&amp;gt;" (terbukti
+     * 23 Sep 2026).
+     */
+    private function plainBody(TicketMessage $message): string
+    {
+        $html = (string) $message->message_html;
+
+        if (trim(strip_tags($html)) === '') {
+            $text = (string) $message->message;
+        } else {
+            $html = preg_replace('#<(style|script|head|title)\b[^>]*>.*?</\1>#is', '', $html) ?? $html;
+            $html = preg_replace('#<br\s*/?>#i', "\n", $html) ?? $html;
+            $html = preg_replace('#</(p|div|li|tr|h[1-6]|blockquote)>#i', "\n", $html) ?? $html;
+            $text = strip_tags($html);
+        }
+
+        $text = html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // NBSP dari Quill/Outlook -> spasi biasa, lalu rapikan spasi per baris.
+        $text = str_replace(["\u{00A0}", "\r\n", "\r"], [' ', "\n", "\n"], $text);
+        $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
+        $text = preg_replace('/ *\n */', "\n", $text) ?? $text;
+        // Paragraf kosong beruntun (umum di email) diringkas jadi satu baris kosong.
+        $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+
+        return trim($text);
     }
 
     /**
@@ -434,12 +587,25 @@ class TeamsOutboxService
             ->where('message_id', $message->id)
             ->orderBy('id')
             ->get(['id', 'file_name', 'link_title', 'file_path', 'file_size', 'mime_type',
-                   'attachment_type', 'graph_message_id', 'graph_attachment_id']);
+                   'attachment_type', 'graph_message_id', 'graph_attachment_id', 'is_inline']);
 
         $days = max(0, (int) config('services.teams_sync.attachment_link_days', 0));
+        $html = (string) $message->message_html;
         $out  = [];
 
         foreach ($rows as $row) {
+            // Gambar inline yang tidak dirujuk badan pesan dilewati. Email
+            // balasan membawa ulang gambar inline dari email yang dikutipnya;
+            // kutipannya dipotong extractReplyBody(), tapi lampirannya tetap
+            // tersimpan — tanpa saringan ini gambar lama ikut terkirim lagi ke
+            // Teams (terbukti 19 Okt 2026). Gambar inline yang ditampilkan
+            // selalu dirujuk sebagai /storage/{file_path} (InlineImageService,
+            // replaceCidReferences).
+            if ($row->is_inline && $row->file_path && $html !== ''
+                && !str_contains($html, (string) $row->file_path)) {
+                continue;
+            }
+
             // Hanya yang benar-benar bisa dilayani AttachmentController.
             $servable = $row->file_path
                 || ($row->graph_message_id && $row->graph_attachment_id);
