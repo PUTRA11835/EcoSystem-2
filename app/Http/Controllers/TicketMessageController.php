@@ -623,6 +623,25 @@ class TicketMessageController extends Controller
 
             $ticket->update($ticketUpdate);
 
+            // Teruskan balasan customer ke group chat Teams tiket (non-fatal).
+            //
+            // Salinan di memori dengan message_html = body asli Jarvies: kolom
+            // message_html sengaja NULL untuk jalur ini, dan kolom `message`
+            // (strip_tags mentah) menggabungkan paragraf "<p>a</p><p>b</p>"
+            // jadi "ab". Tidak disimpan ke DB — hanya bahan teks untuk Teams.
+            try {
+                $forTeams = clone $message;
+                $forTeams->message_html = $messageBody;
+
+                app(\App\Services\Teams\TeamsOutboxService::class)->queueCustomerMessage($forTeams);
+            } catch (\Throwable $e) {
+                Log::warning('TicketMessageController@customerReply: gagal mengantre balasan customer ke Teams (non-fatal)', [
+                    'ticket_id'  => $ticket->ticket_id,
+                    'message_id' => $message->id,
+                    'error'      => $e->getMessage(),
+                ]);
+            }
+
             // Notifikasi ke PIC + member aktif — bunyi chat + entri biru di bell
             $replyPreview = mb_substr(strip_tags($messageBody), 0, 80);
             $this->notifyTicketParticipants(

@@ -46,6 +46,21 @@ class FlushTeamsOutbox extends Command
             return self::SUCCESS;
         }
 
+        // Pesan customer yang masuk lewat JARVIES ditulis langsung ke DB bersama,
+        // jadi tidak pernah melewati hook queueCustomerMessage() di EcoSystem.
+        // Disapu di sini supaya ikut terkirim, apa pun jalur masuknya.
+        if (!$this->option('dry-run')) {
+            try {
+                if ($swept = $outbox->sweepCustomerMessages()) {
+                    $this->line("{$swept} pesan customer baru diantre.");
+                }
+            } catch (\Throwable $e) {
+                Log::warning('teams:flush-outbox: sapuan pesan customer gagal', [
+                    'error' => mb_substr($e->getMessage(), 0, 500),
+                ]);
+            }
+        }
+
         $items = collect($outbox->due());
 
         if ($items->isEmpty()) {

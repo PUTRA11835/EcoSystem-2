@@ -160,6 +160,19 @@ return [
         // cadangannya tidak pernah terpakai.
         'connection_email' => env('POWER_AUTOMATE_TEAMS_CONNECTION_OWNER') ?: env('MS_SENDER_EMAIL'),
 
+        // Consultant eksternal (Gmail, domain vendor) diundang sebagai GUEST
+        // tenant lewat POST /invitations, lalu di-bind ke group chat dengan
+        // object id-nya. Butuh izin aplikasi User.Invite.All. Mati = alamat
+        // di luar internal_domains dibuang dari daftar anggota (perilaku lama
+        // justru lebih buruk: satu alamat asing menggagalkan SELURUH chat).
+        'guest_invite' => (bool) env('TEAMS_SYNC_GUEST_INVITE', false),
+
+        // Domain milik tenant (pisah koma). Alamat di luar daftar ini = guest.
+        'internal_domains' => env('TEAMS_INTERNAL_DOMAINS') ?: 'eclectic.co.id',
+
+        // Tujuan setelah guest menerima undangan.
+        'guest_redirect_url' => env('TEAMS_GUEST_REDIRECT_URL') ?: 'https://teams.microsoft.com',
+
         // Batas ukuran satu gambar Teams yang diunduh ke storage tiket (MB).
         // Gambar melebihi ini tidak diunduh; pesannya tetap masuk dengan penanda
         // bahwa gambarnya ada di Teams. Menjaga disk tiket dari kiriman video/
@@ -175,6 +188,12 @@ return [
         // Antrean keluar.
         'outbox_batch'        => (int) env('TEAMS_SYNC_OUTBOX_BATCH', 25),
         'outbox_max_attempts' => (int) env('TEAMS_SYNC_OUTBOX_MAX_ATTEMPTS', 5),
+
+        // Pesan customer yang ditulis LANGSUNG ke DB oleh JARVIES (tanpa lewat
+        // EcoSystem) diantre oleh sapuan di teams:flush-outbox. Hanya pesan
+        // sebaru ini yang disapu — mencegah banjir pesan lama saat fitur
+        // pertama kali dinyalakan.
+        'customer_sweep_minutes' => (int) env('TEAMS_SYNC_CUSTOMER_SWEEP_MINUTES', 120),
     ],
 
     'jarvies' => [

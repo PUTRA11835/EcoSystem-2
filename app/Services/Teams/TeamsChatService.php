@@ -24,8 +24,10 @@ use Illuminate\Support\Facades\Log;
  */
 class TeamsChatService
 {
-    public function __construct(private readonly TeamsGraphClient $graph)
-    {
+    public function __construct(
+        private readonly TeamsGraphClient $graph,
+        private readonly TeamsGuestService $guests,
+    ) {
     }
 
     /**
@@ -182,10 +184,15 @@ class TeamsChatService
     /**
      * Ubah daftar email jadi anggota Graph.
      *
-     * Di-bind dengan UPN langsung, bukan AAD object id: spike membuktikan Graph
-     * menerimanya, dan resolusi ke object id lewat GET /users/{id} justru TIDAK
-     * tersedia untuk app ini (403, tanpa User.Read.All). Jadi kolom email di
-     * `employee` sudah cukup.
+     * Anggota internal di-bind dengan UPN langsung, bukan AAD object id: spike
+     * membuktikan Graph menerimanya, dan resolusi ke object id lewat
+     * GET /users/{id} justru TIDAK tersedia untuk app ini (403, tanpa
+     * User.Read.All). Jadi kolom email di `employee` sudah cukup.
+     *
+     * Consultant eksternal (di luar TEAMS_INTERNAL_DOMAINS) TIDAK bisa begitu —
+     * UPN guest bukan alamat emailnya. Mereka di-bind dengan object id dari
+     * TeamsGuestService (diundang dulu kalau belum pernah). Yang tidak bisa
+     * di-resolve DIBUANG: satu alamat asing membuat Graph menolak seluruh chat.
      *
      * Semua anggota diberi peran `owner` supaya siapa pun di grup bisa menamai
      * ulang grup dan menambah orang — chat tiket adalah ruang kerja bersama,
@@ -242,13 +249,86 @@ class TeamsChatService
                 continue;
             }
 
-            $members[] = [
-                '@odata.type'     => '#microsoft.graph.aadUserConversationMember',
-                'roles'           => ['owner'],
-                'user@odata.bind' => "https://graph.microsoft.com/v1.0/users('{$email}')",
-            ];
+            $ref = $this->guests->teamsUserRef($email);
+
+            if ($ref === null) {
+                Log::warning('TeamsChat: consultant eksternal dilewati, guest tidak bisa di-resolve', [
+                    'email' => $email,
+                ]);
+
+                continue;
+            }
+
+            $members[] = $this->member($ref);
         }
 
         return $members;
+    }
+
+    /**
+     * Tambahkan consultant EKSTERNAL ke group chat tiket yang sudah ada.
+     *
+     * Jalur susulan untuk guest saja. Anggota internal tetap ditambahkan flow 6
+     * lewat aksi "Add a user to a chat" — aksi itu mencari orangnya dari email,
+     * dan untuk guest pencarian itu gagal. Di sini kita memegang chat_id dan
+     * object id guest, jadi Graph bisa langsung dipanggil (terbukti di spike
+     * 20 Okt 2026: POST /chats/{id}/members dengan role owner).
+     *
+     * Riwayat chat dibuka penuh: consultant yang masuk belakangan perlu membaca
+     * konteks tiketnya dari awal.
+     */
+    public function addGuestMember(int $ticketId, string $email): bool
+    {
+        if (!$this->isEnabled() || !$this->guests->isExternal($email)) {
+            return false;
+        }
+
+        $chat = $this->chatForTicket($ticketId);
+
+        if (!$chat) {
+            return false;
+        }
+
+        $guestId = $this->guests->resolve($email);
+
+        if ($guestId === null) {
+            return false;
+        }
+
+        try {
+            $this->graph->post(
+                TeamsGraphClient::chatPath($chat->chat_id, 'members'),
+                $this->member($guestId) + ['visibleHistoryStartDateTime' => '0001-01-01T00:00:00Z']
+            );
+        } catch (TeamsGraphException $e) {
+            Log::warning('TeamsChat: gagal menambahkan guest ke group chat', [
+                'ticket_id' => $ticketId,
+                'chat_id'   => $chat->chat_id,
+                'email'     => $email,
+                'status'    => $e->status,
+                'code'      => $e->graphCode,
+                'body'      => mb_substr((string) $e->body, 0, 1000),
+            ]);
+
+            return false;
+        }
+
+        Log::info('TeamsChat: guest ditambahkan ke group chat', [
+            'ticket_id' => $ticketId,
+            'chat_id'   => $chat->chat_id,
+            'email'     => $email,
+        ]);
+
+        return true;
+    }
+
+    /** @param  string  $userRef  UPN (internal) atau object id (guest) */
+    private function member(string $userRef): array
+    {
+        return [
+            '@odata.type'     => '#microsoft.graph.aadUserConversationMember',
+            'roles'           => ['owner'],
+            'user@odata.bind' => "https://graph.microsoft.com/v1.0/users('{$userRef}')",
+        ];
     }
 }

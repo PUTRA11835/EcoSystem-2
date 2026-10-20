@@ -3450,21 +3450,46 @@ class TicketController extends Controller
                 return;
             }
 
-            $powerAutomate->dispatchAfterResponse(
-                \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
-                $powerAutomate->ticketMemberPayload($ticket, $person, $role, [
-                    'id'    => $sessionUser['id'] ?? null,
-                    'name'  => $sessionUser['name'] ?? null,
-                    'email' => $sessionUser['email'] ?? null,
-                ])
-            );
+            $ticketId = (int) $ticket->ticket_id;
+            $email    = (string) $person['email'];
+            $guests   = app(\App\Services\Teams\TeamsGuestService::class);
+            $actor    = [
+                'id'    => $sessionUser['id'] ?? null,
+                'name'  => $sessionUser['name'] ?? null,
+                'email' => $sessionUser['email'] ?? null,
+            ];
+
+            if ($guests->isExternal($email)) {
+                // Consultant eksternal: aksi "Add a user to a chat" di flow 6
+                // mencari orangnya dari email, dan untuk guest itu gagal. Jadi
+                // EcoSystem sendiri yang mengundang + menambahkannya lewat Graph,
+                // LALU flow 6 dipanggil dengan person.teams_id = object id guest.
+                // Konektor Teams menerima object id itu untuk "Add a user to a
+                // chat" maupun "Get an @mention token" (terbukti 20 Okt 2026);
+                // yang ditolaknya hanya alamat Gmail. Satu callback, berurutan:
+                // pesan flow 6 baru berarti kalau orangnya sudah ada di grup.
+                app()->terminating(static function () use ($powerAutomate, $guests, $ticket, $ticketId, $email, $person, $role, $actor) {
+                    if (!app(\App\Services\Teams\TeamsChatService::class)->addGuestMember($ticketId, $email)) {
+                        return;
+                    }
+
+                    $payload = $powerAutomate->ticketMemberPayload($ticket, $person, $role, $actor);
+                    $payload['person']['is_guest'] = true;
+                    $payload['person']['teams_id'] = $guests->resolve($email);
+
+                    $powerAutomate->dispatch(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED, $payload);
+                });
+            } else {
+                $powerAutomate->dispatchAfterResponse(
+                    \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
+                    $powerAutomate->ticketMemberPayload($ticket, $person, $role, $actor)
+                );
+            }
 
             // Orang yang baru masuk grup juga diberi hak baca folder berkas chat
             // tiket ini di OneDrive — tanpa itu kartu berkas yang sudah ada di
             // grup tampil baginya tetapi tidak bisa dibuka. Setelah response,
             // dan kegagalannya ditelan di dalam grantForTicket().
-            $ticketId = (int) $ticket->ticket_id;
-            $email    = (string) $person['email'];
 
             app()->terminating(static function () use ($ticketId, $email) {
                 app(\App\Services\Teams\TeamsFileService::class)->grantForTicket($ticketId, [$email]);
