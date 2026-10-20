@@ -103,6 +103,28 @@ Route::prefix('general')
     ->group(function () {
 
         // =====================================================================
+        // DOCUMENT IDENTITY page — one place for letterheads and signers, linked from HR (Letter Templates) and Legal (Contract).
+        // Opens for either slug; each step shows only what the viewer's slug allows.
+        Route::get('document-identity', [LetterTemplateController::class, 'identity'])
+            ->name('document-identity.index')
+            ->middleware('menu:general.letters.settings.letterheads,general.letters.settings.signers');
+
+        // =====================================================================
+        // MY APPROVALS — kotak masuk persetujuan lintas modul
+        // =====================================================================
+        // Dibuka oleh PENUNJUKAN pada alur persetujuan modul mana pun, bukan oleh slug menu: kepala departemen, direktur,
+        // atau finance yang hanya menyetujui tidak perlu menu HR / umum. Isinya hanya dokumen yang menunggu orang itu.
+        Route::get('approvals', [\App\Http\Controllers\HR_General\ApprovalInboxController::class, 'index'])
+            ->name('approvals.index')
+            ->middleware('menu.approver:any');
+
+        // One document for the approver — the approver-only page (no HR layout). Taking part in the document opens it.
+        Route::get('approvals/{module}/{id}', [\App\Http\Controllers\HR_General\ApprovalInboxController::class, 'show'])
+            ->whereNumber('id')
+            ->name('approvals.show')
+            ->middleware('menu.approver:any');
+
+        // =====================================================================
         // MY ATTENDANCE — presensi mandiri, untuk SELURUH karyawan
         // =====================================================================
         // Seluruh rute di bawah memakai satu slug yang sama: siapa pun yang
@@ -450,25 +472,29 @@ Route::prefix('general')
             // dihapus tetap harus dapat dibuka, dicetak, dan diekspor — itulah
             // gunanya soft delete (D109). Tanpa ini, filter "Status → Deleted"
             // menampilkan baris yang tidak bisa diklik sama sekali.
+            // `menu.approver`: besides the slug, a person NAMED on the workflow opens the documents they take part in
+            // (ApprovalEngine) — a finance officer or director who approves need not hold the HR menus.
             Route::get('/{cashAdvance}', [CashAdvanceController::class, 'show'])
                 ->name('show')
-                ->middleware('menu:general.cash-advance')
+                ->middleware('menu.approver:cash-advance,general.cash-advance')
                 ->withTrashed();
 
             Route::get('/{cashAdvance}/print', [CashAdvanceController::class, 'print'])
                 ->name('print')
-                ->middleware('menu:general.cash-advance')
+                ->middleware('menu.approver:cash-advance,general.cash-advance')
                 ->withTrashed();
 
             // Bertindak pada langkah yang sedang menunggu DIRINYA. Slug ini
             // hanya membuka pintunya; siapa yang ditunggu ditentukan langkah
             // persetujuan milik dokumen itu sendiri.
+            // Export / Delete of ONE document: HR slugs, or a designated approver given "My Approvals › Export / Delete"
+            // (checked again in the controller — the middleware only decides who may reach the document).
             Route::get('/{cashAdvance}/export', [CashAdvanceController::class, 'exportSingle'])
                 ->name('export.single')
-                ->middleware('menu:general.cash-advance.export')
+                ->middleware('menu.approver:cash-advance,general.cash-advance.export')
                 ->withTrashed();
 
-            Route::middleware('menu:general.cash-advance.approve')->group(function () {
+            Route::middleware('menu.approver:cash-advance,general.cash-advance.approve')->group(function () {
                 Route::post('/{cashAdvance}/approve', [CashAdvanceController::class, 'approve'])->name('approve');
                 Route::post('/{cashAdvance}/reject', [CashAdvanceController::class, 'reject'])->name('reject');
             });
@@ -478,7 +504,7 @@ Route::prefix('general')
             // canEditDocument(), karena "dokumen ini masih terbuka?" adalah
             // pertanyaan yang tidak dapat dijawab slug mana pun. Pola yang sama
             // dengan approve/reject, dan diperiksa ULANG di kedua method.
-            Route::middleware('menu:general.cash-advance')->group(function () {
+            Route::middleware('menu.approver:cash-advance,general.cash-advance')->group(function () {
                 Route::get('/{cashAdvance}/edit', [CashAdvanceController::class, 'edit'])->name('edit');
                 Route::post('/{cashAdvance}/update', [CashAdvanceController::class, 'update'])->name('update');
             });
@@ -488,7 +514,7 @@ Route::prefix('general')
             // keluarnya uang perusahaan.
             Route::post('/{cashAdvance}/delete', [CashAdvanceController::class, 'destroy'])
                 ->name('destroy')
-                ->middleware('menu:general.cash-advance.manage');
+                ->middleware('menu.approver:cash-advance,general.cash-advance.manage');
         });
 
         // =====================================================================
@@ -540,27 +566,27 @@ Route::prefix('general')
 
             Route::get('/{cashAdvanceReport}', [CashAdvanceReportController::class, 'show'])
                 ->name('show')
-                ->middleware('menu:general.cash-advance-report')
+                ->middleware('menu.approver:cash-advance-report,general.cash-advance-report')
                 ->withTrashed();
 
             Route::get('/{cashAdvanceReport}/print', [CashAdvanceReportController::class, 'print'])
                 ->name('print')
-                ->middleware('menu:general.cash-advance-report')
+                ->middleware('menu.approver:cash-advance-report,general.cash-advance-report')
                 ->withTrashed();
 
             Route::get('/{cashAdvanceReport}/export', [CashAdvanceReportController::class, 'exportSingle'])
                 ->name('export.single')
-                ->middleware('menu:general.cash-advance-report.export')
+                ->middleware('menu.approver:cash-advance-report,general.cash-advance-report.export')
                 ->withTrashed();
 
-            Route::middleware('menu:general.cash-advance-report.approve')->group(function () {
+            Route::middleware('menu.approver:cash-advance-report,general.cash-advance-report.approve')->group(function () {
                 Route::post('/{cashAdvanceReport}/approve', [CashAdvanceReportController::class, 'approve'])->name('approve');
                 Route::post('/{cashAdvanceReport}/reject', [CashAdvanceReportController::class, 'reject'])->name('reject');
             });
 
             // Gerbang rutenya slug HALAMAN; hak `.manage` DAN keadaan laporan
             // diputuskan canEditDocument(), lalu diperiksa ULANG di kedua method.
-            Route::middleware('menu:general.cash-advance-report')->group(function () {
+            Route::middleware('menu.approver:cash-advance-report,general.cash-advance-report')->group(function () {
                 Route::get('/{cashAdvanceReport}/edit', [CashAdvanceReportController::class, 'edit'])->name('edit');
                 Route::post('/{cashAdvanceReport}/update', [CashAdvanceReportController::class, 'update'])->name('update');
             });
@@ -570,7 +596,7 @@ Route::prefix('general')
             // menuntut `.manage`.
             Route::post('/{cashAdvanceReport}/delete', [CashAdvanceReportController::class, 'destroy'])
                 ->name('destroy')
-                ->middleware('menu:general.cash-advance-report.manage');
+                ->middleware('menu.approver:cash-advance-report,general.cash-advance-report.manage');
         });
 
         // =====================================================================
@@ -720,25 +746,32 @@ Route::prefix('general')
             // diklik sama sekali.
             Route::get('/{reimbursementRequest}', [ReimbursementController::class, 'show'])
                 ->name('show')
-                ->middleware('menu:general.reimbursement')
+                ->middleware('menu.approver:reimbursement,general.reimbursement')
                 ->withTrashed();
 
             Route::get('/{reimbursementRequest}/print', [ReimbursementController::class, 'print'])
                 ->name('print')
-                ->middleware('menu:general.reimbursement')
+                ->middleware('menu.approver:reimbursement,general.reimbursement')
                 ->withTrashed();
 
             Route::get('/{reimbursementRequest}/export', [ReimbursementController::class, 'exportSingle'])
                 ->name('export.single')
-                ->middleware('menu:general.reimbursement.export')
+                ->middleware('menu.approver:reimbursement,general.reimbursement.export')
                 ->withTrashed();
 
             // Menyetujui/menolak dilindungi slug TERPISAH dari sekadar melihat
             // daftar. Slug ini hanya gerbang HALAMAN; siapa yang berwenang pada
             // sebuah dokumen tetap ditentukan langkah persetujuannya.
-            Route::middleware('menu:general.reimbursement.approve')->group(function () {
+            Route::middleware('menu.approver:reimbursement,general.reimbursement.approve')->group(function () {
                 Route::post('/{reimbursementRequest}/approve', [ReimbursementController::class, 'approve'])->name('approve');
                 Route::post('/{reimbursementRequest}/reject', [ReimbursementController::class, 'reject'])->name('reject');
+            });
+
+            // Payment: after approval Finance records that it was paid (and can reverse a mistake). Its own slug — approving
+            // a document does not give the right to pay it out.
+            Route::middleware('menu:general.reimbursement.pay')->group(function () {
+                Route::post('/{reimbursementRequest}/pay', [ReimbursementController::class, 'pay'])->name('pay');
+                Route::post('/{reimbursementRequest}/pay/reverse', [ReimbursementController::class, 'reversePayment'])->name('pay.reverse');
             });
 
             // Mengubah dokumen: gerbang rute hanya setingkat HALAMAN, karena ada
@@ -749,7 +782,7 @@ Route::prefix('general')
             // Keduanya diputuskan ReimbursementController::canEditDocument(),
             // yang memeriksa keadaan DOKUMEN — sesuatu yang tidak dapat dijawab
             // slug. Pola yang sama dengan approve/reject.
-            Route::middleware('menu:general.reimbursement')->group(function () {
+            Route::middleware('menu.approver:reimbursement,general.reimbursement')->group(function () {
                 Route::get('/{reimbursementRequest}/edit', [ReimbursementController::class, 'edit'])->name('edit');
                 Route::post('/{reimbursementRequest}/update', [ReimbursementController::class, 'update'])->name('update');
             });
@@ -759,7 +792,7 @@ Route::prefix('general')
             // dapat dihapus oleh orang yang sekadar kebagian giliran menyetujui.
             Route::post('/{reimbursementRequest}/delete', [ReimbursementController::class, 'destroy'])
                 ->name('destroy')
-                ->middleware('menu:general.reimbursement.manage');
+                ->middleware('menu.approver:reimbursement,general.reimbursement.manage');
         });
 
         // =====================================================================
@@ -834,12 +867,12 @@ Route::prefix('general')
             // menampilkan baris yang tidak bisa diklik sama sekali.
             Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])
                 ->name('show')
-                ->middleware('menu:general.purchase-request')
+                ->middleware('menu.approver:purchase-request,general.purchase-request')
                 ->withTrashed();
 
             Route::get('/{purchaseRequest}/print', [PurchaseRequestController::class, 'print'])
                 ->name('print')
-                ->middleware('menu:general.purchase-request')
+                ->middleware('menu.approver:purchase-request,general.purchase-request')
                 ->withTrashed();
 
             // Menyetujui/menolak dilindungi slug TERPISAH dari sekadar melihat
@@ -848,14 +881,14 @@ Route::prefix('general')
             // PurchaseRequestService::canAct().
             Route::get('/{purchaseRequest}/export', [PurchaseRequestController::class, 'exportSingle'])
                 ->name('export.single')
-                ->middleware('menu:general.purchase-request.export')
+                ->middleware('menu.approver:purchase-request,general.purchase-request.export')
                 ->withTrashed();
 
             // Menyetujui/menolak dilindungi slug TERPISAH dari sekadar melihat
             // daftar. Slug ini hanya gerbang HALAMAN; siapa yang berwenang pada
             // sebuah dokumen tetap ditentukan langkah persetujuannya, lewat
             // PurchaseRequestService::canAct().
-            Route::middleware('menu:general.purchase-request.approve')->group(function () {
+            Route::middleware('menu.approver:purchase-request,general.purchase-request.approve')->group(function () {
                 Route::post('/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve'])->name('approve');
                 Route::post('/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject'])->name('reject');
             });
@@ -868,7 +901,7 @@ Route::prefix('general')
             // Keduanya diputuskan PurchaseRequestController::canEditDocument(),
             // yang memeriksa keadaan DOKUMEN — sesuatu yang tidak dapat dijawab
             // slug. Pola yang sama dengan approve/reject.
-            Route::middleware('menu:general.purchase-request')->group(function () {
+            Route::middleware('menu.approver:purchase-request,general.purchase-request')->group(function () {
                 Route::get('/{purchaseRequest}/edit', [PurchaseRequestController::class, 'edit'])->name('edit');
                 Route::post('/{purchaseRequest}/update', [PurchaseRequestController::class, 'update'])->name('update');
             });
@@ -877,7 +910,7 @@ Route::prefix('general')
             // boleh otomatis memberi hak menghapus dokumen pengadaan.
             Route::post('/{purchaseRequest}/delete', [PurchaseRequestController::class, 'destroy'])
                 ->name('destroy')
-                ->middleware('menu:general.purchase-request.manage');
+                ->middleware('menu.approver:purchase-request,general.purchase-request.manage');
         });
 
         // =====================================================================
@@ -1348,10 +1381,7 @@ Route::prefix('general')
                 Route::post('/templates', [LetterTemplateController::class, 'updateTemplates'])->name('templates.update')->middleware($can('edit'));
                 Route::post('/numbering', [LetterTemplateController::class, 'updateNumbering'])->name('numbering.update')->middleware($can('edit'));
 
-                // Who can be picked as the signatory on Create Letter.
-                Route::post('/signers', [LetterTemplateController::class, 'storeSigner'])->name('signers.store')->middleware($can('create'));
-                Route::post('/signers/{signer}/update', [LetterTemplateController::class, 'updateSigner'])->whereNumber('signer')->name('signers.update')->middleware($can('edit'));
-                Route::post('/signers/{signer}/delete', [LetterTemplateController::class, 'destroySigner'])->whereNumber('signer')->name('signers.destroy')->middleware($can('delete'));
+                // Signers and letterheads moved to Document Identity (below): their own slugs, shared by HR and Legal.
 
                 // What employees can request in My Letter Requests.
                 Route::post('/request-types', [LetterTemplateController::class, 'storeRequestType'])->name('request-types.store')->middleware($can('create'));
@@ -1363,10 +1393,26 @@ Route::prefix('general')
                 Route::post('/codes/{code}/update', [LetterTemplateController::class, 'updateCode'])->name('codes.update')->middleware($can('edit'));
                 Route::post('/codes/{code}/delete', [LetterTemplateController::class, 'destroyCode'])->name('codes.destroy')->middleware($can('delete'));
 
-                Route::post('/letterheads', [LetterTemplateController::class, 'store'])->name('store')->middleware($can('create'));
-                Route::get('/letterheads/{letterhead}/image', [LetterTemplateController::class, 'image'])->name('image');
-                Route::post('/letterheads/{letterhead}/update', [LetterTemplateController::class, 'update'])->name('update')->middleware($can('edit'));
-                Route::post('/letterheads/{letterhead}/delete', [LetterTemplateController::class, 'destroy'])->name('destroy')->middleware($can('delete'));
+            });
+
+            // =====================================================================
+            // DOCUMENT IDENTITY — letterheads and signers, shared by HR and Legal
+            // =====================================================================
+            // Contracts and letters print on a letterhead and are signed by a signer from this list. They have their OWN slugs
+            // (View / Edit each) so Legal can manage them without getting numbering, letter types or request types, which stay with
+            // the Letter Templates slug (HR). URLs and route names are the ones they always had.
+            Route::prefix('settings')->name('settings.')->group(function () {
+                $signers = 'general.letters.settings.signers';
+                $heads = 'general.letters.settings.letterheads';
+
+                Route::post('/signers', [LetterTemplateController::class, 'storeSigner'])->name('signers.store')->middleware(["menu:{$signers}", "menu.can:{$signers},edit"]);
+                Route::post('/signers/{signer}/update', [LetterTemplateController::class, 'updateSigner'])->whereNumber('signer')->name('signers.update')->middleware(["menu:{$signers}", "menu.can:{$signers},edit"]);
+                Route::post('/signers/{signer}/delete', [LetterTemplateController::class, 'destroySigner'])->whereNumber('signer')->name('signers.destroy')->middleware(["menu:{$signers}", "menu.can:{$signers},edit"]);
+
+                Route::post('/letterheads', [LetterTemplateController::class, 'store'])->name('store')->middleware(["menu:{$heads}", "menu.can:{$heads},edit"]);
+                Route::get('/letterheads/{letterhead}/image', [LetterTemplateController::class, 'image'])->name('image')->middleware("menu:{$heads},general.letter-templates");
+                Route::post('/letterheads/{letterhead}/update', [LetterTemplateController::class, 'update'])->name('update')->middleware(["menu:{$heads}", "menu.can:{$heads},edit"]);
+                Route::post('/letterheads/{letterhead}/delete', [LetterTemplateController::class, 'destroy'])->name('destroy')->middleware(["menu:{$heads}", "menu.can:{$heads},edit"]);
             });
 
             // Berkas surat — dari tab mana pun yang mendaftar surat.

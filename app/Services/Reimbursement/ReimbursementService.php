@@ -385,6 +385,67 @@ class ReimbursementService
      *
      * @return array{allowed: bool, reason: string, completed: bool}
      */
+    /**
+     * Record that Finance paid an APPROVED reimbursement: when, and the transfer reference. Only an approved, not-yet-paid, not-deleted
+     * document can be paid (so the amount that was approved is the amount that is paid, and nothing is paid twice). The requester is told.
+     *
+     * @param  array{paid_on?: ?string, reference?: ?string, note?: ?string}  $payload
+     * @return array{allowed: bool, reason: string}
+     */
+    public function markPaid(ReimbursementRequest $request, int $actorId, array $payload = []): array
+    {
+        if ($request->trashed()) {
+            return ['allowed' => false, 'reason' => 'This document has been deleted.'];
+        }
+        if ($request->status !== ReimbursementRequest::STATUS_APPROVED) {
+            return ['allowed' => false, 'reason' => 'Only an approved reimbursement can be paid.'];
+        }
+        if ($request->paid_at !== null) {
+            return ['allowed' => false, 'reason' => 'This reimbursement was already paid on ' . $request->paid_at->format('d M Y') . '.'];
+        }
+
+        $paidOn = !empty($payload['paid_on']) ? Carbon::parse($payload['paid_on'])->startOfDay() : now();
+        if ($paidOn->isFuture()) {
+            return ['allowed' => false, 'reason' => 'The payment date cannot be in the future.'];
+        }
+
+        $request->forceFill([
+            'paid_at' => $paidOn, 'paid_by' => $actorId,
+            'payment_reference' => $this->clip($payload['reference'] ?? null, 100), 'payment_note' => $this->clip($payload['note'] ?? null, 255),
+        ])->save();
+        $this->notify($request, 'paid');
+
+        return ['allowed' => true, 'reason' => ''];
+    }
+
+    /** Undo a payment recorded by mistake. The reason is required and is kept in the payment note; the requester is told. */
+    public function reversePayment(ReimbursementRequest $request, int $actorId, string $reason): array
+    {
+        if (!$request->isPaid() || $request->trashed()) {
+            return ['allowed' => false, 'reason' => 'There is no payment to reverse on this document.'];
+        }
+        $reason = trim($reason);
+        if (mb_strlen($reason) < 5) {
+            return ['allowed' => false, 'reason' => 'Say why the payment is reversed (at least 5 characters).'];
+        }
+
+        $was = $request->paid_at->format('d M Y') . ($request->payment_reference ? ' (' . $request->payment_reference . ')' : '');
+        $request->forceFill([
+            'paid_at' => null, 'paid_by' => null, 'payment_reference' => null,
+            'payment_note' => $this->clip('Reversed by employee #' . $actorId . ' on ' . now()->format('d M Y') . ': ' . $reason . ' — was paid ' . $was, 255),
+        ])->save();
+        $this->notify($request, 'payment_reversed');
+
+        return ['allowed' => true, 'reason' => ''];
+    }
+
+    private function clip(?string $value, int $max): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : mb_substr($value, 0, $max);
+    }
+
     public function approve(ReimbursementRequest $request, int $actorId, array $payload = [], bool $canManage = false): array
     {
         $gate = $this->canAct($request, $actorId, $canManage);
@@ -1287,6 +1348,8 @@ class ReimbursementService
                 'approved'   => "Your reimbursement {$request->request_no} ({$amount}) was approved.",
                 'rejected'   => "Your reimbursement {$request->request_no} ({$amount}) was rejected.",
                 'progressed' => "Your reimbursement {$request->request_no} passed a review step.",
+                'paid'       => "Your reimbursement {$request->request_no} ({$amount}) has been paid" . ($request->paid_at ? ' on ' . $request->paid_at->format('d M Y') : '') . '.',
+                'payment_reversed' => "The payment of your reimbursement {$request->request_no} was reversed by Finance.",
                 default      => "Your reimbursement {$request->request_no} was updated.",
             };
 
@@ -1335,7 +1398,7 @@ class ReimbursementService
                     'employee_id' => $employeeId,
                     'type'        => 'reimbursement_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/reimbursement',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {

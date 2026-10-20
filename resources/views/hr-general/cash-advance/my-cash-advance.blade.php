@@ -31,7 +31,7 @@
          Kartu "Outstanding" adalah alasan kedua sumbu status dipisah (D140):
          uang yang sudah keluar tetapi bukunya belum ditutup. Itu angka yang
          paling perlu dilihat pemohon maupun bagian keuangan. --}}
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
         <div class="bg-white rounded-xl p-4 shadow-sm">
             <p class="text-xs text-gray-500">Requests · {{ $month }}</p>
             <p class="text-2xl font-bold text-gray-900 mt-1">{{ $summary['total'] }}</p>
@@ -52,6 +52,11 @@
                 {{ $amounts->format($summary['outstanding'], false) }}
             </p>
             <p class="text-xs text-gray-400 mt-0.5">approved, not yet reported</p>
+        </div>
+        <div class="bg-white rounded-xl p-4 shadow-sm {{ $overdueCount > 0 ? 'ring-1 ring-red-200' : '' }}">
+            <p class="text-xs text-gray-500">Reports overdue</p>
+            <p class="text-2xl font-bold mt-1 {{ $overdueCount > 0 ? 'text-red-700' : 'text-gray-900' }}">{{ $overdueCount }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">{{ $settings->hasCarDueLimit() ? 'deadline ' . $settings->car_due_days . ' days after approval' : 'no deadline set' }}</p>
         </div>
     </div>
 
@@ -119,6 +124,8 @@
                                             {{ $request->settlementLabel() }}
                                         </span>
                                     @endif
+
+                                    @include('hr-general.cash-advance.components.car-due-badge')
 
                                     @if($canReport)
                                         {{-- Pintu masuk laporan ada di tempat orang melihat

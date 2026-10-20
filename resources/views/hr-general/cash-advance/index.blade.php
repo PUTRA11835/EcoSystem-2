@@ -33,7 +33,7 @@
          pertama bagian keuangan — uang yang sudah keluar tetapi bukunya belum
          ditutup. Yang kedua hanya mungkin karena `status` dan
          `settlement_status` dipisah jadi dua sumbu (D140). --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <a href="{{ route('general.cash-advance.index', ['scope' => 'mine', 'status' => 'open']) }}"
            class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow block">
             <p class="text-xs text-gray-500">Waiting for you</p>
@@ -56,6 +56,14 @@
                 {{ $amounts->format($outstanding['amount'], false) }}
             </p>
             <p class="text-xs text-gray-400 mt-0.5">{{ $outstanding['count'] }} not yet reported</p>
+        </a>
+        <a href="{{ route('general.cash-advance.index', ['status' => 'overdue']) }}"
+           class="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow block {{ $filters['status'] === 'overdue' ? 'ring-1 ring-red-800' : '' }}">
+            <p class="text-xs text-gray-500">Report overdue</p>
+            <p class="text-2xl font-bold mt-1 {{ $overdueCount > 0 ? 'text-red-700' : 'text-gray-900' }}">{{ $overdueCount }}</p>
+            <p class="text-xs text-gray-400 mt-0.5">
+                {{ $settings->hasCarDueLimit() ? 'past the ' . $settings->car_due_days . '-day deadline' : 'no deadline set' }}
+            </p>
         </a>
     </div>
 
@@ -93,7 +101,7 @@
         </div>
 
         {{-- ── Filter, susunan persis acuan ────────────────────────────── --}}
-        <form method="GET" action="{{ route('general.cash-advance.index') }}"
+        <form id="listFilters" method="GET" action="{{ route('general.cash-advance.index') }}"
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             <div>
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Month</label>
@@ -216,6 +224,7 @@
                                             Report due
                                         </span>
                                     @endif
+                                    @include('hr-general.cash-advance.components.car-due-badge')
                                 </div>
                             @else
                                 <span class="text-gray-300">—</span>
@@ -295,11 +304,7 @@
             </table>
         </div>
 
-        @if($requests->hasPages())
-            <div class="mt-4">
-                {{ $requests->links() }}
-            </div>
-        @endif
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $requests, 'form' => 'listFilters', 'perPage' => $requests->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 </div>
 @endsection

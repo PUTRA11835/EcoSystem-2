@@ -492,6 +492,8 @@ class PayrollEngine
         // Reimbursement disetujui pada periode ini (tanggal persetujuan), IDR, dan belum dibayar lewat periode payroll lain.
         $reimbursements = DB::table('reimbursement_requests as r')
             ->whereIn('r.employee_id', $ids)->whereNull('r.deleted_at')->where('r.status', 'approved')
+            // Finance already paid it by transfer (Reimbursement → Record payment): salary must not pay it a second time.
+            ->whereNull('r.paid_at')
             ->whereBetween('r.completed_at', [$start . ' 00:00:00', $end . ' 23:59:59'])
             ->where(fn ($q) => $q->whereNull('r.currency')->orWhere('r.currency', 'IDR'))
             ->whereNotIn('r.id', function ($q) use ($periodId) {

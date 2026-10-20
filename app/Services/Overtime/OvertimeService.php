@@ -911,7 +911,7 @@ class OvertimeService
                     'employee_id' => $employeeId,
                     'type'        => 'overtime_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/overtime',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {

@@ -1431,7 +1431,7 @@ class PurchaseRequestService
                     'employee_id' => $employeeId,
                     'type'        => 'purchase_request_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/purchase-request',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {

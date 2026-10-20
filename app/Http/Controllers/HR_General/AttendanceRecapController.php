@@ -204,7 +204,7 @@ class AttendanceRecapController extends Controller
         // Ekspor mengambil seluruh baris; layar dipaginasi agar tetap ringan.
         $employees = $forExport
             ? $employeeQuery->get()
-            : $employeeQuery->paginate(self::MONTHLY_PER_PAGE)->withQueryString();
+            : $employeeQuery->paginate($this->pageSize(self::MONTHLY_PER_PAGE))->withQueryString();
 
         // pluck() bekerja pada Collection maupun paginator — paginator
         // meneruskan pemanggilan ke koleksi di dalamnya. Memakai items() akan

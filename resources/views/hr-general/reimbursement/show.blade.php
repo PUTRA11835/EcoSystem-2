@@ -73,6 +73,8 @@
                     </dd>
                 </div>
 
+                @include('hr-general.reimbursement.components.payment')
+
                 @if($request->created_by)
                 <div class="flex gap-3">
                     <dt class="w-32 shrink-0 text-gray-500">Created by</dt>

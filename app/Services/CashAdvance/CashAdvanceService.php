@@ -1332,7 +1332,7 @@ class CashAdvanceService
                     'employee_id' => $employeeId,
                     'type'        => 'cash_advance_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/cash-advance',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {

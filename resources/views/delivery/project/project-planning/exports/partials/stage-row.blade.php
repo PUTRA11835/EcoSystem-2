@@ -21,6 +21,6 @@
 {{-- Activities --}}
 @if(!empty($stage['activities']))
     @foreach($stage['activities'] as $activity)
-        @include('project-planning.exports.partials.activity-row', ['activity' => $activity, 'level' => $level + 1])
+        @include('delivery.project.project-planning.exports.partials.activity-row', ['activity' => $activity, 'level' => $level + 1])
     @endforeach
 @endif

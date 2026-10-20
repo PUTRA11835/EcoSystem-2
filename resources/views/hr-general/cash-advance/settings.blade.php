@@ -382,8 +382,29 @@
                            value="{{ old('car_due_days', $settings->car_due_days) }}" required
                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 primary-border">
                     <p class="text-xs text-gray-400 mt-1">
-                        0 means no deadline. Counted from the approval date, and evaluated when a page is
-                        opened — <span class="font-medium">no scheduled reminder is sent</span>.
+                        0 means no deadline. Counted from the approval date. A report filed after the day
+                        it is due is flagged <span class="font-medium">Late report</span>, and the cash advance shows as
+                        <span class="font-medium">Overdue</span> in the lists.
+                    </p>
+                </div>
+
+                <div class="flex items-end">
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" name="car_reminders_enabled" value="1"
+                               @checked(old('car_reminders_enabled', $settings->car_reminders_enabled))
+                               class="w-4 h-4 rounded border-gray-300">
+                        Remind requesters automatically
+                    </label>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">First reminder (days before the deadline)</label>
+                    <input type="number" name="car_reminder_days_before" min="0" max="60" required
+                           value="{{ old('car_reminder_days_before', $settings->car_reminder_days_before) }}"
+                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 primary-border">
+                    <p class="text-xs text-gray-400 mt-1">
+                        A daily job reminds the requester this many days ahead, on the due day, the first day it is late, then
+                        weekly while overdue. 0 skips the early reminder. Needs a deadline above.
                     </p>
                 </div>
 

@@ -134,9 +134,13 @@
         </div>
         <div class="bg-white rounded-xl p-4 shadow-sm">
             <p class="text-xs text-gray-500">Cash advance</p>
+            @if(!empty($advanceRoute))
             <a href="{{ $advanceRoute }}" class="text-lg font-bold primary-text hover:underline mt-1 block">
                 {{ $report->cashAdvance?->request_no ?? '—' }}
             </a>
+            @else
+            <span class="text-lg font-bold text-gray-900 mt-1 block">{{ $report->cashAdvance?->request_no ?? '—' }}</span>
+            @endif
             <p class="text-xs text-gray-400 mt-0.5">
                 {{ $report->cashAdvance?->settlementLabel() ?? '—' }}
             </p>

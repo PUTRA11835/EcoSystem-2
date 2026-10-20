@@ -6,6 +6,7 @@ use App\Exports\PayrollSheetExport;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\PayrollSetting;
+use App\Services\Payroll\PayrollAudit;
 use App\Services\Payroll\PayrollPeriodService;
 use App\Services\Payroll\PayslipPdf;
 use App\Support\Payroll\PayrollPeriodRules;
@@ -97,6 +98,7 @@ class PayrollController extends Controller
 
         return view('finance.payroll.show', [
             'p' => $p, 'slips' => $slips, 'corrections' => $corrections, 'employees' => $employees,
+            'auditTrail' => PayrollAudit::forPeriod($period),
             'otherPeriods' => DB::table('payroll_periods')->where('id', '!=', $period)->orderByDesc('period_start')->get(['id', 'name']),
             'warnings' => json_decode((string) $p->warnings, true) ?: [],
             'enabled' => $this->periods->isEnabled(), 'caps' => $this->caps(), 'editable' => $editable,
@@ -165,7 +167,7 @@ class PayrollController extends Controller
 
     public function destroy(int $period): RedirectResponse
     {
-        $errors = $this->periods->delete($period);
+        $errors = $this->periods->delete($period, $this->actor());
 
         return $errors
             ? redirect()->route('finance.payroll.periods')->withErrors($errors)
@@ -183,7 +185,7 @@ class PayrollController extends Controller
 
     public function deleteAdjustment(int $period, int $adjustment): RedirectResponse
     {
-        $errors = $this->periods->deleteAdjustment($period, $adjustment);
+        $errors = $this->periods->deleteAdjustment($period, $adjustment, $this->actor());
 
         return $errors
             ? redirect()->route('finance.payroll.periods.show', $period)->withErrors($errors)
@@ -261,6 +263,11 @@ class PayrollController extends Controller
 
             return [$s->employee_eci, $s->employee_name, $s->bank_name, $s->bank_account, $h->account_holder ?? '', (float) $s->take_home_pay];
         })->all();
+
+        // A payment file leaves the system: who took it, for which period, how many lines and how much, is part of the trail.
+        PayrollAudit::record(PayrollAudit::BANK_EXPORTED, $period, 'Downloaded the bank transfer file (' . count($rows) . ' line(s), Rp ' . \App\Support\Payroll\Money::format(array_sum(array_column($rows, 5))) . ')',
+            $this->actor(), ['lines' => count($rows), 'total' => round((float) array_sum(array_column($rows, 5)), 2), 'locked' => $p->status === PayrollPeriodRules::LOCKED,
+                'without_bank_account' => count(array_filter($rows, fn ($r) => trim((string) $r[3]) === ''))]);
 
         return Excel::download(new PayrollSheetExport(
             ['Employee ID', 'Name', 'Bank', 'Account No.', 'Account holder', 'Transfer amount'], $rows, ['F'], ['A', 'D'],

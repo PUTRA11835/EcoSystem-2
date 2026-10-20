@@ -1246,7 +1246,7 @@ class CashAdvanceReportService
                     'employee_id' => $employeeId,
                     'type'        => 'cash_advance_report_pending_approval',
                     'preview'     => $message,
-                    'link'        => '/general/cash-advance-report',
+                    'link'        => '/general/approvals',
                 ]);
             }
         } catch (\Throwable $e) {

@@ -38,7 +38,23 @@ use Illuminate\Validation\ValidationException;
  */
 class LetterTemplateController extends Controller
 {
-    public function index(LetterNumberService $numbers)
+    public function index(Request $request, LetterNumberService $numbers)
+    {
+        // Letterheads and signers moved to Document Identity; old bookmarks and links land there.
+        if (in_array($request->query('section'), ['letterheads', 'signers'], true)) {
+            return redirect()->route('general.document-identity.index', ['section' => $request->query('section')]);
+        }
+
+        return $this->render($numbers, false);
+    }
+
+    /** Document Identity: letterheads and signers, shared by HR and Legal (their own slugs — see routes). */
+    public function identity(LetterNumberService $numbers)
+    {
+        return $this->render($numbers, true);
+    }
+
+    private function render(LetterNumberService $numbers, bool $identity)
     {
         $settings = LetterSetting::current();
         $types = Letterhead::letterTypes();
@@ -48,6 +64,7 @@ class LetterTemplateController extends Controller
         $employees = LetterService::employeeOptions();
 
         return view('hr-general.letters.settings', [
+            'identity'       => $identity,
             'settings'       => $settings,
             'letterheads'    => Letterhead::orderBy('name')->get(),
             'letterTypes'    => $types,

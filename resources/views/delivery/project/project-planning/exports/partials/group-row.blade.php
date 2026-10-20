@@ -24,13 +24,13 @@
 {{-- Sub-groups (recursive) --}}
 @if(!empty($group['sub_groups']))
     @foreach($group['sub_groups'] as $subGroup)
-        @include('project-planning.exports.partials.group-row', ['group' => $subGroup, 'level' => $level + 1])
+        @include('delivery.project.project-planning.exports.partials.group-row', ['group' => $subGroup, 'level' => $level + 1])
     @endforeach
 @endif
 
 {{-- Stages --}}
 @if(!empty($group['stages']))
     @foreach($group['stages'] as $stage)
-        @include('project-planning.exports.partials.stage-row', ['stage' => $stage, 'level' => $level + 1])
+        @include('delivery.project.project-planning.exports.partials.stage-row', ['stage' => $stage, 'level' => $level + 1])
     @endforeach
 @endif

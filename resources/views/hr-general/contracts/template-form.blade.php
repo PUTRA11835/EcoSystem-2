@@ -75,7 +75,7 @@
                 </label>
                 <p class="text-[11px] text-gray-400 ml-6">Prints the company letterhead behind the contract. The letterhead itself is set in Letter Templates → Settings, letter type “Employment Contract”.
                     @unless($letterhead) <strong class="text-amber-700">None is set yet.</strong>@endunless
-                    @if($canDo('general.letter-templates'))<a href="{{ route('general.letters.settings.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>@endif</p>
+                    @if($canDo('general.letters.settings.letterheads'))<a href="{{ route('general.document-identity.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>@endif</p>
             </div>
         </div>
 

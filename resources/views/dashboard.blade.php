@@ -1763,6 +1763,7 @@
         function closeSidebar() {
             var sidebar = document.getElementById('sidebar');
             var overlay = document.getElementById('sidebarOverlay');
+            if (!sidebar) return;   // approver shell: no sidebar on the page
             sidebar.classList.add('-translate-x-full');
             sidebar.classList.remove('translate-x-0');
             if (overlay) overlay.classList.add('hidden');

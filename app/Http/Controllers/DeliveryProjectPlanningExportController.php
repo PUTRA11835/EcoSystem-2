@@ -24,7 +24,7 @@ class DeliveryProjectPlanningExportController extends Controller
             $response = $dataController->getTableData($project);
             $data = json_decode($response->getContent(), true);
 
-            $pdf = PDF::loadView('project-planning.exports.table-pdf', [
+            $pdf = PDF::loadView('delivery.project.project-planning.exports.table-pdf', [
                 'project' => $project,
                 'phasesData' => $data,
                 'exportDate' => now()->format('d M Y'),
@@ -62,7 +62,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 throw new \Exception('Failed to load gantt data');
             }
 
-            $pdf = PDF::loadView('project-planning.exports.gantt-pdf', [
+            $pdf = PDF::loadView('delivery.project.project-planning.exports.gantt-pdf', [
                 'project' => $project,
                 'vertical_groups' => $data['vertical_groups'],
                 'start_date' => $data['start_date'],
@@ -102,7 +102,7 @@ class DeliveryProjectPlanningExportController extends Controller
                 throw new \Exception('Failed to load S-curve data');
             }
 
-            $pdf = PDF::loadView('project-planning.exports.scurve-pdf', [
+            $pdf = PDF::loadView('delivery.project.project-planning.exports.scurve-pdf', [
                 'project' => $project,
                 'sCurveData' => [
                     'weekly_data' => $data['weekly_data'],

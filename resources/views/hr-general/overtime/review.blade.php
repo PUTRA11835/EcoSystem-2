@@ -54,7 +54,7 @@
             @endif
         </div>
 
-        <form method="GET" action="{{ route('general.overtime.index') }}"
+        <form id="listFilters" method="GET" action="{{ route('general.overtime.index') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <div class="md:col-span-4">
@@ -287,9 +287,7 @@
             </table>
         </div>
 
-        <div class="mt-4">
-            {{ $requests->links() }}
-        </div>
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $requests, 'form' => 'listFilters', 'perPage' => $requests->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 </div>
 @endsection

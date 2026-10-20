@@ -278,7 +278,7 @@ class LetterComposeController extends Controller
             $attributes += ['counterparty' => 'recipient', 'body' => 'letter text'];
         }
 
-        $input = $request->validate($rules, ['signatory_employee_id.in' => 'Pick a signatory allowed in Letter Templates → Settings → Signers.'], $attributes);
+        $input = $request->validate($rules, ['signatory_employee_id.in' => 'Pick a signatory allowed in Document Identity → Signers.'], $attributes);
 
         $typed = trim((string) ($input['letter_number'] ?? ''));
         if (!$preview && $typed !== '' && $typed !== $letter?->letter_number && app(LetterNumberService::class)->outgoingNumberUsed($typed, $letter?->id)) {
