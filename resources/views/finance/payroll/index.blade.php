@@ -13,6 +13,7 @@
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('finance.payroll.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
+    @include('partials.legal-basis-banner', ['legalModule' => ['pph21', 'bpjs', 'overtime']])
 
     {{-- Summary --}}
     <div class="grid grid-cols-3 gap-3">

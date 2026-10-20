@@ -10,8 +10,8 @@
         <span>#{{ $ticket->ticket_number }} - {{ Str::limit($ticket->description, 50) }}</span>
         @if(isset($deliverySupport) && $deliverySupport)
         @php
-            $managerLabel = $deliverySupport->support_manager_name ?: '<span class="italic opacity-50">Unassigned</span>';
-            $adminLabel   = $deliverySupport->support_admin_name   ?: '<span class="italic opacity-50">Unassigned</span>';
+            $managerLabel = e($deliverySupport->support_manager_name) ?: '<span class="italic opacity-50">Unassigned</span>';
+            $adminLabel   = e($deliverySupport->support_admin_name) ?: '<span class="italic opacity-50">Unassigned</span>';
             $hasAny = $deliverySupport->support_manager_name || $deliverySupport->support_admin_name;
         @endphp
         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold align-middle {{ $hasAny ? 'bg-gray-100 text-gray-600' : 'bg-yellow-50 text-yellow-600 border border-yellow-200' }}">

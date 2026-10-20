@@ -50,6 +50,8 @@ return [
         'finance.payroll', 'finance.payroll.*',
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
         'general.contracts.salary',
+        'general.external.timesheet.amount',   // rates, gross amounts and invoice amounts of external timesheets
+        'general.offboarding.settlement',       // final settlement amounts (severance, compensation, tax, net)
         'general.contracts.signing',   // send / forward / release a contract for signature — Legal and RPMO
     ],
 
@@ -68,6 +70,11 @@ return [
         'general.contracts.templates',
         'general.contracts.settings',            // Create = add a position type, Edit = rename / switch an option, Delete = delete an unused position type
         'general.external.contracts',            // Create = add a contract, Edit = edit / change status, Delete = delete a Draft
+        'general.external.timesheet',            // Create = fill a timesheet on behalf of a consultant, Edit = change one / delete a Draft
+        'general.offboarding.list',              // Create = start an offboarding, Edit = checklist / settlement / deactivate / complete, Delete = cancel
+        'general.offboarding.settings',          // Create = add a task, Edit = switches and tasks, Delete = delete a task
+        'finance.legal-basis',                   // Create = add a rule or version, Edit = change / mark reviewed, Delete = supersede
+        'general.external.timesheet.settings',   // approvers of the timesheet and invoice steps; per-consultant exceptions
         'general.external.contracts.settings',   // the same boxes, for the external contract forms
         'general.external.assignment-letters',   // Create = generate an assignment letter
         'general.external.employment-certificates', // Create = generate an employment certificate
@@ -124,7 +131,7 @@ return [
         ['key' => 'letters',        'label' => 'Docs & Letters',      'tabs' => ['general.letters.dashboard', 'general.letters.requests', 'general.letters.register', 'general.letters.compose', 'general.letter-templates']],
         ['key' => 'doc-identity',  'label' => 'Document Identity',    'tabs' => ['general.letters.settings.letterheads', 'general.letters.settings.signers']],
         ['key' => 'contract',      'label' => 'Contract',             'tabs' => ['general.contracts.list', 'general.contracts.templates', 'general.contracts.settings']],
-        ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.contracts', 'general.external.contracts.settings', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
+        ['key' => 'external',      'label' => 'External',             'tabs' => ['general.external.consultants', 'general.external.timesheet', 'general.external.timesheet.invoices', 'general.external.timesheet.settings', 'general.external.my-timesheet', 'general.external.contracts', 'general.external.contracts.settings', 'general.external.assignment-letters', 'general.external.employment-certificates', 'general.external.reference-letters']],
         ['key' => 'inventory',     'label' => 'Inventory & Assets',   'tabs' => ['general.inventory.overview', 'general.inventory.items', 'general.inventory.assets', 'general.inventory.settings']],
         ['key' => 'payroll',       'label' => 'Payroll',              'tabs' => ['finance.payroll.periods', 'finance.payroll.settings', 'finance.payroll.simulation']],
         ['key' => 'bpjs',          'label' => 'BPJS',                 'tabs' => ['finance.bpjs.settings', 'finance.bpjs.report', 'finance.bpjs.letters']],
@@ -161,6 +168,11 @@ return [
         'general.contracts.templates'         => ['c' => 'Add a template', 'e' => 'Edit a template', 'd' => 'Delete a template (not a system default)'],
         'general.contracts.settings'          => ['c' => 'Add a position type', 'e' => 'Rename / switch a contract type or position type on or off', 'd' => 'Delete a position type nobody uses'],
         'general.external.contracts.settings' => ['c' => 'Add a position type', 'e' => 'Rename / switch a contract type or position type on or off', 'd' => 'Delete a position type nobody uses'],
+        'general.offboarding.list'            => ['c' => 'Start an offboarding', 'e' => 'Save the checklist, calculate the settlement, deactivate access, complete', 'd' => 'Cancel an offboarding'],
+        'general.offboarding.settings'        => ['c' => 'Add a checklist task', 'e' => 'Change the switches and tasks', 'd' => 'Delete a checklist task'],
+        'finance.legal-basis'                 => ['c' => 'Add a rule or a new version', 'e' => 'Edit an entry / mark it reviewed', 'd' => 'Mark a version superseded'],
+        'general.external.timesheet'          => ['c' => 'Fill a timesheet on behalf of a consultant', 'e' => 'Change a timesheet on behalf of a consultant / delete a Draft'],
+        'general.external.timesheet.settings' => ['c' => 'Add an approval step or a per-consultant exception', 'e' => 'Change a step, an exception or the options', 'd' => 'Delete a step or an exception'],
         'general.external.contracts'          => ['c' => 'Create an external contract', 'e' => 'Edit an external contract / change its status', 'd' => 'Delete a Draft external contract'],
         'general.external.assignment-letters' => ['c' => 'Generate an assignment letter'],
         'general.external.employment-certificates' => ['c' => 'Generate an employment certificate'],
@@ -226,13 +238,14 @@ return [
         ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Capital', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
         ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Capital', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
         ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Capital', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
-        // Inventory & Assets (General Affairs) lives inside Human Capital, like the sidebar
+        // General Affairs — directly under Human Capital
+        ['key' => 'hr-offboarding', 'label' => 'HR · Offboarding', 'group' => 'Human Resources', 'short' => 'Offboarding', 'match' => ['general.offboarding', 'general.offboarding.*']],
         ['key' => 'ga-inventory', 'label' => 'HR · Inventory & Assets', 'group' => 'Human Capital', 'short' => 'Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         // External — one entry per sidebar sub menu
         ['key' => 'ext-consultants', 'label' => 'External · Consultants', 'group' => 'External', 'short' => 'External Consultants',
             'about' => "The consultant list and every tab of a consultant's detail page (Basic Data, Address, Bank, ...).",
             'match' => ['general.external', 'general.external.consultants', 'general.external.consultants.*', 'external.section.*']],
-        ['key' => 'ext-timesheet', 'label' => 'External · Timesheet & Payment', 'group' => 'External', 'short' => 'Timesheet & Payment', 'match' => ['general.external.timesheet', 'general.external.timesheet.*']],
+        ['key' => 'ext-timesheet', 'label' => 'External · Timesheet & Payment', 'group' => 'External', 'short' => 'Timesheet & Payment', 'match' => ['general.external.timesheet', 'general.external.timesheet.*', 'general.external.my-timesheet']],
         ['key' => 'ext-contract', 'label' => 'External · Contract',      'group' => 'External', 'short' => 'External Contract', 'match' => ['general.external.contracts', 'general.external.contracts.*']],
         ['key' => 'ext-assignment', 'label' => 'External · Assignment Letter', 'group' => 'External', 'short' => 'Assignment Letter', 'match' => ['general.external.assignment-letters', 'general.external.assignment-letters.*']],
         ['key' => 'ext-certificate', 'label' => 'External · Employment Certificate', 'group' => 'External', 'short' => 'Employment Certificate', 'match' => ['general.external.employment-certificates', 'general.external.employment-certificates.*']],

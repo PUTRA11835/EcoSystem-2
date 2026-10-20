@@ -1,5 +1,5 @@
 {{-- Compensation (Payroll; HC-D21): penanda PAJAK & BPJS untuk payroll + ringkasan gaji (baca saja).
-     Komponen gaji TIDAK diedit di sini — itu kotak "Salary Components" di tab Contract (tabel yang sama, terisi dari Offering
+     Komponen gaji TIDAK diedit di sini — itu kotak "Salary Components" di tab Contract (kini satu tab dengan kartu ini) (tabel yang sama, terisi dari Offering
      Letter); payroll hanya membacanya. Data dari GET /api/employees/{id}/compensation. Izin dipilih server
      (employee.section.compensation.view|update). Warna mengikuti Accent colour (primary-gradient / partials.accent-brand-red). --}}
 @include('partials.money-input')
@@ -20,7 +20,7 @@
 
     <p class="text-xs text-gray-500 -mt-3">
         Tax and BPJS markers used when payroll is calculated. Salary components (base salary, allowances) are managed in the
-        <button type="button" class="font-semibold underline" onclick="switchSection('contract')">Contract tab → Salary Components</button>; payroll reads them from there.
+        <strong>Salary Components</strong> box above; payroll reads them from there.
     </p>
 
     {{-- Ringkasan hari ini --}}
@@ -59,22 +59,6 @@
         </div>
     </div>
 
-    {{-- Komponen gaji yang dibaca payroll (baca saja) --}}
-    <div class="border border-gray-200 rounded-xl p-4">
-        <h5 class="text-sm font-bold text-gray-900">Salary components payroll will use</h5>
-        <p class="text-xs text-gray-500 mt-0.5 mb-3">Read-only view of the Salary Components box. A component counts for a payroll period when the period overlaps its dates.</p>
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-                <thead>
-                    <tr class="text-left text-xs font-semibold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                        <th class="py-2 pr-3">Component</th><th class="py-2 pr-3">Type</th><th class="py-2 pr-3 text-right">Amount (IDR)</th><th class="py-2 pr-3">Effective</th><th class="py-2 pr-3">Counts for tax / BPJS</th><th class="py-2">Today</th>
-                    </tr>
-                </thead>
-                <tbody id="cpRows" class="divide-y divide-gray-100"></tbody>
-            </table>
-            <p id="cpEmpty" class="hidden text-sm text-gray-500 py-6 text-center">No salary component yet. Add the Base Salary in the Contract tab → Salary Components.</p>
-        </div>
-    </div>
 </div>
 
 <script>
@@ -132,7 +116,9 @@
         $('cpBpjsEmp').checked = !!d.tax.bpjs_employment_active;
         $('cpActivated').checked = !!d.tax.payroll_activated;
 
+        // Tabel salinan komponen gaji sudah dihapus (duplikat kotak Salary Components); blok di bawah hanya jalan bila elemennya ada.
         const tbody = $('cpRows');
+        if (!tbody) { return; }
         tbody.innerHTML = '';
         $('cpEmpty').classList.toggle('hidden', d.components.length > 0);
         d.components.forEach(c => {

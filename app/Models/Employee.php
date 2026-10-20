@@ -110,7 +110,8 @@ class Employee extends Model
             'profile.my',
         ];
 
-        if (in_array($slug, $essSlugs, true)) {
+        // Konsultan eksternal tidak mendapat sebagian slug self-service karyawan secara otomatis (config/external_ess.php).
+        if (in_array($slug, $essSlugs, true) && !($this->isExternalConsultant() && in_array($slug, config('external_ess.blocked_default_slugs', []), true))) {
             return true;
         }
 
@@ -170,6 +171,10 @@ class Employee extends Model
             'profile.my',
         ];
 
+        if ($this->isExternalConsultant()) {
+            $essDefaults = array_values(array_diff($essDefaults, config('external_ess.blocked_default_slugs', [])));
+        }
+
         return array_values(array_unique(array_merge($slugs, $essDefaults)));
     }
 
@@ -199,14 +204,24 @@ class Employee extends Model
         }
 
         // ESS self-service slugs are viewable by every active employee by default.
-        foreach (['general.my-attendance', 'my-leave-permit', 'general.my-overtime',
+        $blocked = $this->isExternalConsultant() ? config('external_ess.blocked_default_slugs', []) : [];
+        foreach (array_diff(['general.my-attendance', 'my-leave-permit', 'general.my-overtime',
                   'general.my-reimbursement', 'general.my-purchase-request',
-                  'general.my-kpi', 'profile.my'] as $slug) {
+                  'general.my-kpi', 'profile.my'], $blocked) as $slug) {
             $matrix[$slug] ??= ['view' => false, 'create' => false, 'edit' => false, 'delete' => false];
             $matrix[$slug]['view'] = true;
         }
 
         return $matrix;
+    }
+
+    private ?bool $externalConsultant = null;
+
+    /** Karyawan berjenis External (konsultan kontrak). Hasilnya disimpan per instance. */
+    public function isExternalConsultant(): bool
+    {
+        return $this->externalConsultant ??= \Illuminate\Support\Facades\DB::table('employee_basic_data')
+            ->where('employee_id', $this->employee_id)->where('employee_type', 'External')->exists();
     }
 
     public function basicData()

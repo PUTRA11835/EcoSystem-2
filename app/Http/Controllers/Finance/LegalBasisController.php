@@ -1,0 +1,101 @@
+<?php
+
+namespace App\Http\Controllers\Finance;
+
+use App\Http\Controllers\Controller;
+use App\Http\Controllers\HR_General\Concerns\ChecksExternalAccess;
+use App\Services\Legal\LegalBasisService;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+/**
+ * Business & Legal → Legal Basis (slug finance.legal-basis, URL /legal/basis): Register Dasar Hukum — peraturan di balik tiap aturan perhitungan (PPh 21, BPJS, lembur,
+ * PKWT, Offboarding): nomor, pasal, berlaku sejak, TERAKHIR DIUBAH, sumber, status ulasan, dan tabel tarif untuk kalkulator.
+ *
+ * V lihat · C tambah aturan / versi baru · E ubah, tandai Reviewed / Needs review · D tandai Superseded.
+ * Mengubah isi sebuah versi menurunkannya ke "Needs review" (ulasan berlaku untuk isi yang diulas).
+ * TIDAK mengubah rumus atau angka Payroll — Payroll tetap membaca tabel Settings-nya sendiri; register ini mendokumentasikan dasar hukumnya.
+ */
+class LegalBasisController extends Controller
+{
+    use ChecksExternalAccess;
+
+    public function __construct(private LegalBasisService $legal) {}
+
+    public function index(Request $request)
+    {
+        $module = (string) $request->query('module');
+        $rows = $this->legal->all(isset(LegalBasisService::MODULES[$module]) ? $module : null);
+        $stale = $rows->filter(fn ($r) => $r->status === 'active' && $r->reviewed_at && strtotime($r->reviewed_at) < strtotime('-12 months'))->count();
+
+        return view('finance.legal-basis.index', [
+            'rows' => $rows->groupBy('module'), 'module' => $module, 'modules' => LegalBasisService::MODULES, 'types' => LegalBasisService::TYPES,
+            'statuses' => LegalBasisService::STATUSES, 'badges' => LegalBasisService::BADGES, 'confidence' => LegalBasisService::CONFIDENCE,
+            'switches' => $this->legal->allSwitches(), 'pending' => collect(array_keys(LegalBasisService::MODULES))->mapWithKeys(fn ($m) => [$m => $this->legal->pending($m)]),
+            'counts' => ['total' => $rows->count(), 'needs_review' => $rows->where('status', 'needs_review')->count(), 'stale' => $stale, 'reviewed' => $rows->where('status', 'active')->count()],
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        return $this->save($request, null);
+    }
+
+    public function update(Request $request, int $id)
+    {
+        return $this->save($request, $id);
+    }
+
+    /** Saklar penerapan per modul (panel, peringatan, enforce). */
+    public function saveSwitches(Request $request)
+    {
+        $this->legal->saveSwitches((array) $request->input('sw', []), $this->actorId());
+
+        return back()->with('success', 'Legal basis switches saved. They take effect immediately.');
+    }
+
+    public function review(int $id)
+    {
+        return $this->act(fn () => $this->legal->markReviewed($id, $this->actorId()), 'Marked as reviewed.');
+    }
+
+    public function needsReview(int $id)
+    {
+        return $this->act(fn () => $this->legal->markNeedsReview($id), 'Marked as needs review.');
+    }
+
+    public function supersede(int $id)
+    {
+        return $this->act(fn () => $this->legal->supersede($id), 'Marked as superseded. It is no longer used for calculations.');
+    }
+
+    private function save(Request $request, ?int $id)
+    {
+        $d = $request->validate([
+            'rule_key' => 'required|string|max:60|regex:/^[a-z0-9_.]+$/', 'module' => ['required', Rule::in(array_keys(LegalBasisService::MODULES))],
+            'regulation_type' => ['required', Rule::in(array_keys(LegalBasisService::TYPES))], 'number' => 'required|string|max:40', 'year' => 'required|integer|min:1945|max:2100',
+            'title' => 'required|string|max:400', 'article' => 'nullable|string|max:400', 'effective_date' => 'required|date', 'last_amended_date' => 'nullable|date',
+            'amended_by' => 'nullable|string|max:400', 'source_url' => 'nullable|url|max:500', 'confidence' => ['required', Rule::in(array_keys(LegalBasisService::CONFIDENCE))],
+            'payload' => 'nullable|string|max:20000', 'notes' => 'nullable|string|max:3000',
+        ]);
+
+        try {
+            $this->legal->save($id, $d, $this->actorId());
+        } catch (\DomainException $e) {
+            return back()->withInput()->withErrors(['legal' => $e->getMessage()]);
+        }
+
+        return back()->with('success', $id ? 'Saved. The entry is back to “Needs review” until someone reviews the change.' : 'Added as “Needs review”.');
+    }
+
+    private function act(\Closure $do, string $message)
+    {
+        try {
+            $do();
+        } catch (\DomainException $e) {
+            return back()->withErrors(['legal' => $e->getMessage()]);
+        }
+
+        return back()->with('success', $message);
+    }
+}

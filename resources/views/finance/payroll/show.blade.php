@@ -23,6 +23,7 @@
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('finance.payroll.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
+    @include('partials.legal-basis-banner', ['legalModule' => ['pph21', 'bpjs', 'overtime']])
 
     {{-- Header + actions --}}
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">

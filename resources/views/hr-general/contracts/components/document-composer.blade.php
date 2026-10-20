@@ -60,7 +60,7 @@
     <div id="dcEditorWrap" class="{{ $dcHasText ? '' : 'hidden' }} p-3">
         <div class="mb-2 text-[11px] text-gray-500 flex flex-wrap items-center gap-x-4 gap-y-1">
             <span id="dcTemplateNote"></span>
-            <span><i class="fas fa-circle-info mr-1"></i> Fields in <code class="bg-gray-100 px-1 rounded">{{ '{{' }}…{{ '}}' }}</code> (number, stamp, signatures) are filled in when the document is shown.</span>
+            <span><i class="fas fa-circle-info mr-1"></i> Fields in <code class="bg-gray-100 px-1 rounded">@{{ … }}</code> (number, stamp, signatures) are filled in when the document is shown.</span>
         </div>
         @include('hr-general.contracts.components.word-editor', [
             'weHtml'       => $dcHasText ? \App\Support\Contracts\ContractHtmlSanitizer::clean($dcContract->body_html) : '<p><br></p>',

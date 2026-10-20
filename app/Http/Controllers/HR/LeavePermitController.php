@@ -246,6 +246,10 @@ class LeavePermitController extends Controller
     {
         $user       = session('user');
         $employeeId = $request->input('employee_id', $user['id'] ?? null);
+        // Kuota ORANG LAIN hanya untuk pemegang izin lihat halaman HR; selain itu dipaksa ke diri sendiri.
+        if ($employeeId && (int) $employeeId !== (int) ($user['id'] ?? 0) && !$this->menuCan('can_view')) {
+            return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
+        }
         $year       = (int) $request->input('year', date('Y'));
         $month      = $request->filled('month') ? (int) $request->month : (int) date('n');
 
@@ -745,6 +749,11 @@ class LeavePermitController extends Controller
         $isHR = $this->menuCan('can_edit');     // "Edit" box of hr_general.leave_permit
 
         $application = LeavePermitApplication::findOrFail($id);
+
+        // Pengajuan orang lain hanya boleh diubah HR.
+        if (!$isHR && (int) $application->employee_id !== (int) $currentEmpId) {
+            return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
+        }
 
         if (!$isHR && !in_array($application->status, ['pending', 'revision'])) {
             return response()->json(['success' => false, 'message' => 'Only applications in Pending or Revision status can be updated by employees.'], 422);
