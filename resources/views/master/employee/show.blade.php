@@ -608,7 +608,7 @@
                 setValue('lastName', basicData.last_name);
                 setValue('nickName', basicData.nick_name);
                 setValue('gender', basicData.gender);
-                setValue('religion', basicData.religion);
+                setValue('religion', ({ Confucian: 'Konghucu', Budha: 'Buddhist' })[basicData.religion] || basicData.religion);   // nilai lama ditampilkan dengan nama yang benar
                 setValue('searchTerm1', basicData.search_term_1);
                 setValue('searchTerm2', basicData.search_term_2);
                 setValue('maritalStatus', basicData.marital_status);

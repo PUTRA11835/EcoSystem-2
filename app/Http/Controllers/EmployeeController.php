@@ -763,7 +763,7 @@ class EmployeeController extends Controller
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'role' => 'nullable|integer',
             'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
             'email_work' => 'required|email|unique:auth_users,email|max:255',
             'cell_phone' => 'nullable|string|max:50',
@@ -1057,7 +1057,7 @@ class EmployeeController extends Controller
             'first_name' => 'required|string|max:255',
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name,' . $basicDataId . ',basic_data_id',
             'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
         ], [
             'nick_name.required' => 'Nick Name is required.',
