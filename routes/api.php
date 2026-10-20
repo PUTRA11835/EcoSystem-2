@@ -109,6 +109,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
+        // Ganti ECI (kode karyawan): wajib konfirmasi kata sandi penggantinya; dibatasi laju agar kata sandi tak bisa ditebak lewat sini.
+        Route::patch('/{id}/change-eci', [EmployeeController::class, 'changeEci'])->middleware(['menu:master.employee.action', 'throttle:10,1']);
     });
 
     // Employee Basic Data endpoints

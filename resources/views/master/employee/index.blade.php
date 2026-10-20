@@ -477,6 +477,43 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     </div>
 </div>
 
+<!-- Modal Change ECI (konfirmasi kata sandi) -->
+<div id="changeEciModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full shadow-2xl">
+        <div class="flex justify-between items-center px-6 py-5 border-b border-gray-200">
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Change ECI</h3>
+                <p id="ceEmployeeName" class="text-sm text-gray-500 mt-0.5"></p>
+            </div>
+            <button onclick="closeChangeEciModal()" class="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 text-gray-600 hover:bg-red-800 hover:text-white transition-all" aria-label="Close">&times;</button>
+        </div>
+        <div class="p-6 space-y-4">
+            <input type="hidden" id="ceEmployeeId">
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Current ECI</label>
+                <input type="text" id="ceCurrentEci" readonly class="w-full px-3 py-2.5 border border-gray-200 bg-gray-50 rounded-lg text-sm text-gray-600">
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">New ECI <span class="text-red-600">*</span></label>
+                <input type="text" id="ceNewEci" maxlength="50" autocomplete="off" placeholder="e.g. K26001" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-800">
+                <small class="text-xs text-gray-400 mt-1">Letters, numbers, dot, underscore, hyphen. Must be unique.</small>
+            </div>
+            <div class="flex flex-col">
+                <label class="text-xs font-semibold text-gray-600 mb-1">Your password (to confirm) <span class="text-red-600">*</span></label>
+                <input type="password" id="ceActorPassword" autocomplete="current-password" placeholder="Enter YOUR password" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:border-red-800">
+            </div>
+            <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                The ECI is used to sign in. If this account's login username is the old ECI, it changes to the new one too (signing in with the email does not change).
+                Payslips already issued keep the old ECI.
+            </p>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
+            <button onclick="closeChangeEciModal()" class="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button id="ceSubmit" onclick="submitChangeEci()" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90">Change ECI</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Change Role (multi-select via checkboxes) -->
 <div id="changeRoleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 items-center justify-center p-4">
     <div class="bg-white rounded-xl w-full max-w-2xl shadow-2xl">
@@ -870,6 +907,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             const fullName = [emp.first_name, emp.last_name].filter(n => n).join(' ') || '-';
             _empRowData.set(Number(emp.id), {
                 name    : fullName,
+                eci     : emp.eci || '',
                 roleIds : emp.roles ? emp.roles.map(r => Number(r.id)) : [],
             });
         });
@@ -1436,6 +1474,57 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
+    // ── Change ECI (konfirmasi kata sandi akun yang mengganti) ─────────────────
+    function openChangeEciModal(employeeId, employeeName, currentEci) {
+        document.getElementById('ceEmployeeId').value = employeeId;
+        document.getElementById('ceEmployeeName').textContent = employeeName || '';
+        document.getElementById('ceCurrentEci').value = currentEci || '';
+        document.getElementById('ceNewEci').value = '';
+        document.getElementById('ceActorPassword').value = '';
+        const m = document.getElementById('changeEciModal');
+        m.classList.remove('hidden'); m.classList.add('flex');
+        document.getElementById('ceNewEci').focus();
+    }
+    function closeChangeEciModal() {
+        const m = document.getElementById('changeEciModal');
+        m.classList.add('hidden'); m.classList.remove('flex');
+        document.getElementById('ceActorPassword').value = '';
+    }
+    async function submitChangeEci() {
+        const employeeId = document.getElementById('ceEmployeeId').value;
+        const eci = document.getElementById('ceNewEci').value.trim();
+        const password = document.getElementById('ceActorPassword').value;
+        if (!eci) { showNotification('New ECI is required', 'error'); return; }
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]{1,49}$/.test(eci)) { showNotification('ECI may only contain letters, numbers, dot, underscore and hyphen (2-50 characters)', 'error'); return; }
+        if (!password) { showNotification('Enter your password to confirm', 'error'); return; }
+        const btn = document.getElementById('ceSubmit');
+        btn.disabled = true;
+        try {
+            const response = await fetch(`/api/employees/${employeeId}/change-eci`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ eci, password }),
+            });
+            let data;
+            try { data = await response.json(); } catch (_) { showNotification(`Server error (HTTP ${response.status}) — please refresh and try again`, 'error'); return; }
+            if (data.success) {
+                showNotification('ECI changed successfully', 'success');
+                closeChangeEciModal();
+                fetchEmployees();
+            } else {
+                showApiErrors(data, 'Failed to change ECI');
+            }
+        } catch (error) {
+            showNotification('Network error — please check your connection and try again', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
     // ── Change Role (multi) ────────────────────────────────────────────────────
     let allRoles = [];
 
@@ -1659,7 +1748,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
-    let _empMenuId = null, _empMenuName = null, _empMenuRoles = null;
+    let _empMenuId = null, _empMenuName = null, _empMenuRoles = null, _empMenuEci = '';
 
     function openEmpMenu(event, id) {
         event.stopPropagation();
@@ -1667,6 +1756,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         _empMenuId    = id;
         _empMenuName  = data.name;
         _empMenuRoles = data.roleIds;
+        _empMenuEci   = data.eci || '';
         const menu = document.getElementById('floatingEmpMenu');
         const btn  = event.currentTarget;
         const rect = btn.getBoundingClientRect();
@@ -1692,6 +1782,10 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         closeEmpMenu();
         openChangePasswordModal(_empMenuId, _empMenuName);
     }
+    function empMenuChangeEci() {
+        closeEmpMenu();
+        openChangeEciModal(_empMenuId, _empMenuName, _empMenuEci);
+    }
     function empMenuChangeRole() {
         closeEmpMenu();
         openChangeRoleModal(_empMenuId, _empMenuName, _empMenuRoles);
@@ -1712,6 +1806,12 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 0 1 21.75 8.25Z"/>
         </svg>
         Change Password
+    </button>
+    <button onclick="empMenuChangeEci()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-amber-500">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 3.75H6A2.25 2.25 0 0 0 3.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0 1 20.25 6v1.5m0 9V18A2.25 2.25 0 0 1 18 20.25h-1.5m-9 0H6A2.25 2.25 0 0 1 3.75 18v-1.5M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+        </svg>
+        Change ECI
     </button>
     <button onclick="empMenuChangeRole()" class="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-all">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-purple-500">

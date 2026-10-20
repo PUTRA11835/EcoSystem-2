@@ -1382,6 +1382,93 @@ public function getRoles()
     }
 
     /**
+     * Ganti ECI (kode karyawan) — API. Wajib kata sandi AKUN YANG MENGGANTI (bukan kata sandi karyawan itu).
+     *
+     * - ECI harus unik; hanya huruf/angka/titik/garis bawah/strip (sama dengan ECI yang sudah ada: K22005, DEMO-INT01, ECI_ADMIN).
+     * - Bila username login karyawan itu SAMA dengan ECI lamanya, username ikut diganti (login dengan ECI baru tetap jalan; login dengan
+     *   email tidak berubah). Karyawan yang username-nya bukan ECI tidak disentuh — ECI barunya tetap bisa dipakai login (cadangan di AuthController).
+     * - Slip payroll yang sudah terbit menyimpan salinan ECI lama (`payroll_slips.employee_eci`) dan sengaja tidak diubah (dokumen historis).
+     * - Tercatat di riwayat karyawan dan log.
+     */
+    public function changeEci(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'eci'      => ['required', 'string', 'min:2', 'max:50', 'regex:/^[A-Za-z0-9][A-Za-z0-9._\-]*$/'],
+            'password' => ['required', 'string'],
+        ], [
+            'eci.required'      => 'New ECI is required',
+            'eci.regex'         => 'ECI may only contain letters, numbers, dot, underscore and hyphen, and must start with a letter or number',
+            'eci.min'           => 'ECI must be at least 2 characters',
+            'eci.max'           => 'ECI must be at most 50 characters',
+            'password.required' => 'Enter your password to confirm',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $employee = DB::table('employee')->where('employee_id', $id)->first();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Employee not found'], 404);
+        }
+
+        $actorId  = (int) (session('user.id') ?? 0);
+        $actorHash = $actorId ? DB::table('auth_users')->where('employee_id', $actorId)->value('password') : null;
+        if (!$actorHash || !Hash::check((string) $request->password, $actorHash)) {
+            return response()->json(['success' => false, 'message' => 'Your password is incorrect', 'errors' => ['password' => ['Your password is incorrect']]], 422);
+        }
+
+        $old = (string) $employee->eci;
+        $new = trim((string) $request->eci);
+        if ($new === $old) {
+            return response()->json(['success' => false, 'message' => 'The new ECI is the same as the current one'], 422);
+        }
+        if (DB::table('employee')->where('eci', $new)->where('employee_id', '!=', $id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'This ECI is already used by another employee', 'errors' => ['eci' => ['This ECI is already used by another employee']]], 422);
+        }
+
+        try {
+            $usernameChanged = false;
+            DB::transaction(function () use ($id, $old, $new, $actorId, &$usernameChanged) {
+                DB::table('employee')->where('employee_id', $id)->update(['eci' => $new, 'updated_at' => now()]);
+
+                $auth = DB::table('auth_users')->where('employee_id', $id)->first();
+                if ($auth && strcasecmp((string) $auth->username, $old) === 0) {
+                    if (DB::table('auth_users')->where('username', $new)->where('id', '!=', $auth->id)->exists()) {
+                        throw new \DomainException('This ECI is already used as a login username by another account');
+                    }
+                    DB::table('auth_users')->where('id', $auth->id)->update(['username' => $new, 'updated_at' => now()]);
+                    $usernameChanged = true;
+                }
+
+                \App\Models\EmployeeHistory::create([
+                    'employee_id'  => $id,
+                    'action'       => 'ECI changed',
+                    'description'  => "ECI changed from {$old} to {$new}" . ($usernameChanged ? ' (login username updated too)' : ''),
+                    'performed_by' => $actorId,
+                    'performed_at' => now(),
+                ]);
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['eci' => [$e->getMessage()]]], 422);
+        } catch (\Throwable $e) {
+            Log::error('=== API: ERROR CHANGING ECI ===', ['employee_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to change ECI'], 500);
+        }
+
+        if ((int) $id === $actorId) {
+            session()->put('user.eci', $new);   // yang diganti akun yang sedang login: sesi ikut diperbarui
+        }
+        Log::info('=== API: EMPLOYEE ECI CHANGED ===', ['employee_id' => $id, 'from' => $old, 'to' => $new, 'by' => $actorId, 'username_updated' => $usernameChanged]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ECI changed successfully',
+            'data'    => ['eci' => $new, 'username_updated' => $usernameChanged],
+        ]);
+    }
+
+    /**
      * Sync employee roles — replaces all current roles with the given list (API)
      */
     public function changeRole(Request $request, $id)
