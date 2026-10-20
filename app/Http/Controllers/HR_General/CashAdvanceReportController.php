@@ -367,7 +367,7 @@ class CashAdvanceReportController extends Controller
         }
 
         return redirect()
-            ->route('general.cash-advance-report.index')
+            ->to($this->reviewBack('general.cash-advance-report', 'general.cash-advance-report.index'))
             ->with('success', 'Cash advance report ' . $cashAdvanceReport->report_no
                 . ' deleted. Its cash advance is open for reporting again.');
     }

@@ -1,8 +1,5 @@
-@extends('dashboard')
-@section('title', 'Legal Basis')
-@section('page-title', 'Legal Basis')
-@section('page-subtitle', 'The laws and regulations behind payroll, BPJS, overtime, contract and offboarding rules — with the date each was last amended.')
-
+{{-- Legal Basis register (Register Dasar Hukum) — the second half of the Legal page. Expects $basis (LegalBasisService::registerPage). --}}
+@php extract($basis); @endphp
 @php
     $canCreate = $canDo('finance.legal-basis', 'create');
     $canEdit = $canDo('finance.legal-basis', 'edit');
@@ -12,22 +9,18 @@
     $tones = ['blue' => 'bg-blue-50 text-blue-600', 'amber' => 'bg-amber-50 text-amber-600', 'green' => 'bg-green-50 text-green-600', 'gray' => 'bg-gray-100 text-gray-500'];
     $confTone = ['high' => 'text-green-700', 'medium' => 'text-amber-700', 'low' => 'text-red-600'];
 @endphp
-
-@section('content')
-<div class="w-full space-y-6 px-1 lg:px-2">
     @include('partials.accent-remap')
     @include('hr-general.contracts.components.confirm-forms')
-    @include('finance.legal-basis.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
     @if(session('success'))<div class="text-xs bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3"><i class="fas fa-circle-check mr-1"></i> {{ session('success') }}</div>@endif
 
-    <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-5 py-4 flex items-start gap-3">
+    <div id="basis-note" class="pst-section bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-5 py-4 flex items-start gap-3">
         <span class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0"><i class="fas fa-scale-balanced"></i></span>
         <div class="text-xs"><p class="text-sm font-bold">Read this before relying on a rule</p>
             <p class="mt-1">The entries were written from the preparer's knowledge and cross-checked on <strong>19 Oct 2026</strong> against secondary sources (law-firm, tax and BPJS publications) — <strong>the official text has not been opened</strong>. Every entry stays <strong>Needs review</strong> until a person confirms it. HR, Legal or Tax must compare it with the official regulation, fill in the source link, correct any value, and then mark it <strong>Reviewed</strong>. Changing the content of an entry sends it back to Needs review. The register never changes a Payroll formula or number; the switches below only decide whether a module shows the legal basis, warns about it, or refuses to run until its rules are reviewed.</p></div>
     </div>
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div id="basis-summary" class="pst-section grid grid-cols-2 lg:grid-cols-4 gap-4">
         @foreach([['Entries', $counts['total'], 'book', 'blue'], ['Needs review', $counts['needs_review'], 'triangle-exclamation', 'amber'], ['Reviewed', $counts['reviewed'], 'circle-check', 'green'], ['Reviewed over 12 months ago', $counts['stale'], 'hourglass-half', 'gray']] as [$text, $n, $icon, $tone])
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
                 <span class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 {{ $tones[$tone] }}"><i class="fas fa-{{ $icon }}"></i></span>
@@ -36,16 +29,16 @@
         @endforeach
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div id="basis-register" class="pst-section flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap gap-1.5">
-            <a href="{{ route('finance.legal-basis.index') }}" class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $module === '' ? 'primary-gradient text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50' }}">All</a>
-            @foreach($modules as $k => $v)<a href="{{ route('finance.legal-basis.index', ['module' => $k]) }}" class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $module === $k ? 'primary-gradient text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50' }}">{{ $v }}</a>@endforeach
+            <a href="{{ route('finance.legal-basis.index') }}#basis-register" class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $module === '' ? 'primary-gradient text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50' }}">All</a>
+            @foreach($modules as $k => $v)<a href="{{ route('finance.legal-basis.index', ['module' => $k]) }}#basis-register" class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $module === $k ? 'primary-gradient text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50' }}">{{ $v }}</a>@endforeach
         </div>
         @if($canCreate)<button type="button" onclick="openLegal()" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus mr-1"></i> Add rule or new version</button>@endif
     </div>
 
     @forelse($rows as $mod => $list)
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div id="reg-{{ $mod }}" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div class="px-5 py-3.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-bold text-gray-800">{{ $modules[$mod] ?? $mod }}</h3>
                 @if($canEdit && count($pending[$mod] ?? []))
                     <form method="POST" action="{{ route('finance.legal-basis.review-module', $mod) }}" data-confirm="Accept ALL rules of {{ $modules[$mod] ?? $mod }} as reviewed? Do this only after Legal (or the responsible person) has checked them against the official regulation." data-confirm-title="Accept review" data-confirm-ok="Accept all" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg border border-green-300 text-green-700 text-[11px] font-semibold hover:bg-green-50">Accept review (all)</button></form>
@@ -85,8 +78,6 @@
     @empty
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-6 py-12 text-center text-sm text-gray-500">No legal-basis entry in this module yet.</div>
     @endforelse
-</div>
-
 @if($canCreate || $canEdit)
 <div id="legalModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 items-center justify-center p-4" style="display: none;">
     <form id="legalForm" method="POST" class="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col" data-unsaved-ignore>@csrf
@@ -136,4 +127,3 @@
 </script>
 @endpush
 @endif
-@endsection

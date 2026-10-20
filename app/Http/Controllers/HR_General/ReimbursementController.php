@@ -516,7 +516,7 @@ class ReimbursementController extends Controller
         }
 
         return redirect()
-            ->route('general.reimbursement.index')
+            ->to($this->reviewBack('general.reimbursement', 'general.reimbursement.index'))
             ->with('success', 'Reimbursement ' . $reimbursementRequest->request_no
                 . ' deleted. It stays on record and can be found under Status → Deleted.');
     }

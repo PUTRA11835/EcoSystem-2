@@ -260,19 +260,27 @@ class PayrollController extends Controller
     {
         $p = DB::table('payroll_periods')->where('id', $period)->first();
         abort_unless($p, 404);
+
+        // Figures can still change until the period is locked — a payment file made from them could pay the wrong amounts.
+        if ($p->status !== PayrollPeriodRules::LOCKED) {
+            return redirect()->route('finance.payroll.periods.show', $period)
+                ->withErrors(['export' => 'Lock the period before downloading the bank transfer file.']);
+        }
+
         $slips = DB::table('payroll_slips')->where('period_id', $period)->where('take_home_pay', '>', 0)->orderBy('employee_name')->get();
         $holders = DB::table('employee_bank')->whereIn('employee_id', $slips->pluck('employee_id'))->orderByDesc('valid_from')->get(['employee_id', 'account_number', 'account_holder'])
             ->groupBy('employee_id');
-        $rows = $slips->map(function ($s) use ($holders) {
+        $withoutAccount = $slips->filter(fn ($s) => trim((string) $s->bank_account) === '')->count();
+        $rows = $slips->filter(fn ($s) => trim((string) $s->bank_account) !== '')->map(function ($s) use ($holders) {
             $h = ($holders[$s->employee_id] ?? collect())->firstWhere('account_number', $s->bank_account) ?? ($holders[$s->employee_id] ?? collect())->first();
 
             return [$s->employee_eci, $s->employee_name, $s->bank_name, $s->bank_account, $h->account_holder ?? '', (float) $s->take_home_pay];
-        })->all();
+        })->values()->all();
 
         // A payment file leaves the system: who took it, for which period, how many lines and how much, is part of the trail.
         PayrollAudit::record(PayrollAudit::BANK_EXPORTED, $period, 'Downloaded the bank transfer file (' . count($rows) . ' line(s), Rp ' . \App\Support\Payroll\Money::format(array_sum(array_column($rows, 5))) . ')',
             $this->actor(), ['lines' => count($rows), 'total' => round((float) array_sum(array_column($rows, 5)), 2), 'locked' => $p->status === PayrollPeriodRules::LOCKED,
-                'without_bank_account' => count(array_filter($rows, fn ($r) => trim((string) $r[3]) === ''))]);
+                'without_bank_account' => $withoutAccount]);
 
         return Excel::download(new PayrollSheetExport(
             ['Employee ID', 'Name', 'Bank', 'Account No.', 'Account holder', 'Transfer amount'], $rows, ['F'], ['A', 'D'],

@@ -22,7 +22,7 @@
             {{ count($legalPending) }} rule{{ count($legalPending) > 1 ? 's' : '' }} still need{{ count($legalPending) > 1 ? '' : 's' }} review:
             <span class="font-mono text-[11px]">{{ implode(', ', array_slice($legalPending, 0, 8)) }}{{ count($legalPending) > 8 ? ' …' : '' }}</span>.
             {{ $legalEnforced ? 'This feature will not run until they are marked Reviewed.' : 'Figures below follow the current settings; they have not been confirmed against the official regulation.' }}
-            @if(($canDo ?? null) && $canDo('finance.legal-basis'))<a href="{{ route('finance.legal-basis.index') }}" class="underline font-semibold ml-1">Open Legal Basis</a>@endif
+            @if(($canDo ?? null) && $canDo('finance.legal-basis'))<a href="{{ route('finance.legal-basis.index') }}#basis-register" class="underline font-semibold ml-1">Open Legal Basis</a>@endif
         </div>
     </div>
 @endif

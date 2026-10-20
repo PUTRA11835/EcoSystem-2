@@ -124,13 +124,15 @@ class DeliveryProjectPhaseSeeder extends Seeder
             ],
         ];
 
+        // Aman dijalankan ulang: fase bawaan dikenali dari nama (+ penanda bawaan sistem, tanpa induk) dan hanya DIPERBARUI — tidak digandakan.
         foreach ($phases as $phase) {
-            DB::table('delivery_project_phases')->insert(array_merge($phase, [
-                'parent_phase_id' => null,
-                'created_at' => Carbon::now(),
+            $key = ['name' => $phase['name'], 'is_system_default' => true, 'parent_phase_id' => null];
+            $exists = DB::table('delivery_project_phases')->where($key)->exists();
+
+            DB::table('delivery_project_phases')->updateOrInsert($key, array_merge($phase, [
                 'updated_at' => Carbon::now(),
-            ]));
-            $this->command->info("✓ Phase '{$phase['name']}' berhasil dibuat");
+            ], $exists ? [] : ['created_at' => Carbon::now()]));
+            $this->command->info("✓ Phase '{$phase['name']}' " . ($exists ? 'diperbarui' : 'berhasil dibuat'));
         }
 
         $this->command->info('✓ Seeding Project Phases selesai! Total: ' . count($phases) . ' phases');
