@@ -157,6 +157,22 @@ class ExternalDemoSeeder extends Seeder
      */
     private function timesheets(array $ids, int $actor): int
     {
+        // Tanggal demo berurutan dari Agustus; batas "back-fill" (bawaan 60 hari) membuat seeder gagal begitu tanggal berjalan jauh dari Agustus.
+        // Batas dimatikan (0 = tanpa batas) HANYA selama seeder berjalan, lalu dikembalikan persis seperti semula.
+        $row = DB::table('external_workflow_settings')->orderBy('id')->first();
+        if (!$row) {
+            return $this->timesheetsWithoutLimit($ids, $actor);
+        }
+        DB::table('external_workflow_settings')->where('id', $row->id)->update(['backfill_days' => 0]);
+        try {
+            return $this->timesheetsWithoutLimit($ids, $actor);
+        } finally {
+            DB::table('external_workflow_settings')->where('id', $row->id)->update(['backfill_days' => $row->backfill_days]);
+        }
+    }
+
+    private function timesheetsWithoutLimit(array $ids, int $actor): int
+    {
         $svc = app(\App\Services\External\ExternalTimesheetService::class);
         $inv = app(\App\Services\External\ExternalInvoiceService::class);
         $started = now();
