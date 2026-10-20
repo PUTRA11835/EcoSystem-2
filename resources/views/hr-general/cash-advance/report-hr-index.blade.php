@@ -123,7 +123,7 @@
             </div>
         @endif
 
-        <form method="GET" action="{{ route('general.cash-advance-report.index') }}"
+        <form id="listFilters" method="GET" action="{{ route('general.cash-advance-report.index') }}"
               class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
             <div>
                 <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Month</label>
@@ -308,9 +308,7 @@
             </table>
         </div>
 
-        @if($reports->hasPages())
-            <div class="mt-4">{{ $reports->links() }}</div>
-        @endif
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $reports, 'form' => 'listFilters', 'perPage' => $reports->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 </div>
 @endsection

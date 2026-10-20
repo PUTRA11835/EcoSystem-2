@@ -14,7 +14,6 @@ use App\Http\Controllers\StagingTicketController;
 use App\Http\Controllers\DeliveryProjectController;
 use App\Http\Controllers\DeliveryProjectCostController;
 use App\Http\Controllers\DeliveryProjectUpdateController;
-use App\Http\Controllers\DeliveryProjectPlanController;
 use App\Http\Controllers\DeliveryProjectPlanningController;
 use App\Http\Controllers\DeliveryProjectGanttController;
 use App\Http\Controllers\DeliveryDynamicPhaseController;
@@ -194,9 +193,8 @@ Route::middleware(CheckAuthToken::class)->group(function () {
          ->name('rpmo.periods.index')->middleware('menu:rpmo.periods');
 
     // ==================== LEGAL ====================
-    Route::get('/legal', function () {
-        return view('legal.legal', ['user' => session('user')]);
-    })->name('legal')->middleware('menu:legal');
+    Route::get('/legal', [\App\Http\Controllers\LegalDashboardController::class, 'index'])
+        ->name('legal')->middleware('menu:legal');
 
     // ==================== ADMIN ====================
     Route::prefix('admin')->name('admin.')->group(function () {
@@ -473,8 +471,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
         // Main planning page
         Route::get('/', [DeliveryProjectPlanningController::class, 'show'])->name('show');
-        Route::get('/gantt', [DeliveryProjectPlanningController::class, 'gantt'])->name('gantt');
-        Route::get('/scurve', [DeliveryProjectPlanningController::class, 'scurve'])->name('scurve');
         Route::get('/phases-list', [DeliveryProjectPlanningController::class, 'getPhases'])->name('phases-list');
 
         // Phase Management — baca butuh Planning View, tulis dipecah edit vs manage
@@ -579,7 +575,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== TICKET ====================
     Route::prefix('ticket')->name('ticket.')->group(function () {
         Route::get('/', [TicketViewController::class, 'index'])->name('index')->middleware('menu:tickets.inbox');
-        Route::get('/create', [TicketViewController::class, 'create'])->name('create');
         Route::get('/export', [TicketController::class, 'exportToExcel'])->name('export');
         Route::get('/consultant-workload', [ConsultantWorkloadController::class, 'index'])->name('consultant-workload')->middleware('menu:ticket.consultant-workload');
         Route::get('/task', [TaskController::class, 'index'])->name('task')->middleware('menu:ticket.my-tasks');

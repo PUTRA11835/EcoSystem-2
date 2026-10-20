@@ -95,39 +95,7 @@
     </div>
 
     {{-- ── Charts Row ───────────────────────────────────────────────────────── --}}
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
-
-        <div class="lg:col-span-3 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                    <i class="fas fa-chart-line text-indigo-400"></i>
-                    Average KPI Score Trend <span class="text-[11px] font-normal text-gray-400">by assessment type</span>
-                </h3>
-                <div class="flex items-center gap-1" id="trendTabs">
-                    @foreach(['monthly' => 'Monthly', 'annual' => 'Annual'] as $key => $label)
-                    <button onclick="switchTrend('{{ $key }}')" id="tab-{{ $key }}"
-                        class="px-3 py-1 text-xs font-medium rounded-lg transition-all
-                            {{ $key === 'monthly' ? 'primary-gradient text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }}">
-                        {{ $label }}
-                    </button>
-                    @endforeach
-                </div>
-            </div>
-            <div style="height:200px;">
-                <canvas id="trendChart"></canvas>
-            </div>
-        </div>
-
-        <div class="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <h3 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <i class="fas fa-user-tie text-blue-400"></i>
-                Avg Score by Position
-            </h3>
-            <div style="height:200px;">
-                <canvas id="deptChart"></canvas>
-            </div>
-        </div>
-    </div>
+    @include('hr-general.kpi.components.charts')
 
     {{-- ── Evaluation List Table ────────────────────────────────────────────── --}}
     <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -167,7 +135,6 @@
 
         <form method="GET" action="{{ route('general.kpi-evaluation.index') }}" id="tableFilterForm" class="hidden">
             <input type="hidden" name="period" value="{{ $periodMonth }}">
-            <input type="hidden" name="per_page" id="perPageInput" value="{{ $perPage ?? 10 }}">
             <input type="hidden" name="search" id="headerSearchInput" value="{{ $search ?? '' }}">
             <input type="hidden" name="position" id="headerPositionInput" value="{{ $positionFilter ?? '' }}">
             <input type="hidden" name="supervisor" id="headerSupervisorInput" value="{{ $supervisorId ?? '' }}">
@@ -583,103 +550,8 @@
             </table>
         </div>
 
-        {{-- ── Custom Modern Pagination (Matching Exact Design) ───────────────────── --}}
-        @if($activeEmployees->total() > 0)
-        <div class="px-5 py-4 border-t border-gray-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-4">
-            {{-- Left: Pagination Navigation & Results Counter --}}
-            <div class="flex items-center gap-1.5 flex-wrap">
-                @if($activeEmployees->onFirstPage())
-                    <span class="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 flex items-center justify-center text-xs cursor-not-allowed shadow-none">
-                        <i class="fas fa-chevron-left text-[10px]"></i>
-                    </span>
-                @else
-                    <a href="{{ $activeEmployees->previousPageUrl() }}"
-                       class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 flex items-center justify-center text-xs shadow-sm transition-all">
-                        <i class="fas fa-chevron-left text-[10px]"></i>
-                    </a>
-                @endif
-
-                @php
-                    $current = $activeEmployees->currentPage();
-                    $last = $activeEmployees->lastPage();
-                    $start = max(1, $current - 2);
-                    $end = min($last, $current + 2);
-                    if ($end - $start < 4) {
-                        if ($start === 1) {
-                            $end = min($last, $start + 4);
-                        } elseif ($end === $last) {
-                            $start = max(1, $end - 4);
-                        }
-                    }
-                @endphp
-
-                @if($start > 1)
-                    <a href="{{ $activeEmployees->url(1) }}"
-                       class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all">
-                        1
-                    </a>
-                    @if($start > 2)
-                        <span class="w-5 text-center text-gray-400 text-xs">...</span>
-                    @endif
-                @endif
-
-                @for($p = $start; $p <= $end; $p++)
-                    @if($p == $current)
-                        <span class="w-8 h-8 rounded-lg primary-surface text-white font-bold flex items-center justify-center text-xs shadow-sm"
-                              style="background: var(--primary-surface, var(--primary-color)) !important;">
-                            {{ $p }}
-                        </span>
-                    @else
-                        <a href="{{ $activeEmployees->url($p) }}"
-                           class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all">
-                            {{ $p }}
-                        </a>
-                    @endif
-                @endfor
-
-                @if($end < $last)
-                    @if($end < $last - 1)
-                        <span class="w-5 text-center text-gray-400 text-xs">...</span>
-                    @endif
-                    <a href="{{ $activeEmployees->url($last) }}"
-                       class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 font-semibold flex items-center justify-center text-xs shadow-sm transition-all">
-                        {{ $last }}
-                    </a>
-                @endif
-
-                @if($activeEmployees->hasMorePages())
-                    <a href="{{ $activeEmployees->nextPageUrl() }}"
-                       class="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-700 flex items-center justify-center text-xs shadow-sm transition-all">
-                        <i class="fas fa-chevron-right text-[10px]"></i>
-                    </a>
-                @else
-                    <span class="w-8 h-8 rounded-lg border border-gray-100 bg-gray-50 text-gray-300 flex items-center justify-center text-xs cursor-not-allowed shadow-none">
-                        <i class="fas fa-chevron-right text-[10px]"></i>
-                    </span>
-                @endif
-
-                <span class="text-xs text-gray-500 ml-3 font-normal whitespace-nowrap">
-                    Showing {{ $activeEmployees->firstItem() ?? 0 }} to {{ $activeEmployees->lastItem() ?? 0 }} of {{ $activeEmployees->total() }} results
-                </span>
-            </div>
-
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500 font-normal">Rows per page:</span>
-                <div class="relative">
-                    <select onchange="changePerPage(this.value)"
-                        class="appearance-none bg-white border border-gray-200 rounded-lg pl-3 pr-7 py-1.5 text-xs font-medium text-gray-700 hover:border-gray-300 focus:outline-none focus:ring-1 focus:ring-(--primary-color) cursor-pointer shadow-sm transition-all">
-                        <option value="10" {{ ($perPage ?? 10) == 10 ? 'selected' : '' }}>10</option>
-                        <option value="15" {{ ($perPage ?? 10) == 15 ? 'selected' : '' }}>15</option>
-                        <option value="25" {{ ($perPage ?? 10) == 25 ? 'selected' : '' }}>25</option>
-                        <option value="50" {{ ($perPage ?? 10) == 50 ? 'selected' : '' }}>50</option>
-                    </select>
-                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-gray-400 text-[10px]">
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        @endif
+        {{-- Numbered pagination + "Rows per page": the shared footer (it submits the filter form above with every filter intact). --}}
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $activeEmployees, 'form' => 'tableFilterForm', 'perPage' => (int) ($perPage ?? 10), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 
 </div>
@@ -725,35 +597,57 @@ const deptData         = @json($scoreByDept);
 
 let trendChart, deptChart, currentTrendView = 'monthly';
 
-const trendCtx = document.getElementById('trendChart').getContext('2d');
-trendChart = new Chart(trendCtx, {
-    type: 'line',
-    data: buildTrendData(trendDataMonthly),
-    options: trendOptions(),
-});
+// A chart with nothing to draw (or without Chart.js, e.g. the CDN is blocked) shows a sentence, never an empty frame — and never stops the
+// filters below from working.
+function showChartMessage(id, text) {
+    const box = document.getElementById(id);
+    const canvas = box ? box.parentElement.querySelector('canvas') : null;
+    if (canvas) canvas.classList.add('hidden');
+    if (box) { box.textContent = text; box.classList.remove('hidden'); }
+}
+const hasTrend = (trendDataMonthly || []).some(d => TREND_SERIES.some(s => d[s.key] !== null && d[s.key] !== undefined));
+const hasDept  = (deptData || []).length > 0;
 
-const deptCtx = document.getElementById('deptChart').getContext('2d');
-deptChart = new Chart(deptCtx, {
-    type: 'bar',
-    data: {
-        labels: deptData.map(d => d.department),
-        datasets: [{
-            label: 'Avg Score',
-            data: deptData.map(d => d.avg_score),
-            backgroundColor: deptData.map((d, i) => `hsla(${220 + i * 20}, 70%, 55%, 0.8)`),
-            borderRadius: 6,
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-            y: { min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 } } },
-            x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-        }
+if (typeof Chart === 'undefined') {
+    showChartMessage('trendEmpty', 'The chart could not be loaded. Check your connection and reload the page.');
+    showChartMessage('deptEmpty', 'The chart could not be loaded. Check your connection and reload the page.');
+} else {
+    if (hasTrend) {
+        trendChart = new Chart(document.getElementById('trendChart').getContext('2d'), {
+            type: 'line',
+            data: buildTrendData(trendDataMonthly),
+            options: trendOptions(),
+        });
+    } else {
+        showChartMessage('trendEmpty', 'No KPI scores for this period yet.');
     }
-});
+
+    if (hasDept) {
+        deptChart = new Chart(document.getElementById('deptChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: deptData.map(d => d.department),
+                datasets: [{
+                    label: 'Avg Score',
+                    data: deptData.map(d => d.avg_score),
+                    backgroundColor: deptData.map((d, i) => `hsla(${220 + i * 20}, 70%, 55%, 0.8)`),
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 10 } } },
+                    x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                }
+            }
+        });
+    } else {
+        showChartMessage('deptEmpty', 'No scores by position yet.');
+    }
+}
 
 async function switchTrend(type) {
     document.querySelectorAll('#trendTabs button').forEach(btn => {
@@ -764,16 +658,23 @@ async function switchTrend(type) {
         activeTab.className = 'px-3 py-1 text-xs font-medium rounded-lg transition-all primary-gradient text-white shadow';
     }
 
+    if (!trendChart) return;   // nothing drawn (no data, or Chart.js unavailable)
+    const box = document.getElementById('trendBox');
+    box?.classList.add('opacity-50');   // loading
     try {
-        const res = await fetch(`{{ route('general.kpi-evaluation.dashboard-data') }}?view=${type}&period={{ $periodMonth }}`);
+        const res = await fetch(`{{ route('general.kpi-evaluation.dashboard-data') }}?view=${type}&period={{ $periodMonth }}`, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
-        if (data && data.trend && trendChart) {
+        if (data && data.trend) {
             trendChart.data.labels = data.trend.map(d => d.label);
             TREND_SERIES.forEach((s, i) => { trendChart.data.datasets[i].data = data.trend.map(d => d[s.key]); });
             trendChart.update();
         }
     } catch (e) {
         console.error('Error fetching trend data:', e);
+        showToast('The trend could not be loaded. Please try again.', 'error');
+    } finally {
+        box?.classList.remove('opacity-50');
     }
 }
 
@@ -869,12 +770,6 @@ function clearTemplateFilter() {
 function onStatusHeaderFilterChange(val) {
     const el = document.getElementById('headerStatusInput');
     if (el) el.value = val;
-    document.getElementById('tableFilterForm')?.submit();
-}
-
-function changePerPage(val) {
-    const input = document.getElementById('perPageInput');
-    if (input) input.value = val;
     document.getElementById('tableFilterForm')?.submit();
 }
 

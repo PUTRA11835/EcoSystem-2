@@ -23,10 +23,10 @@
             <p class="mt-1">
                 @if($letterhead)<i class="fas fa-circle-check text-green-600"></i> Letterhead in use: <strong>{{ $letterhead->name }}</strong>.
                 @else <i class="fas fa-circle-info"></i> No letterhead yet for “Employment Contract”.@endif
-                @if($canDo('general.letter-templates'))<a href="{{ route('general.letters.settings.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>@endif
+                @if($canDo('general.letters.settings.letterheads'))<a href="{{ route('general.document-identity.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Manage letterheads</a>@endif
             </p>
             <p class="mt-1 text-[11px] text-sky-800"><i class="fas fa-link"></i> Linked to <strong>Letter Templates → Settings</strong>: company <strong>{{ $linked['company'] ?: '—' }}</strong> and signing city <strong>{{ $linked['city'] ?: '—' }}</strong> fill the contract text; {{ $linked['signers'] }} signer{{ $linked['signers'] === 1 ? '' : 's' }} can be picked as the company signatory.
-                @if($canDo('general.letter-templates'))<a href="{{ route('general.letters.settings.index', ['section' => 'signers']) }}" class="underline font-semibold">Signers</a>@endif</p>
+                @if($canDo('general.letters.settings.signers'))<a href="{{ route('general.document-identity.index', ['section' => 'signers']) }}" class="underline font-semibold">Signers</a>@endif</p>
         </div>
         @if($canCreate)
             <div class="flex gap-2 shrink-0">

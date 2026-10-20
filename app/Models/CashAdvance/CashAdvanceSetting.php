@@ -42,7 +42,7 @@ class CashAdvanceSetting extends Model
         'allow_requester_cancel',
         'locked_period_policy',
         'accounting_signer_employee_id', 'cashier_signer_employee_id',
-        'require_car_before_new_ca', 'car_due_days',
+        'require_car_before_new_ca', 'car_due_days', 'car_reminders_enabled', 'car_reminder_days_before',
         'car_allow_over_amount', 'car_require_receipt_url', 'car_multiple_per_ca',
         'updated_by',
     ];
@@ -62,6 +62,8 @@ class CashAdvanceSetting extends Model
         'allow_requester_cancel'        => 'boolean',
         'require_car_before_new_ca'     => 'boolean',
         'car_due_days'                  => 'integer',
+        'car_reminders_enabled'         => 'boolean',
+        'car_reminder_days_before'      => 'integer',
         'car_allow_over_amount'         => 'boolean',
         'car_require_receipt_url'       => 'boolean',
         'car_multiple_per_ca'           => 'boolean',

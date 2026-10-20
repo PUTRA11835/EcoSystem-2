@@ -34,15 +34,23 @@ class OvertimeReviewController extends Controller
         // menebak mana yang menunggu dirinya.
         $mineIds = $overtime->pendingIdsFor($actorId);
 
+        // A person who is only NAMED on the workflow (no Overtime menu) sees the requests waiting for them and nothing else — not the
+        // whole company's overtime, and not its totals.
+        $restricted = !$this->holds('general.overtime');
+        if ($restricted) {
+            $filters['scope'] = 'mine';
+        }
+
         $requests = $this->baseQuery($filters)
             ->when($filters['scope'] === 'mine', fn ($q) => $q->whereIn('id', $mineIds ?: [0]))
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('overtime_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         $counts = OvertimeRequest::query()
+            ->when($restricted, fn ($q) => $q->whereIn('id', $mineIds ?: [0]))
             ->selectRaw('status, COUNT(*) AS total, COALESCE(SUM(duration_minutes), 0) AS minutes')
             ->groupBy('status')
             ->get()

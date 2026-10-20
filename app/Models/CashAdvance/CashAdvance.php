@@ -203,7 +203,38 @@ class CashAdvance extends Model
                      ->where('settlement_status', '!=', self::SETTLE_SETTLED);
     }
 
+    /**
+     * Approved advances whose report (CAR) is overdue: nothing reported, and the deadline day (approval + $limitDays) is already past.
+     * Same rule as CarDueRules (the due day itself is still on time). `$limitDays` 0 = no deadline → none.
+     */
+    public function scopeReportOverdue(Builder $query, int $limitDays): Builder
+    {
+        if ($limitDays <= 0) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where('status', self::STATUS_APPROVED)
+            ->where('settlement_status', self::SETTLE_UNREPORTED)
+            ->whereNotNull('completed_at')
+            ->whereDate('completed_at', '<', now()->subDays($limitDays)->toDateString());
+    }
+
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /**
+     * Report (CAR) deadline state — only while the requester still has to file one (approved, nothing reported). Returns the
+     * CarDueRules::status() array, or its NONE state when the question does not apply.
+     *
+     * @return array{state:string, due_on:?\Carbon\CarbonImmutable, days_left:?int, days_late:int}
+     */
+    public function reportDue(CashAdvanceSetting $settings, ?\Carbon\CarbonInterface $today = null): array
+    {
+        $applies = $this->status === self::STATUS_APPROVED && $this->settlement_status === self::SETTLE_UNREPORTED && $this->completed_at !== null;
+
+        return \App\Support\CashAdvance\CarDueRules::status(
+            $applies ? $this->completed_at : null, (int) $settings->car_due_days, $today ?? now(), (int) $settings->car_reminder_days_before
+        );
+    }
 
     public function isOpen(): bool
     {

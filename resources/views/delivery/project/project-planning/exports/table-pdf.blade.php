@@ -163,7 +163,7 @@
 
                 {{-- Groups --}}
                 @foreach($phaseData['groups'] as $group)
-                    @include('project-planning.exports.partials.group-row', ['group' => $group, 'level' => 1])
+                    @include('delivery.project.project-planning.exports.partials.group-row', ['group' => $group, 'level' => 1])
                 @endforeach
             @endforeach
         </tbody>

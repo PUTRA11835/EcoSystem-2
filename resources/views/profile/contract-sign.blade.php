@@ -100,7 +100,7 @@
         @if($contract->salary !== null || $components)
             <div class="px-5 pb-5">
                 <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Remuneration in this contract</p>
-                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                <div class="border border-gray-200 rounded-lg overflow-x-auto">
                     <table class="w-full text-sm">
                         <tbody class="divide-y divide-gray-100">
                             <tr><td class="px-4 py-2">Basic salary</td><td class="px-4 py-2 text-right font-semibold">{{ $money($contract->salary ?? 0) }}</td></tr>

@@ -60,7 +60,7 @@ class CashAdvanceController extends Controller
             ->orderByRaw("FIELD(status, 'submitted', 'in_review') DESC")
             ->orderByDesc('request_date')
             ->orderByDesc('id')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         $counts = CashAdvance::query()
@@ -85,7 +85,7 @@ class CashAdvanceController extends Controller
 
             'settings'  => CashAdvanceSetting::current(),
             'canManage' => $this->canManage(),
-            'canApprove'=> $this->can('general.cash-advance.approve'),
+            'canApprove'=> $this->mayDecide('cash-advance', 'general.cash-advance.approve'),
 
             // Empat hak yang berbeda, empat slug yang berbeda (D77) — bukan
             // satu bendera "admin" yang membuka semuanya sekaligus.
@@ -103,6 +103,7 @@ class CashAdvanceController extends Controller
                 'count'  => (clone $outstanding)->count(),
                 'amount' => (float) (clone $outstanding)->sum('amount'),
             ],
+            'overdueCount' => CashAdvance::query()->reportOverdue((int) CashAdvanceSetting::current()->car_due_days)->count(),
         ]);
     }
 
@@ -173,7 +174,7 @@ class CashAdvanceController extends Controller
         // membuka pintu putusan?", `canAct()` menjawab "dokumen ini menunggu
         // dirinya?". Yang kedua saja tidak cukup — penyetuju yang tidak boleh
         // membuka halaman peninjauan tidak pantas diberi tombol putusan.
-        $canDecide = $this->can('general.cash-advance.approve')
+        $canDecide = $this->mayDecide('cash-advance', 'general.cash-advance.approve')
             && $service->canAct($cashAdvance, (int) session('user.id'), $this->canManage())['allowed'];
 
         // 🔴 Kelayakan laporan dijawab SERVICE, bukan dihitung dari keadaan model
@@ -188,7 +189,7 @@ class CashAdvanceController extends Controller
         return view('hr-general.cash-advance.show', [
             'request'      => $cashAdvance,
             'signatures'   => $service->signatureColumns($cashAdvance),
-            'backRoute'    => route('general.cash-advance.index'),
+            'backRoute'    => $this->reviewBack('general.cash-advance', 'general.cash-advance.index'),
             'printRoute'   => route('general.cash-advance.print', $cashAdvance),
             'canApprove'   => $canDecide,
             'approveRoute' => $canDecide ? route('general.cash-advance.approve', $cashAdvance) : null,
@@ -209,11 +210,11 @@ class CashAdvanceController extends Controller
             // Menghapus tidak menuntut dokumennya terbuka: dokumen yang sudah
             // ditolak atau dibatalkan pun boleh dihapus. Yang menolak justru
             // service, bila CA-nya sudah punya laporan pertanggungjawaban.
-            'deleteRoute'  => $this->can('general.cash-advance.manage') && ! $cashAdvance->trashed()
+            'deleteRoute'  => $this->canDeleteDocument() && ! $cashAdvance->trashed()
                 ? route('general.cash-advance.destroy', $cashAdvance)
                 : null,
 
-            'exportRoute'  => $this->can('general.cash-advance.export')
+            'exportRoute'  => $this->canExportDocument()
                 ? route('general.cash-advance.export.single', $cashAdvance)
                 : null,
 
@@ -410,6 +411,8 @@ class CashAdvanceController extends Controller
      */
     public function destroy(Request $request, CashAdvance $cashAdvance, CashAdvanceService $service)
     {
+        abort_unless($this->canDeleteDocument(), 403);
+
         $validated = $request->validate([
             'delete_reason' => ['required', 'string', 'min:5', 'max:255'],
         ], [
@@ -438,6 +441,8 @@ class CashAdvanceController extends Controller
     /** Satu dokumen. */
     public function exportSingle(CashAdvance $cashAdvance, CashAdvanceService $service)
     {
+        abort_unless($this->canExportDocument(), 403);
+
         $cashAdvance->load([
             'branch', 'project', 'approvals.actor.basicData', 'approvals.role',
             'employee.basicData', 'reports',
@@ -538,10 +543,27 @@ class CashAdvanceController extends Controller
             return false;
         }
 
+        // HR holds the module's approve slug; an approver named only on the workflow needs the "My Approvals › Edit" box.
+        if (! $this->can('general.cash-advance.approve') && ! $this->approverMay('edit')) {
+            return false;
+        }
+
         $service ??= app(CashAdvanceService::class);
 
         // `canManage: false` disengaja — yang sedang diuji justru jalan NON-admin.
         return $service->canAct($request, (int) session('user.id'), false)['allowed'];
+    }
+
+    /** Delete: HR (`.manage`), or a designated approver given the "My Approvals › Delete" box. */
+    protected function canDeleteDocument(): bool
+    {
+        return $this->can('general.cash-advance.manage') || $this->approverMay('delete');
+    }
+
+    /** Export: HR (`.export`), or a designated approver given "My Approvals › Export". */
+    protected function canExportDocument(): bool
+    {
+        return $this->can('general.cash-advance.export') || $this->approverMay('export');
     }
 
     /** Kalimat penolakan yang menyebut SEBABNYA, bukan sekadar "tidak boleh". */
@@ -586,12 +608,14 @@ class CashAdvanceController extends Controller
             // disetujui tetapi uangnya belum dipertanggungjawabkan. Itu bukan
             // nilai `status`, jadi ia tidak bisa ikut cabang di bawahnya.
             ->when($filters['status'] === 'outstanding', fn ($q) => $q->outstanding())
+            // Report overdue: approved, nothing reported, past the deadline set in Settings (the Overdue card).
+            ->when($filters['status'] === 'overdue', fn ($q) => $q->reportOverdue((int) CashAdvanceSetting::current()->car_due_days))
 
             // `cancelled` TIDAK digabung ke `rejected`: keduanya beda sebab —
             // yang satu ditarik pemohon sebelum ditinjau, yang lain diputuskan
             // penyetuju. Menggabungkannya membuat rekap tidak dapat menjawab
             // "berapa yang ditolak?".
-            ->when(! in_array($filters['status'], ['open', 'all', 'deleted', 'outstanding'], true),
+            ->when(! in_array($filters['status'], ['open', 'all', 'deleted', 'outstanding', 'overdue'], true),
                 fn ($q) => $q->where('status', $filters['status']))
 
             // Dokumen terhapus hanya dapat dilihat pemegang hak kelola

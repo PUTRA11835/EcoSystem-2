@@ -31,6 +31,7 @@ class ReimbursementRequest extends Model
         'flags', 'notes',
         'period_year', 'period_month',
         'completed_at',
+        'paid_at', 'paid_by', 'payment_reference', 'payment_note',
         'deleted_by', 'delete_reason',
     ];
 
@@ -44,6 +45,7 @@ class ReimbursementRequest extends Model
         'period_year'        => 'integer',
         'period_month'       => 'integer',
         'completed_at'       => 'datetime',
+        'paid_at'            => 'datetime',
     ];
 
     // ── Status ──────────────────────────────────────────────────────────────
@@ -276,6 +278,59 @@ class ReimbursementRequest extends Model
      * dan seluruh sisi karyawan (jawaban R11). Bukan dua keadaan berbeda — dua
      * penulisan untuk keadaan yang satu.
      */
+    // ── Payment ─────────────────────────────────────────────────────────────
+    //
+    // `status` ends at approved / rejected; payment is separate (columns paid_at / paid_by / payment_reference): an approved document
+    // is AWAITING payment until Finance records it, then PAID. A rejected or still-open document has no payment state at all.
+
+    public const PAYMENT_AWAITING = 'awaiting';
+    public const PAYMENT_PAID = 'paid';
+
+    /** 'awaiting' | 'paid' | null (not approved → payment does not apply). */
+    public function paymentStatus(): ?string
+    {
+        if ($this->status !== self::STATUS_APPROVED) {
+            return null;
+        }
+
+        return $this->paid_at !== null ? self::PAYMENT_PAID : self::PAYMENT_AWAITING;
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->paymentStatus() === self::PAYMENT_PAID;
+    }
+
+    /** Whether Finance can record a payment now: approved, not yet paid, not deleted. */
+    public function isPayable(): bool
+    {
+        return $this->paymentStatus() === self::PAYMENT_AWAITING && !$this->trashed();
+    }
+
+    public function paymentLabel(): ?string
+    {
+        return match ($this->paymentStatus()) {
+            self::PAYMENT_PAID     => 'Paid ' . $this->paid_at->format('d M Y'),
+            self::PAYMENT_AWAITING => 'Awaiting payment',
+            default                => null,
+        };
+    }
+
+    public function scopeAwaitingPayment($query)
+    {
+        return $query->where('status', self::STATUS_APPROVED)->whereNull('paid_at');
+    }
+
+    public function scopePaid($query)
+    {
+        return $query->where('status', self::STATUS_APPROVED)->whereNotNull('paid_at');
+    }
+
+    public function payer()
+    {
+        return $this->belongsTo(\App\Models\Employee::class, 'paid_by', 'employee_id');
+    }
+
     public function statusLabel(string $openWord = 'Waiting'): string
     {
         if (!$this->isOpen()) {

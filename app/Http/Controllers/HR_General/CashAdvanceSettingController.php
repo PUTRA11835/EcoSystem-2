@@ -472,6 +472,8 @@ class CashAdvanceSettingController extends Controller
 
             'require_car_before_new_ca'     => ['nullable', 'boolean'],
             'car_due_days'                  => ['required', 'integer', 'min:0', 'max:3650'],
+            'car_reminders_enabled'         => ['nullable', 'boolean'],
+            'car_reminder_days_before'      => ['required', 'integer', 'min:0', 'max:60'],
             'car_allow_over_amount'         => ['nullable', 'boolean'],
             'car_require_receipt_url'       => ['nullable', 'boolean'],
             'car_multiple_per_ca'           => ['nullable', 'boolean'],
@@ -484,7 +486,7 @@ class CashAdvanceSettingController extends Controller
             'use_branch_name_in_header', 'allow_future_date', 'allow_date_range',
             'require_detail_url', 'require_cost_center',
             'allow_self_approval', 'allow_approver_adjust_amount', 'allow_requester_cancel',
-            'require_car_before_new_ca', 'car_allow_over_amount',
+            'require_car_before_new_ca', 'car_allow_over_amount', 'car_reminders_enabled',
             'car_require_receipt_url', 'car_multiple_per_ca',
         ] as $flag) {
             $validated[$flag] = $request->boolean($flag);

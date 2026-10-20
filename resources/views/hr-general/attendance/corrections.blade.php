@@ -33,7 +33,7 @@
             @include('hr-general.partials.data-transfer', ['dataset' => 'attendance.corrections', 'bare' => true])
         </div>
 
-        <form method="GET" action="{{ route('general.attendance.corrections.index') }}"
+        <form id="listFilters" method="GET" action="{{ route('general.attendance.corrections.index') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-5">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <div class="md:col-span-7">
@@ -174,9 +174,7 @@
             </table>
         </div>
 
-        @if($corrections->hasPages())
-        <div class="mt-4">{{ $corrections->links() }}</div>
-        @endif
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $corrections, 'form' => 'listFilters', 'perPage' => $corrections->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 </div>
 @endsection

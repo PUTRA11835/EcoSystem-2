@@ -31,6 +31,7 @@ final class SidebarIcons
         'My Loans' => 'building-bank',
         'My KPI' => 'target-arrow',
         'My Timesheet' => 'clock',
+        'My Approvals' => 'checklist',
         'Calendar' => 'calendar-event',
         'Employee Data' => 'users',
         'Recruitment' => 'user-search',

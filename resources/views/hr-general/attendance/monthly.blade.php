@@ -40,7 +40,7 @@
             </div>
         </div>
 
-        <form method="GET" action="{{ route('general.attendance.monthly') }}"
+        <form id="listFilters" method="GET" action="{{ route('general.attendance.monthly') }}"
               class="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                 <div class="md:col-span-5">
@@ -168,8 +168,8 @@
             </table>
         </div>
 
-        @if(method_exists($employees, 'hasPages') && $employees->hasPages())
-        <div class="mt-4">{{ $employees->links() }}</div>
+        @if(method_exists($employees, 'total'))
+        @include('hr-general.recruitment.components.pagination', ['paginator' => $employees, 'form' => 'listFilters', 'perPage' => $employees->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
         @endif
 
         <div class="mt-5 flex flex-col sm:flex-row sm:items-center gap-x-6 gap-y-2 text-xs text-gray-500">

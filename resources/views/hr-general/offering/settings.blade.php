@@ -256,10 +256,10 @@
             @else
                 plain paper — no letterhead is ticked for Offering Letter yet
             @endif
-            @if($can('general.letter-templates'))
-                (<a href="{{ route('general.letters.settings.index') }}" class="font-semibold primary-text">Letter Templates</a>).
+            @if($can('general.letters.settings.letterheads'))
+                (<a href="{{ route('general.document-identity.index', ['section' => 'letterheads']) }}" class="font-semibold primary-text">Document Identity</a>).
             @else
-                (set in HR &amp; General → Letter Templates).
+                (set in Document Identity).
             @endif
         </p>
     </div>

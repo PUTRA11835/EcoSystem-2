@@ -113,7 +113,7 @@ class AttendanceCorrectionController extends Controller
             })
             ->orderByRaw("FIELD(status, 'pending') DESC")
             ->orderByDesc('attendance_date')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         $counts = AttendanceCorrection::query()

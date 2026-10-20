@@ -75,22 +75,6 @@ class TicketViewController extends Controller
     }
 
     /**
-     * Display create ticket form (if needed)
-     */
-    public function create()
-    {
-        $user = $this->getUserObject();
-
-        if (!$user) {
-            return redirect()->route('login');
-        }
-
-        return view('ticket.create', [
-            'user' => $user
-        ]);
-    }
-
-    /**
      * Display single ticket detail view
      */
     public function show($id)

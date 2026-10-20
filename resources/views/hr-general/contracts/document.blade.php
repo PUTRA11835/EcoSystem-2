@@ -65,12 +65,12 @@
     @if(!$hasLetterhead && $doc['use_letterhead'])
         <div class="text-xs bg-sky-50 border border-sky-200 text-sky-900 rounded-lg px-4 py-3"><i class="fas fa-circle-info mr-1"></i>
             No letterhead is set for “Employment Contract” yet. Add one in Letter Templates → Settings and tick this letter type.
-            @if($canDo('general.letter-templates'))<a href="{{ route('general.letters.settings.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Open letterheads</a>@endif</div>
+            @if($canDo('general.letters.settings.letterheads'))<a href="{{ route('general.document-identity.index', ['section' => 'letterheads']) }}" class="underline font-semibold">Open letterheads</a>@endif</div>
     @endif
     @if(!$contract->signatory_name)
         <div class="text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3"><i class="fas fa-pen-nib mr-1"></i>
             No company signatory is chosen for this contract yet, so the signatory name and title print as “-”. Edit the contract and pick a signer.
-            @if($canDo('general.letter-templates'))<a href="{{ route('general.letters.settings.index', ['section' => 'signers']) }}" class="underline font-semibold">Manage signers</a>@endif</div>
+            @if($canDo('general.letters.settings.signers'))<a href="{{ route('general.document-identity.index', ['section' => 'signers']) }}" class="underline font-semibold">Manage signers</a>@endif</div>
     @endif
     @if($doc['warnings'])
         <div class="text-xs bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-3"><i class="fas fa-triangle-exclamation mr-1"></i>

@@ -242,6 +242,18 @@
             @endif
 @php $sb['timesheet'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
+{{-- My Approvals: shown to anyone NAMED on an approval workflow (any module) — they need no HR menu to approve. --}}
+@if(session('user.type') === 'employee' && app(\App\Services\Approval\ApprovalEngine::class)->isApproverAnywhere((int) session('user.id')))
+                @include('partials.ess-nav-item', [
+                    'href'   => route('general.approvals.index'),
+                    'icon'   => 'fas fa-clipboard-check',
+                    'label'  => 'My Approvals',
+                    'active' => Request::is('general/approvals*'),
+                    'nested' => false,
+                ])
+            @endif
+@php $sb['approvals'] = ob_get_clean(); @endphp
+@php ob_start(); @endphp
 
             @if($can('reporting'))
                 @php
@@ -1204,14 +1216,13 @@
 
             @php
                 $sbSections = [
-                    ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'timesheet', 'my_ext_timesheet', 'calendar']],
-                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'contracts', 'offboarding', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates']],
-                    ['id' => 'GenAffairs', 'title' => 'General Affairs',    'icon' => 'devices', 'keys' => ['inventory']],
+                    ['id' => 'Workspace', 'title' => 'My Workspace',        'icon' => 'smart-home', 'keys' => ['ess_workspace', 'approvals', 'timesheet', 'calendar']],
+                    ['id' => 'Hc',        'title' => 'Human Capital',       'icon' => 'address-book', 'keys' => ['employee', 'recruitment', 'offering', 'onboarding', 'offboarding', 'attendance', 'leave', 'overtime', 'kpi', 'letter_templates', 'inventory']],
                     ['id' => 'External',  'title' => 'External',            'icon' => 'briefcase', 'keys' => ['external']],
                     ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
-                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal', 'legal_basis']],
+                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal', 'legal_basis', 'contracts']],
                     ['id' => 'Reporting', 'title' => 'Reporting',           'icon' => 'chart-histogram', 'keys' => ['reporting']],
                     ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'control_center']],
                 ];

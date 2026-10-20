@@ -141,7 +141,7 @@
 
                         {{-- Groups --}}
                         @foreach($phase['tasks'] as $group)
-                            @include('project-planning.exports.partials.gantt-group', ['group' => $group, 'level' => 1])
+                            @include('delivery.project.project-planning.exports.partials.gantt-group', ['group' => $group, 'level' => 1])
                         @endforeach
                     @endforeach
                 @endif

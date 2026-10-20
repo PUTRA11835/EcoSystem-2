@@ -61,32 +61,6 @@ class DeliveryProjectPlanningController extends Controller
     }
 
     /**
-     * Show Gantt Chart page
-     */
-    public function gantt(DeliveryProject $project)
-    {
-        Log::info('📊 Viewing Gantt chart', [
-            'delivery_projects_id' => $project->id,
-            'project_name' => $project->name
-        ]);
-
-        return view('project-planning.gantt', compact('project'));
-    }
-
-    /**
-     * Show S-Curve Analysis page
-     */
-    public function scurve(DeliveryProject $project)
-    {
-        Log::info('📈 Viewing S-Curve analysis', [
-            'delivery_projects_id' => $project->id,
-            'project_name' => $project->name
-        ]);
-
-        return view('project-planning.scurve', compact('project'));
-    }
-
-    /**
      * Get available phases for project
      */
     public function getPhases(DeliveryProject $project)

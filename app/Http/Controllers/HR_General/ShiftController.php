@@ -35,7 +35,7 @@ class ShiftController extends Controller
             ->withCount(['assignments as active_employees_count' => fn ($q) => $q->whereNull('end_date')])
             ->orderByDesc('is_default')
             ->orderBy('name')
-            ->paginate(25)
+            ->paginate($this->pageSize())
             ->withQueryString();
 
         return view('hr-general.attendance.shifts.index', compact('shifts', 'search', 'status'));
