@@ -450,8 +450,8 @@
 @php $sb['offboarding'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
             {{-- Business & Legal → Legal Basis (Register Dasar Hukum; dipusatkan di sini, dipakai Payroll/BPJS/PPh 21/Offboarding). --}}
-            @if($can('finance.legal-basis'))
-                @include('partials.ess-nav-item', ['href' => route('finance.legal-basis.index'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal/basis*'), 'nested' => false])
+            @if($can('finance.legal-basis') || $can('finance.legal-basis.settings'))
+                @include('partials.ess-nav-item', ['href' => route($can('finance.legal-basis') ? 'finance.legal-basis.index' : 'finance.legal-basis.settings'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal/basis*'), 'nested' => false])
             @endif
 @php $sb['legal_basis'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp

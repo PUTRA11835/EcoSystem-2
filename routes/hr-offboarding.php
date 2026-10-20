@@ -46,19 +46,23 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         });
     });
 
-    Route::prefix('legal/basis')->name('finance.legal-basis.')->middleware('menu:finance.legal-basis')->group(function () {
-        $slug = 'finance.legal-basis';
-        $can = fn (string $action) => "menu.can:{$slug},{$action}";
+    // Legal Basis = hub dua tab: Register (finance.legal-basis) dan Settings (finance.legal-basis.settings) — izin terpisah, diatur Admin.
+    Route::prefix('legal/basis')->name('finance.legal-basis.')->group(function () {
+        $reg = 'finance.legal-basis';
+        $set = 'finance.legal-basis.settings';
+        $gate = fn (string $action) => ["menu:{$reg}", "menu.can:{$reg},{$action}"];
 
-        Route::get('/', [LegalBasisController::class, 'index'])->name('index');
-        Route::post('/', [LegalBasisController::class, 'store'])->name('store')->middleware($can('create'));
-        Route::post('/switches', [LegalBasisController::class, 'saveSwitches'])->name('switches')->middleware($can('edit'));
-        Route::post('/module/{module}/review', [LegalBasisController::class, 'reviewModule'])->name('review-module')->whereIn('module', ['pph21', 'bpjs', 'overtime', 'contract', 'offboarding'])->middleware($can('edit'));
-        Route::whereNumber('id')->group(function () use ($can) {
-            Route::post('/{id}/update', [LegalBasisController::class, 'update'])->name('update')->middleware($can('edit'));
-            Route::post('/{id}/review', [LegalBasisController::class, 'review'])->name('review')->middleware($can('edit'));
-            Route::post('/{id}/needs-review', [LegalBasisController::class, 'needsReview'])->name('needs-review')->middleware($can('edit'));
-            Route::post('/{id}/supersede', [LegalBasisController::class, 'supersede'])->name('supersede')->middleware($can('delete'));
+        Route::get('/', [LegalBasisController::class, 'index'])->name('index')->middleware("menu:{$reg}");
+        Route::post('/', [LegalBasisController::class, 'store'])->name('store')->middleware($gate('create'));
+        Route::get('/settings', [LegalBasisController::class, 'settings'])->name('settings')->middleware("menu:{$set}");
+        Route::post('/switches', [LegalBasisController::class, 'saveSwitches'])->name('switches')->middleware(["menu:{$set}", "menu.can:{$set},edit"]);
+        Route::post('/module/{module}/review', [LegalBasisController::class, 'reviewModule'])->name('review-module')->whereIn('module', ['pph21', 'bpjs', 'overtime', 'contract', 'offboarding'])->middleware($gate('edit'));
+        Route::whereNumber('id')->group(function () use ($gate) {
+            Route::post('/{id}/update', [LegalBasisController::class, 'update'])->name('update')->middleware($gate('edit'));
+            Route::post('/{id}/review', [LegalBasisController::class, 'review'])->name('review')->middleware($gate('edit'));
+            Route::post('/{id}/needs-review', [LegalBasisController::class, 'needsReview'])->name('needs-review')->middleware($gate('edit'));
+            Route::post('/{id}/supersede', [LegalBasisController::class, 'supersede'])->name('supersede')->middleware($gate('delete'));
+            Route::post('/{id}/restore', [LegalBasisController::class, 'restore'])->name('restore')->middleware($gate('edit'));
         });
     });
 });

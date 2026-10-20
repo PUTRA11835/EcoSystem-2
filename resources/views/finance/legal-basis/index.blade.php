@@ -17,6 +17,7 @@
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('partials.accent-remap')
     @include('hr-general.contracts.components.confirm-forms')
+    @include('finance.legal-basis.components.tabs')
     @include('hr-general.recruitment.components.form-errors')
     @if(session('success'))<div class="text-xs bg-green-50 border border-green-200 text-green-800 rounded-lg px-4 py-3"><i class="fas fa-circle-check mr-1"></i> {{ session('success') }}</div>@endif
 
@@ -35,51 +36,6 @@
         @endforeach
     </div>
 
-    {{-- Saklar penerapan per modul --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div class="px-5 py-3.5 border-b border-gray-100 flex items-start gap-3">
-            <span class="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0"><i class="fas fa-sliders"></i></span>
-            <div><h3 class="text-sm font-bold text-gray-800">Where the legal basis applies</h3>
-                <p class="text-[11px] text-gray-500 mt-0.5">Switch how each module uses this register. <strong>Show panel</strong> and <strong>Warn</strong> are informational. <strong>Mode</strong>: <em>Draft mode</em> lets the module run now while its rules are not reviewed — every result is flagged <strong>DRAFT</strong>; <em>Enforced</em> makes the module refuse to run (Payroll: switch on / calculate a period; Offboarding: the settlement calculator) while any of its required rules is not marked Reviewed. Leave Enforce off to keep a module behaving exactly as before.</p></div>
-        </div>
-        <form method="POST" action="{{ route('finance.legal-basis.switches') }}">
-            @csrf
-            <div class="overflow-x-auto">
-                <table class="w-full text-xs text-left">
-                    <thead class="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500"><tr><th class="px-4 py-3">Module</th><th class="px-4 py-3">Affects</th><th class="px-4 py-3 text-center">Show panel</th><th class="px-4 py-3 text-center">Warn</th><th class="px-4 py-3">Mode</th><th class="px-4 py-3">Rules not reviewed</th></tr></thead>
-                    <tbody class="divide-y divide-gray-100 text-gray-700">
-                        @php $affects = ['pph21' => 'Payroll → PPh 21 settings, switching Payroll on, calculating a period', 'bpjs' => 'Payroll → BPJS settings, switching Payroll on, calculating a period', 'overtime' => 'Payroll → overtime rates, switching Payroll on, calculating a period', 'contract' => 'Contract (PKWT term) — information only', 'offboarding' => 'Offboarding → Final Settlement calculator']; @endphp
-                        @foreach($switches as $m => $sw)
-                            <tr class="align-top">
-                                <td class="px-4 py-3 font-semibold text-gray-800 whitespace-nowrap">{{ $modules[$m] ?? $m }}</td>
-                                <td class="px-4 py-3 text-[11px] text-gray-500 max-w-xs">{{ $affects[$m] ?? '' }}</td>
-                                @foreach(['show_panel', 'warn_banner'] as $f)
-                                    <td class="px-4 py-3 text-center"><input type="checkbox" name="sw[{{ $m }}][{{ $f }}]" value="1" class="w-4 h-4 rounded border-gray-300" {{ $sw->$f ? 'checked' : '' }} {{ $canEdit ? '' : 'disabled' }}></td>
-                                @endforeach
-                                <td class="px-4 py-3">
-                                    <select name="sw[{{ $m }}][enforce]" {{ $canEdit && $m !== 'contract' ? '' : 'disabled' }} class="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white" @if($m === 'contract') title="Contract has no feature to enforce yet" @endif>
-                                        <option value="" @selected(!$sw->enforce)>Draft mode — runs now, flagged DRAFT</option>
-                                        <option value="1" @selected($sw->enforce)>Enforced — blocked until Reviewed</option>
-                                    </select>
-                                </td>
-                                <td class="px-4 py-3 text-[11px] {{ count($pending[$m] ?? []) ? 'text-amber-700' : 'text-green-700' }}">
-                                    {{ count($pending[$m] ?? []) ? implode(', ', $pending[$m]) : 'All reviewed' }}
-                                    @if($canEdit && count($pending[$m] ?? []))
-                                        <button type="submit" form="reviewForm-{{ $m }}" onclick="return confirm('Accept ALL rules of {{ $modules[$m] ?? $m }} as reviewed? Do this only after Legal (or the responsible person) has checked them against the official regulation.')" class="block mt-1.5 px-2.5 py-1 rounded-md border border-green-300 text-green-700 font-semibold hover:bg-green-50">Accept review (all)</button>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-            @if($canEdit)<div class="px-5 py-3 border-t border-gray-100 flex justify-end"><button class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm">Save switches</button></div>@endif
-        </form>
-        @foreach($switches as $m => $sw)
-            <form id="reviewForm-{{ $m }}" method="POST" action="{{ route('finance.legal-basis.review-module', $m) }}" class="hidden">@csrf</form>
-        @endforeach
-    </div>
-
     <div class="flex flex-wrap items-center justify-between gap-3">
         <div class="flex flex-wrap gap-1.5">
             <a href="{{ route('finance.legal-basis.index') }}" class="px-3 py-1.5 rounded-full text-xs font-semibold {{ $module === '' ? 'primary-gradient text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-50' }}">All</a>
@@ -90,7 +46,11 @@
 
     @forelse($rows as $mod => $list)
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div class="px-5 py-3.5 border-b border-gray-100"><h3 class="text-sm font-bold text-gray-800">{{ $modules[$mod] ?? $mod }}</h3></div>
+            <div class="px-5 py-3.5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2"><h3 class="text-sm font-bold text-gray-800">{{ $modules[$mod] ?? $mod }}</h3>
+                @if($canEdit && count($pending[$mod] ?? []))
+                    <form method="POST" action="{{ route('finance.legal-basis.review-module', $mod) }}" data-confirm="Accept ALL rules of {{ $modules[$mod] ?? $mod }} as reviewed? Do this only after Legal (or the responsible person) has checked them against the official regulation." data-confirm-title="Accept review" data-confirm-ok="Accept all" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg border border-green-300 text-green-700 text-[11px] font-semibold hover:bg-green-50">Accept review (all)</button></form>
+                @endif
+            </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-xs text-left">
                     <thead class="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
@@ -112,6 +72,7 @@
                                 <td class="px-4 py-3"><div class="flex justify-end flex-wrap gap-1.5">
                                     @if($canEdit && $r->status === 'needs_review')<form method="POST" action="{{ route('finance.legal-basis.review', $r->id) }}" data-confirm="Mark {{ $r->rule_key }} ({{ $r->label }}) as reviewed? Confirm you compared it with the official text." data-confirm-title="Mark as Reviewed" data-confirm-ok="Reviewed" data-confirm-variant="primary" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-[11px] font-semibold hover:opacity-90">Mark reviewed</button></form>@endif
                                     @if($canEdit && $r->status === 'active')<form method="POST" action="{{ route('finance.legal-basis.needs-review', $r->id) }}" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-[11px] font-semibold hover:bg-gray-50">Needs review</button></form>@endif
+                                    @if($canEdit && $r->status === 'superseded')<form method="POST" action="{{ route('finance.legal-basis.restore', $r->id) }}" data-confirm="Restore this version? It goes back to “Needs review” and calculators use it again." data-confirm-title="Restore" data-confirm-ok="Restore" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg border border-green-300 text-green-700 text-[11px] font-semibold hover:bg-green-50">Restore</button></form>@endif
                                     @if($canEdit && $r->status !== 'superseded')<button type="button" class="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-[11px] font-semibold hover:bg-gray-50" data-legal="{{ json_encode($r) }}" onclick="openLegal(JSON.parse(this.dataset.legal))">Edit</button>@endif
                                     @if($canDelete && $r->status !== 'superseded')<form method="POST" action="{{ route('finance.legal-basis.supersede', $r->id) }}" data-confirm="Mark this version superseded? It is no longer used by calculators." data-confirm-title="Supersede" data-confirm-ok="Supersede" data-unsaved-ignore>@csrf<button class="px-2.5 py-1.5 rounded-lg border border-red-300 text-red-600 text-[11px] font-semibold hover:bg-red-50">Supersede</button></form>@endif
                                 </div></td>

@@ -74,6 +74,7 @@ return [
         'general.offboarding.list',              // Create = start an offboarding, Edit = checklist / settlement / deactivate / complete, Delete = cancel
         'general.offboarding.settings',          // Create = add a task, Edit = switches and tasks, Delete = delete a task
         'finance.legal-basis',                   // Create = add a rule or version, Edit = change / mark reviewed, Delete = supersede
+        'finance.legal-basis.settings',          // Edit = change the show / draft / enforce switches
         'general.external.timesheet.settings',   // approvers of the timesheet and invoice steps; per-consultant exceptions
         'general.external.contracts.settings',   // the same boxes, for the external contract forms
         'general.external.assignment-letters',   // Create = generate an assignment letter
@@ -119,6 +120,7 @@ return [
      * sebagian tab saja). Urutan = urutan tab di layar. Hanya memengaruhi pengelompokan di halaman Menu Access.
      */
     'hubs' => [
+        ['key' => 'legal-basis',    'label' => 'Legal Basis',         'tabs' => ['finance.legal-basis', 'finance.legal-basis.settings']],
         ['key' => 'attendance',     'label' => 'Attendance',          'tabs' => ['general.attendance', 'general.attendance.monthly', 'general.attendance.correction', 'general.settings.shifts', 'general.settings.attendance']],
         ['key' => 'overtime',       'label' => 'Overtime Management', 'tabs' => ['general.overtime', 'general.settings.overtime', 'general.approval-workflow.overtime']],
         ['key' => 'reimbursement',  'label' => 'Reimbursement Management', 'tabs' => ['general.reimbursement', 'general.settings.reimbursement', 'general.approval-workflow.reimbursement']],
@@ -171,6 +173,7 @@ return [
         'general.offboarding.list'            => ['c' => 'Start an offboarding', 'e' => 'Save the checklist, calculate the settlement, deactivate access, complete', 'd' => 'Cancel an offboarding'],
         'general.offboarding.settings'        => ['c' => 'Add a checklist task', 'e' => 'Change the switches and tasks', 'd' => 'Delete a checklist task'],
         'finance.legal-basis'                 => ['c' => 'Add a rule or a new version', 'e' => 'Edit an entry / mark it reviewed', 'd' => 'Mark a version superseded'],
+        'finance.legal-basis.settings'        => ['e' => 'Change the show / draft / enforce switches'],
         'general.external.timesheet'          => ['c' => 'Fill a timesheet on behalf of a consultant', 'e' => 'Change a timesheet on behalf of a consultant / delete a Draft'],
         'general.external.timesheet.settings' => ['c' => 'Add an approval step or a per-consultant exception', 'e' => 'Change a step, an exception or the options', 'd' => 'Delete a step or an exception'],
         'general.external.contracts'          => ['c' => 'Create an external contract', 'e' => 'Edit an external contract / change its status', 'd' => 'Delete a Draft external contract'],
