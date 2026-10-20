@@ -57,6 +57,9 @@ Route::prefix('finance')
             Route::prefix('settings')->middleware('menu:finance.payroll.settings')->group(function () {
                 Route::get('/', [PayrollSettingsController::class, 'settings'])->name('settings');
                 Route::post('/', [PayrollSettingsController::class, 'saveSettings'])->name('settings.save')->middleware('menu.can:finance.payroll.settings,edit');
+                // Uji queue worker (kartu "Background processing check"): kirim job uji, lalu tanya statusnya.
+                Route::post('/queue-test', [PayrollSettingsController::class, 'queueTest'])->name('settings.queue-test')->middleware('menu.can:finance.payroll.settings,edit');
+                Route::get('/queue-status', [PayrollSettingsController::class, 'queueStatus'])->name('settings.queue-status');
                 // Menyalakan/mematikan modul: slug fungsi tersendiri (sensitif), terpisah dari hak mengubah kebijakan.
                 Route::post('/activation', [PayrollSettingsController::class, 'activation'])->name('activation')->middleware('menu:finance.payroll.activate');
             });

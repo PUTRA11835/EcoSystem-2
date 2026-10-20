@@ -342,7 +342,7 @@
     // Initial load — employeeId may not be defined yet (declared in parent script),
     // use PHP-rendered value directly for the auto-call.
     const _attachEmpId = {{ $employeeId ?? 0 }};
-    document.addEventListener('DOMContentLoaded', function () {
+    (window.onSectionFirstShow || function (t, fn) { document.addEventListener('DOMContentLoaded', fn); })('attachment', function () {
         if (_attachEmpId) loadAttachments();
     });
 </script>

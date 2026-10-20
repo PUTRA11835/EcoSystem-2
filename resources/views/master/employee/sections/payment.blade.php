@@ -622,7 +622,7 @@
      */
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
+    (window.onSectionFirstShow || function (t, fn) { document.addEventListener('DOMContentLoaded', fn); })('payment', function() {
         // Set default date to today
         document.getElementById('paymentPaidAt').value = new Date().toISOString().split('T')[0];
         loadPayments();

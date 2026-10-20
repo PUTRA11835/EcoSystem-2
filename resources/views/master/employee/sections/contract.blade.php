@@ -150,6 +150,6 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', load);
+    (window.onSectionFirstShow || function (t, fn) { document.addEventListener('DOMContentLoaded', fn); })('contract', load);
 })();
 </script>

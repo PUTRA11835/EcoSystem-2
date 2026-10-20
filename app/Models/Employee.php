@@ -115,6 +115,16 @@ class Employee extends Model
             return true;
         }
 
+        // Jalur cepat (hemat 3 query per pemeriksaan): daftar slug yang sudah di-cache ShareMenuPermissions (60 menit; dibuang eksplisit saat
+        // role/izin/penugasan role berubah — kunci & invalidasi yang SAMA dipakai CheckEmployeeSectionAccess). Slug ESS bawaan tidak lewat
+        // sini (daftarnya memuat default ESS yang bagi konsultan bisa diblokir). Bila cache kosong → jalur database seperti semula.
+        if (!in_array($slug, $essSlugs, true)) {
+            $cached = \Illuminate\Support\Facades\Cache::get("perm_slugs_{$this->employee_id}");
+            if (is_array($cached)) {
+                return in_array($slug, $cached, true);
+            }
+        }
+
         $roleIds = $this->roles()->pluck('employee_role.id');
 
         return Menu::where('slug', $slug)
@@ -132,6 +142,15 @@ class Employee extends Model
      */
     public function hasMenuPermission(string $slug, string $permission = 'can_view'): bool
     {
+        // Jalur cepat dari matriks izin yang di-cache (kunci & invalidasi sama dengan perm_slugs_*); slug ESS bawaan tetap lewat database.
+        $flag = ['can_view' => 'view', 'can_create' => 'create', 'can_edit' => 'edit', 'can_delete' => 'delete'][$permission] ?? null;
+        if ($flag !== null && !in_array($slug, ['general.my-attendance', 'my-leave-permit', 'general.my-overtime', 'general.my-reimbursement', 'general.my-purchase-request', 'general.my-kpi', 'profile.my'], true)) {
+            $matrix = \Illuminate\Support\Facades\Cache::get("perm_matrix_{$this->employee_id}");
+            if (is_array($matrix)) {
+                return (bool) ($matrix[$slug][$flag] ?? false);
+            }
+        }
+
         $roleIds = $this->roles()->pluck('employee_role.id');
 
         return Menu::where('slug', $slug)

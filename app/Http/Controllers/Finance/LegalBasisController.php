@@ -36,6 +36,15 @@ class LegalBasisController extends Controller
         ]);
     }
 
+    /** Tab Settings: saklar tampil / Draft mode / Enforce per modul (izin sendiri: finance.legal-basis.settings). */
+    public function settings()
+    {
+        return view('finance.legal-basis.settings', [
+            'modules' => LegalBasisService::MODULES, 'switches' => $this->legal->allSwitches(),
+            'pending' => collect(array_keys(LegalBasisService::MODULES))->mapWithKeys(fn ($m) => [$m => $this->legal->pending($m)]),
+        ]);
+    }
+
     public function store(Request $request)
     {
         return $this->save($request, null);
@@ -50,13 +59,32 @@ class LegalBasisController extends Controller
     public function saveSwitches(Request $request)
     {
         $this->legal->saveSwitches((array) $request->input('sw', []), $this->actorId());
+        $this->legal->setDisplay($request->boolean('legal_display'));
 
-        return back()->with('success', 'Legal basis switches saved. They take effect immediately.');
+        return redirect()->route('finance.legal-basis.settings')->with('success', 'Legal basis settings saved. They take effect immediately.');
     }
 
     public function review(int $id)
     {
         return $this->act(fn () => $this->legal->markReviewed($id, $this->actorId()), 'Marked as reviewed.');
+    }
+
+    /** Accept review untuk semua aturan satu modul sekaligus (setelah Legal/pihak berwenang selesai memeriksa). */
+    public function reviewModule(string $module)
+    {
+        try {
+            $n = $this->legal->markModuleReviewed($module, $this->actorId());
+        } catch (\DomainException $e) {
+            return back()->withErrors(['legal' => $e->getMessage()]);
+        }
+
+        return back()->with('success', $n ? "{$n} rule(s) accepted as reviewed." : 'Nothing to accept: every rule of this module is already reviewed.');
+    }
+
+    /** Kembalikan versi Superseded ke Needs review. */
+    public function restore(int $id)
+    {
+        return $this->act(fn () => $this->legal->restore($id), 'Restored. It is back to “Needs review” and is used again by calculators.');
     }
 
     public function needsReview(int $id)

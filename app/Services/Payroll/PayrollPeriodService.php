@@ -63,6 +63,36 @@ class PayrollPeriodService
         if ($e = $this->disabledError()) {
             return [$e];
         }
+        $period = DB::table('payroll_periods')->where('id', $periodId)->first();
+        if (!$period) {
+            return ['Payroll period not found.'];
+        }
+        if (in_array($period->calc_status, ['queued', 'running'], true) && $period->updated_at && now()->diffInMinutes($period->updated_at) < 30) {
+            return ['This period is already being calculated in the background. Wait for it to finish.'];
+        }
+        $settings = $this->engine->settings();
+
+        // Opsional: tolak hitung selama masih ada pengajuan yang menunggu persetujuan (urutan data: persetujuan dulu, baru payroll).
+        if (!empty($settings['block_on_pending_inputs']) && PayrollPeriodRules::isEditable($period->status)) {
+            $ready = $this->engine->inputReadiness((array) $period);
+            if ($ready['total'] > 0) {
+                $lines = array_map(fn ($i) => $i['count'] . ' ' . strtolower($i['label']), array_values(array_filter($ready['items'], fn ($i) => $i['count'] > 0)));
+
+                return ['Approvals are still pending in this period (' . implode('; ', $lines) . '). Approve or reject them first, or switch off “Require approvals before calculating” in Payroll Settings.'];
+            }
+        }
+
+        // Opsional: hitung di latar belakang (butuh antrean sungguhan + worker). Tanpa itu, tetap hitung langsung seperti biasa.
+        if (!empty($settings['calculate_in_background']) && PayrollPeriodRules::isEditable($period->status) && config('queue.default') !== 'sync') {
+            DB::table('payroll_periods')->where('id', $periodId)->update(['calc_status' => 'queued', 'calc_error' => null, 'updated_at' => now()]);
+            \App\Jobs\CalculatePayrollPeriodJob::dispatch($periodId, $actorId);
+            $summary = ['queued' => true, 'employees' => 0, 'skipped' => 0, 'warnings' => [], 'totals' => ['gross' => 0, 'take_home' => 0]];
+            PayrollAudit::record(PayrollAudit::CALCULATED, $periodId, 'Calculation queued in the background', $actorId, []);
+
+            return [];
+        }
+
+        @set_time_limit(300);   // periode besar: beri waktu lebih pada permintaan web (tidak berpengaruh bila dibatasi hosting)
         try {
             $summary = $this->engine->calculatePeriod($periodId, $actorId);
         } catch (InvalidArgumentException $e) {
@@ -85,6 +115,9 @@ class PayrollPeriodService
             $p = DB::table('payroll_periods')->where('id', $periodId)->lockForUpdate()->first();
             if (!$p) {
                 return ['Payroll period not found.'];
+            }
+            if (in_array($p->calc_status, ['queued', 'running'], true) && $p->updated_at && now()->diffInMinutes($p->updated_at) < 30) {
+                return ['A background calculation is still running for this period. Lock it after it finishes.'];
             }
             if (!PayrollPeriodRules::canTransition($p->status, PayrollPeriodRules::LOCKED)) {
                 return ["A {$p->status} period cannot be locked."];

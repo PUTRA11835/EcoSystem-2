@@ -91,9 +91,12 @@ class ProfileController extends Controller
         $sections = array_keys(\App\Http\Controllers\SettingsController::PROFILE_SECTIONS);
         $profileSectionHidden   = [];
         $profileSectionReadonly = [];
+        // Satu pencarian izin untuk semua seksi (dulu 2 kueri × 2 pemeriksaan × 13 seksi). Setara dengan canAccessMenu() untuk slug
+        // my-profile.section.* : slug yang dipegang role dengan can_view pada menu aktif.
+        $permSlugs = $emp ? $emp->allPermissionSlugs() : [];
         foreach ($sections as $key) {
-            $canView   = (bool) $emp?->canAccessMenu("my-profile.section.{$key}.view");
-            $canUpdate = (bool) $emp?->canAccessMenu("my-profile.section.{$key}.update");
+            $canView   = in_array("my-profile.section.{$key}.view", $permSlugs, true);
+            $canUpdate = in_array("my-profile.section.{$key}.update", $permSlugs, true);
             $profileSectionHidden[$key]   = !$canView;
             $profileSectionReadonly[$key] = $canView && !$canUpdate;
         }
@@ -129,6 +132,32 @@ class ProfileController extends Controller
             'profileSectionReadonly' => $profileSectionReadonly,
             'onboarding'             => $onboarding,
             'profileLocked'          => $profileLocked,
+        ]);
+    }
+
+    /**
+     * Foto profil MILIK SENDIRI untuk avatar di topbar. Identitas dari sesi (bukan dari URL), jadi tidak ada cara membaca foto orang lain
+     * lewat rute ini, dan tidak butuh izin seksi hr_profile (avatar tampil untuk semua akun yang punya foto).
+     */
+    public function myPhoto()
+    {
+        $user = session('user');
+        $id = (int) ($user['id'] ?? 0);
+        if (!$id || ($user['type'] ?? 'employee') !== 'employee') {
+            abort(404);
+        }
+
+        $file = app(\App\Services\HrProfile\HrProfileService::class)->imageFile($id, 'photo');
+        if (!$file) {
+            abort(404);
+        }
+
+        // URL membawa versi (?v=hash nama berkas) → aman di-cache peramban; foto baru = URL baru.
+        return response()->file($file['path'], [
+            'Content-Type'           => $file['mime'],
+            'Content-Disposition'    => 'inline',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control'          => 'private, max-age=86400',
         ]);
     }
 

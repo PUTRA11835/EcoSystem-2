@@ -106,6 +106,8 @@ class PayrollController extends Controller
             'canSlip' => (bool) $me?->canAccessMenu('finance.payroll.slip'),
             'pphOn' => (bool) $settings->pph21_enabled, 'bpjsOn' => (bool) $settings->bpjs_enabled,
             'slipLang' => $settings->slip_language === 'en' ? 'en' : 'id',
+            'readiness' => $editable ? app(\App\Services\Payroll\PayrollEngine::class)->inputReadiness((array) $p) : null,
+            'blockOnPending' => (bool) $settings->block_on_pending_inputs,
             // Gaji pokok per slip (kolom "Base salary" di tabel).
             'baseBySlip' => $slips->isEmpty() ? collect() : DB::table('payroll_slip_items')->whereIn('slip_id', $slips->pluck('id'))->where('code', 'base')
                 ->groupBy('slip_id')->selectRaw('slip_id, SUM(amount) as amt')->pluck('amt', 'slip_id'),
@@ -123,6 +125,9 @@ class PayrollController extends Controller
 
         $summary = null;
         $errors = $this->periods->calculate($period, $this->actor(), $summary);
+        if (!$errors && !empty($summary['queued'])) {
+            return redirect()->route('finance.payroll.periods.show', $period)->with('success', 'Calculation started in the background. This page refreshes by itself; you can keep working.');
+        }
 
         return $errors
             ? redirect()->route('finance.payroll.periods.show', $period)->withErrors($errors)
