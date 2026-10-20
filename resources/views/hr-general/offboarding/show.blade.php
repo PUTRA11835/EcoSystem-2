@@ -130,7 +130,7 @@
                         <div><p class="font-semibold text-gray-700">The settlement calculator is switched off</p><p class="mt-0.5">Switch it on in Offboarding Settings once the legal-basis entries have been reviewed.@if($canSettings) <a href="{{ route('general.offboarding.settings.index') }}" class="primary-text font-semibold underline">Open Settings</a>@endif</p></div></div></div>
                 @elseif($missingLegal)
                     <div class="p-6 text-xs text-amber-900"><div class="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3"><i class="fas fa-scale-balanced mt-0.5"></i>
-                        <div><p class="font-semibold">The calculator cannot run yet</p><p class="mt-0.5">These legal-basis entries are not reviewed: {{ implode(', ', $missingLegal) }}.@if($canLegal) <a href="{{ route('finance.legal-basis.index', ['module' => 'offboarding']) }}" class="underline font-semibold">Review them</a>@endif</p></div></div></div>
+                        <div><p class="font-semibold">The calculator cannot run yet</p><p class="mt-0.5">These legal-basis entries are not reviewed: {{ implode(', ', $missingLegal) }}.@if($canLegal) <a href="{{ route('finance.legal-basis.index', ['module' => 'offboarding']) }}#basis-register" class="underline font-semibold">Review them</a>@endif</p></div></div></div>
                 @else
                     <form method="POST" action="{{ route('general.offboarding.calculate', $o->id) }}" class="p-5 grid grid-cols-1 md:grid-cols-3 gap-4" data-unsaved-ignore>@csrf
                         <div><label class="{{ $label }}">Offboarding type</label><input value="{{ $o->type_label }}" disabled class="{{ $input }}"></div>
@@ -180,7 +180,7 @@
             @if(!$external && $amounts)
                 <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
                     <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between"><h3 class="text-sm font-bold text-gray-800">Legal basis</h3>
-                        @if($canLegal)<a href="{{ route('finance.legal-basis.index', ['module' => 'offboarding']) }}" class="text-[11px] font-semibold primary-text hover:underline">Open the register</a>@endif</div>
+                        @if($canLegal)<a href="{{ route('finance.legal-basis.index', ['module' => 'offboarding']) }}#basis-register" class="text-[11px] font-semibold primary-text hover:underline">Open the register</a>@endif</div>
                     @include('partials.legal-basis-table', ['rows' => $legalRows])
                 </div>
             @endif

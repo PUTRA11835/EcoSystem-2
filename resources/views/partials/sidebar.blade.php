@@ -449,9 +449,9 @@
             @endif
 @php $sb['offboarding'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Business & Legal → Legal Basis (Register Dasar Hukum; dipusatkan di sini, dipakai Payroll/BPJS/PPh 21/Offboarding). --}}
-            @if($can('finance.legal-basis'))
-                @include('partials.ess-nav-item', ['href' => route('finance.legal-basis.index'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal/basis*'), 'nested' => false])
+            {{-- Business & Legal → Legal: ONE item for the Legal summary (dashboard) and the Legal Basis register (tabs of the same page). --}}
+            @if($can('legal') || $can('finance.legal-basis'))
+                @include('partials.ess-nav-item', ['href' => $can('legal') ? route('legal') : route('finance.legal-basis.index'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal', 'legal/basis*'), 'nested' => false])
             @endif
 @php $sb['legal_basis'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
@@ -1032,20 +1032,6 @@
             @endif
 @php $sb['rpmo'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            @if($can('legal'))
-
-                <div class="mb-2">
-                    <a href="{{ route('legal') }}"
-                        class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('legal') ? 'active bg-white bg-opacity-20 text-white font-semibold' : 'text-white text-opacity-80 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
-                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
-                            <i class="fas fa-balance-scale"></i>
-                        </span>
-                        <span class="nav-text font-medium">Legal</span>
-                    </a>
-                </div>
-            @endif
-@php $sb['legal'] = ob_get_clean(); @endphp
-@php ob_start(); @endphp
 
             @if($can('management'))
 
@@ -1222,7 +1208,7 @@
                     ['id' => 'Finance',   'title' => 'Finance',  'icon' => 'wallet', 'keys' => ['reimbursement', 'purchase_management', 'cash_advance', 'payroll', 'bpjs', 'pph21']],
                     ['id' => 'Work',      'title' => 'Work & Service',      'icon' => 'tools', 'keys' => ['ticket', 'my_tasks', 'workload', 'validation', 'delivery', 'sla', 'rpmo']],
                     ['id' => 'Ai',        'title' => 'AI Tools',            'icon' => 'sparkles', 'keys' => ['ess_tools']],
-                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['partner', 'business', 'legal', 'legal_basis', 'contracts']],
+                    ['id' => 'Business',  'title' => 'Business & Legal',    'icon' => 'building-skyscraper', 'keys' => ['legal_basis', 'contracts', 'partner', 'business']],
                     ['id' => 'Reporting', 'title' => 'Reporting',           'icon' => 'chart-histogram', 'keys' => ['reporting']],
                     ['id' => 'Admin',     'title' => 'Administration',      'icon' => 'shield-cog', 'keys' => ['management', 'control_center']],
                 ];

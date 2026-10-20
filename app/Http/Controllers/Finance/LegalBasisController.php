@@ -22,18 +22,10 @@ class LegalBasisController extends Controller
 
     public function __construct(private LegalBasisService $legal) {}
 
+    /** Legal → Legal Basis tab (the Dashboard tab is LegalDashboardController). */
     public function index(Request $request)
     {
-        $module = (string) $request->query('module');
-        $rows = $this->legal->all(isset(LegalBasisService::MODULES[$module]) ? $module : null);
-        $stale = $rows->filter(fn ($r) => $r->status === 'active' && $r->reviewed_at && strtotime($r->reviewed_at) < strtotime('-12 months'))->count();
-
-        return view('finance.legal-basis.index', [
-            'rows' => $rows->groupBy('module'), 'module' => $module, 'modules' => LegalBasisService::MODULES, 'types' => LegalBasisService::TYPES,
-            'statuses' => LegalBasisService::STATUSES, 'badges' => LegalBasisService::BADGES, 'confidence' => LegalBasisService::CONFIDENCE,
-            'switches' => $this->legal->allSwitches(), 'pending' => collect(array_keys(LegalBasisService::MODULES))->mapWithKeys(fn ($m) => [$m => $this->legal->pending($m)]),
-            'counts' => ['total' => $rows->count(), 'needs_review' => $rows->where('status', 'needs_review')->count(), 'stale' => $stale, 'reviewed' => $rows->where('status', 'active')->count()],
-        ]);
+        return view('legal.basis', ['basis' => $this->legal->registerPage((string) $request->query('module'))]);
     }
 
     public function store(Request $request)

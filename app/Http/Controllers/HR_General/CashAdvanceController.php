@@ -431,7 +431,7 @@ class CashAdvanceController extends Controller
         }
 
         return redirect()
-            ->route('general.cash-advance.index')
+            ->to($this->reviewBack('general.cash-advance', 'general.cash-advance.index'))
             ->with('success', 'Cash advance ' . $cashAdvance->request_no
                 . ' deleted. It stays on record and can be found under Status → Deleted.');
     }

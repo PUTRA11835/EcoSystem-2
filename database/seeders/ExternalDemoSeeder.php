@@ -151,8 +151,8 @@ class ExternalDemoSeeder extends Seeder
 
     /**
      * Timesheet demo lewat layanan yang sama dengan layar (aturan tanggal, tarif beku, penyetuju, nomor):
-     *   Arga (Mandays)  Agustus → Approved + invoice Paid · September → Approved + invoice menunggu verifikasi · Oktober → Submitted
-     *   Nara (Monthly)  September → Returned (dengan alasan) · Oktober → Draft
+     *   Arga (Mandays)  2 bulan lalu → Approved + invoice Paid · bulan lalu → Approved + invoice menunggu verifikasi · bulan ini → Submitted
+     *   Nara (Monthly)  bulan lalu → Returned (dengan alasan) · bulan ini → Draft   (bulan relatif terhadap hari ini)
      * Pemberitahuan yang tercipta selama seeder dibuang lagi supaya kotak notifikasi pengguna tidak ramai.
      */
     private function timesheets(array $ids, int $actor): int
@@ -180,44 +180,63 @@ class ExternalDemoSeeder extends Seeder
         ], $dates);
         $pdf = fn (string $no) => new \Illuminate\Http\UploadedFile($this->pdf($no), $no . '.pdf', 'application/pdf', null, true);
         $today = now();
+        // Bulan relatif terhadap hari ini (batas mundur bawaan 60 hari): tiga bulan terakhir = m0 (2 bulan lalu), m1 (bulan lalu), m2 (bulan ini).
+        $m0 = now()->startOfMonth()->subMonths(2);
+        $m1 = now()->startOfMonth()->subMonth();
+        $m2 = now()->startOfMonth();
+        $inWindow = now()->subDays(55)->toDateString();
+        // Hari kerja TERAKHIR dalam sebuah bulan (maks. $n), tidak lewat hari ini dan tidak lebih tua dari batas mundur.
+        $recent = function (\Illuminate\Support\Carbon $month, int $n) use ($inWindow): array {
+            $out = [];
+            for ($d = $month->copy()->endOfMonth(); count($out) < $n && $d >= $month; $d = $d->copy()->subDay()) {
+                if ($d->isWeekday() && $d->toDateString() <= now()->toDateString() && $d->toDateString() >= $inWindow) {
+                    $out[] = $d->toDateString();
+                }
+            }
+
+            return array_reverse($out);
+        };
 
         // ── Arga ──
         $arga = (int) $ids['DEMO-EXT03'];
         $contract = $contractOf($arga);
         if ($contract) {
-            $aug = $svc->open($arga, $contract, 2026, 8, $actor);
-            $svc->save($aug, $rows($days('2026-08-20', 8), 'Implementation S/D', 'Fit-gap workshop and configuration'), $actor);
-            $svc->submit($aug, $arga);
-            $svc->approve($aug, $actor);
-            $gross = (float) DB::table('external_timesheets')->where('id', $aug)->value('gross_amount');
-            $inv->upload($aug, ['invoice_no' => 'INV/ARGA/2026/08', 'invoice_date' => '2026-09-01', 'amount' => (string) $gross], $pdf('INV-ARGA-08'), $arga);
-            $inv->verify($aug, $actor);
-            $inv->markPaid($aug, $actor, '2026-09-14', 'TRF-2026-09-0142');
+            $augDates = $recent($m0, 5);   // kosong bila bulan itu sudah di luar batas mundur — skenario "Paid" dilewati
+            if ($augDates) {
+                $aug = $svc->open($arga, $contract, $m0->year, $m0->month, $actor);
+                $svc->save($aug, $rows($augDates, 'Implementation S/D', 'Fit-gap workshop and configuration'), $actor);
+                $svc->submit($aug, $arga);
+                $svc->approve($aug, $actor);
+                $gross = (float) DB::table('external_timesheets')->where('id', $aug)->value('gross_amount');
+                $inv->upload($aug, ['invoice_no' => 'INV/ARGA/' . $m0->format('Y/m'), 'invoice_date' => $m1->toDateString(), 'amount' => (string) $gross], $pdf('INV-ARGA-' . $m0->format('m')), $arga);
+                $inv->verify($aug, $actor);
+                $inv->markPaid($aug, $actor, $m1->copy()->day(14)->toDateString(), 'TRF-' . $m1->format('Y-m') . '-0142');
+            }
 
-            $sep = $svc->open($arga, $contract, 2026, 9, $actor);
-            $svc->save($sep, $rows($days('2026-09-01', 10), 'Implementation S/D', 'Sales order scenarios and UAT support', 'REMOTE'), $actor);
+            $sep = $svc->open($arga, $contract, $m1->year, $m1->month, $actor);
+            $svc->save($sep, $rows($recent($m1, 10), 'Implementation S/D', 'Sales order scenarios and UAT support', 'REMOTE'), $actor);
             $svc->submit($sep, $arga);
             $svc->approve($sep, $actor);
             $gross = (float) DB::table('external_timesheets')->where('id', $sep)->value('gross_amount');
-            $inv->upload($sep, ['invoice_no' => 'INV/ARGA/2026/09', 'invoice_date' => '2026-10-02', 'amount' => (string) $gross], $pdf('INV-ARGA-09'), $arga);
+            $inv->upload($sep, ['invoice_no' => 'INV/ARGA/' . $m1->format('Y/m'), 'invoice_date' => $m2->copy()->addDay()->min(now())->toDateString(), 'amount' => (string) $gross], $pdf('INV-ARGA-' . $m1->format('m')), $arga);
 
-            $oct = $svc->open($arga, $contract, 2026, 10, $actor);
-            $svc->save($oct, $rows($days('2026-10-01', 4), 'Implementation S/D', 'Data migration rehearsal'), $actor);
+            $oct = $svc->open($arga, $contract, $m2->year, $m2->month, $actor);
+            $svc->save($oct, $rows($recent($m2, 4), 'Implementation S/D', 'Data migration rehearsal'), $actor);
             $svc->submit($oct, $arga);
-            $made += 3;
+            $made += $augDates ? 3 : 2;
         }
 
         // ── Nara ──
         $nara = (int) $ids['DEMO-EXT04'];
         $contract = $contractOf($nara);
         if ($contract) {
-            $sep = $svc->open($nara, $contract, 2026, 9, $actor);
-            $svc->save($sep, $rows($days('2026-09-21', 6), 'Finance rollout', 'Month-end closing support', 'REMOTE'), $actor);
+            $sep = $svc->open($nara, $contract, $m1->year, $m1->month, $actor);
+            $svc->save($sep, $rows($recent($m1, 6), 'Finance rollout', 'Month-end closing support', 'REMOTE'), $actor);
             $svc->submit($sep, $nara);
-            $svc->returnSheet($sep, $actor, 'Please add the project name for 22–25 September and submit again.');
+            $svc->returnSheet($sep, $actor, 'Please add the project name for the last days of the month and submit again.');
 
-            $oct = $svc->open($nara, $contract, 2026, 10, $actor);
-            $svc->save($oct, $rows($days('2026-10-05', 3), 'Finance rollout', 'Cash management configuration', 'REMOTE'), $actor);
+            $oct = $svc->open($nara, $contract, $m2->year, $m2->month, $actor);
+            $svc->save($oct, $rows($recent($m2, 3), 'Finance rollout', 'Cash management configuration', 'REMOTE'), $actor);
             $made += 2;
         }
 

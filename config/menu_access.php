@@ -119,6 +119,8 @@ return [
      * sebagian tab saja). Urutan = urutan tab di layar. Hanya memengaruhi pengelompokan di halaman Menu Access.
      */
     'hubs' => [
+        ['key' => 'legal',        'label' => 'Legal',                'tabs' => ['legal', 'finance.legal-basis']],
+        ['key' => 'offboarding',   'label' => 'Offboarding',          'tabs' => ['general.offboarding.list', 'general.offboarding.settings']],
         ['key' => 'attendance',     'label' => 'Attendance',          'tabs' => ['general.attendance', 'general.attendance.monthly', 'general.attendance.correction', 'general.settings.shifts', 'general.settings.attendance']],
         ['key' => 'overtime',       'label' => 'Overtime Management', 'tabs' => ['general.overtime', 'general.settings.overtime', 'general.approval-workflow.overtime']],
         ['key' => 'reimbursement',  'label' => 'Reimbursement Management', 'tabs' => ['general.reimbursement', 'general.settings.reimbursement', 'general.approval-workflow.reimbursement']],
@@ -223,23 +225,20 @@ return [
             'about' => 'Being NAMED on an approval workflow already lets a person open the My Approvals inbox and decide the documents waiting on them — no box needed. These boxes add EXTRA powers while reviewing: Edit adjusts the document, Delete removes it, and Export downloads it. All off by default.',
             'match' => ['general.approvals', 'general.approvals.*']],
         ['key' => 'calendar',    'label' => 'Calendar & Timesheet',     'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
-        // Human Capital
-        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Capital', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.shifts*', 'general.settings.attendance*']],
-        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Capital', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*', 'general.approval-workflow.overtime']],
+        // Human Capital — same order as the sidebar (Employee Data → … → Inventory & Assets)
+        ['key' => 'employee',    'label' => 'HR · Employee Data',        'group' => 'Human Capital', 'short' => 'Employee Data', 'match' => ['employee', 'employee.*', 'master.employee*']],
         ['key' => 'hr-recruit',  'label' => 'HR · Recruitment & Offering', 'group' => 'Human Capital', 'short' => 'Recruitment & Offering', 'match' => [
             'general.recruitment', 'general.recruitment.*', 'general.offering-letter', 'general.offering-letter.*',
         ]],
-        ['key' => 'doc-identity', 'label' => 'Document Identity',        'group' => 'Business & Legal', 'short' => 'Document Identity',
-            'about' => 'Letterheads and signers, shared by HR letters and Legal contracts. Give this to Legal instead of the whole Letter Templates settings (numbering, letter types and request types stay HR\'s).',
-            'match' => ['general.letters.settings.letterheads', 'general.letters.settings.signers']],
+        ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Capital', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
+        ['key' => 'hr-offboarding', 'label' => 'HR · Offboarding', 'group' => 'Human Capital', 'short' => 'Offboarding', 'match' => ['general.offboarding', 'general.offboarding.*']],
+        ['key' => 'hr-attendance', 'label' => 'HR · Attendance',         'group' => 'Human Capital', 'short' => 'Attendance', 'match' => ['general.attendance', 'general.attendance.*', 'general.settings.shifts*', 'general.settings.attendance*']],
+        ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Capital', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
+        ['key' => 'hr-overtime', 'label' => 'HR · Overtime',             'group' => 'Human Capital', 'short' => 'Overtime', 'match' => ['general.overtime', 'general.overtime.*', 'general.settings.overtime*', 'general.approval-workflow.overtime']],
+        ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Capital', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
         ['key' => 'hr-docs',     'label' => 'HR · Docs & Letters',      'group' => 'Human Capital', 'short' => 'Docs & Letters', 'match' => [
             'general.letter-templates', 'general.letter-templates.*', 'general.letters', 'general.letters.*',
         ]],
-        ['key' => 'hr-kpi',      'label' => 'HR · KPI',                  'group' => 'Human Capital', 'short' => 'KPI', 'match' => ['general.kpi-evaluation', 'general.kpi-evaluation.*']],
-        ['key' => 'hr-onboard',  'label' => 'HR · Onboarding & Command Center', 'group' => 'Human Capital', 'short' => 'Onboarding & Command Center', 'match' => ['general.onboarding', 'general.onboarding.*', 'general.command-center*']],
-        ['key' => 'hr-leave',    'label' => 'HR · Leave & Permit',       'group' => 'Human Capital', 'short' => 'Leave & Permit', 'match' => ['hr_general', 'hr_general.*']],
-        // General Affairs — directly under Human Capital
-        ['key' => 'hr-offboarding', 'label' => 'HR · Offboarding', 'group' => 'Human Resources', 'short' => 'Offboarding', 'match' => ['general.offboarding', 'general.offboarding.*']],
         ['key' => 'ga-inventory', 'label' => 'HR · Inventory & Assets', 'group' => 'Human Capital', 'short' => 'Inventory & Assets', 'match' => ['general.inventory', 'general.inventory.*']],
         // External — one entry per sidebar sub menu
         ['key' => 'ext-consultants', 'label' => 'External · Consultants', 'group' => 'External', 'short' => 'External Consultants',
@@ -254,19 +253,20 @@ return [
         ['key' => 'hr-reimb',    'label' => 'Finance · Reimbursement',   'group' => 'Finance', 'short' => 'Reimbursement', 'match' => ['general.reimbursement', 'general.reimbursement.*', 'general.settings.reimbursement*', 'general.approval-workflow.reimbursement']],
         ['key' => 'hr-pr',       'label' => 'Finance · Purchase Management', 'group' => 'Finance', 'short' => 'Purchase', 'match' => ['general.purchase-request', 'general.purchase-request.*', 'general.purchase-order', 'general.purchase-order.*', 'general.settings.purchase-request*', 'general.approval-workflow.purchase-request']],
         ['key' => 'hr-ca',       'label' => 'Finance · Cash Advance',    'group' => 'Finance', 'short' => 'Cash Advance', 'match' => ['general.cash-advance', 'general.cash-advance.*', 'general.cash-advance-dashboard', 'general.cash-advance-report', 'general.cash-advance-report.*', 'management.cash-advance-settings*', 'management.approval-workflow.cash-advance*']],
-        ['key' => 'finance',     'label' => 'Finance · Payroll, BPJS & PPh 21', 'group' => 'Finance', 'short' => 'Payroll, BPJS & PPh 21', 'match' => ['finance', 'finance.*']],
-        // Master
-        ['key' => 'employee',    'label' => 'Master · Employee',         'group' => 'Master', 'short' => 'Employee', 'match' => ['employee', 'employee.*', 'master.employee*']],
-        ['key' => 'customer',    'label' => 'Master · Customer',         'group' => 'Master', 'short' => 'Customer', 'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
+        ['key' => 'finance',     'label' => 'Finance · Payroll, BPJS & PPh 21', 'group' => 'Finance', 'short' => 'Payroll, BPJS & PPh 21', 'match' => ['finance', 'finance.payroll', 'finance.payroll.*', 'finance.bpjs', 'finance.bpjs.*', 'finance.pph21', 'finance.pph21.*']],
         // Work & Service
         ['key' => 'ticketing',   'label' => 'Ticketing',                 'group' => 'Work & Service', 'short' => 'Ticketing', 'match' => ['tickets', 'tickets.*', 'ticket', 'ticket.*', 'room-chat', 'room-chat.*', 'ui', 'ui.*', 'staging', 'staging.*']],
         ['key' => 'delivery',    'label' => 'Delivery',                  'group' => 'Work & Service', 'short' => 'Delivery', 'match' => ['delivery', 'delivery.*', 'delivery-project.*', 'delivery-support.*']],
         ['key' => 'sla-rpmo',    'label' => 'SLA & RPMO',                'group' => 'Work & Service', 'short' => 'SLA & RPMO', 'match' => ['sla', 'sla.*', 'rpmo', 'rpmo.*']],
-        // Business & Legal — Contract moved here from Human Capital, like the sidebar
-        ['key' => 'legal-dashboard', 'label' => 'Legal · Dashboard',     'group' => 'Business & Legal', 'short' => 'Legal dashboard',
-            'about' => 'Opens the Legal summary. Each card on it still follows the person\'s own Contract, External Contract and Document Identity access.',
-            'match' => ['legal', 'legal.*']],
+        // Business & Legal — same order as the sidebar: Legal Basis (with the dashboard), Contract, Business Partner (Business Dev is not built yet)
+        ['key' => 'legal-basis', 'label' => 'Legal · Dashboard & Legal Basis', 'group' => 'Business & Legal', 'short' => 'Legal Basis',
+            'about' => 'One Legal page with two tabs: the Dashboard (summary cards — each card still follows your own Contract, External Contract and Document Identity access) and the Legal Basis register.',
+            'match' => ['legal', 'legal.*', 'finance.legal-basis', 'finance.legal-basis.*']],
         ['key' => 'legal-contract','label' => 'Legal · Contract',       'group' => 'Business & Legal', 'short' => 'Contract', 'match' => ['general.contracts', 'general.contracts.*']],
+        ['key' => 'doc-identity', 'label' => 'Legal · Document Identity', 'group' => 'Business & Legal', 'short' => 'Document Identity',
+            'about' => 'Letterheads and signers, shared by HR letters and Legal contracts. Give this to Legal instead of the whole Letter Templates settings (numbering, letter types and request types stay with HR).',
+            'match' => ['general.letters.settings.letterheads', 'general.letters.settings.signers']],
+        ['key' => 'customer',    'label' => 'Legal · Business Partner', 'group' => 'Business & Legal', 'short' => 'Business Partner', 'match' => ['customer', 'customer.*', 'master', 'master.customer*']],
         ['key' => 'reporting',   'label' => 'Reporting',                 'match' => ['reporting', 'reporting.*']],
         // Administration
         ['key' => 'management',  'label' => 'Management',                'group' => 'Administration', 'short' => 'Management', 'match' => ['management', 'management.*']],

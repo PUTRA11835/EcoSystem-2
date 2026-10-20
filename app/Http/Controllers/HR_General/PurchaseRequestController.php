@@ -308,7 +308,7 @@ class PurchaseRequestController extends Controller
         }
 
         return redirect()
-            ->route('general.purchase-request.index')
+            ->to($this->reviewBack('general.purchase-request', 'general.purchase-request.index'))
             ->with('success', 'Purchase request ' . $purchaseRequest->request_no
                 . ' deleted. It stays on record and can be found under Status → Deleted.');
     }

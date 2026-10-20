@@ -44,7 +44,11 @@
         <div class="flex flex-wrap gap-2">
             @if($slips->count())
                 <a href="{{ route('finance.payroll.periods.export-excel', $p->id) }}" class="{{ $btn }} border border-green-300 text-green-700 hover:bg-green-50"><i class="fas fa-file-excel mr-2"></i>Export Excel</a>
-                <a href="{{ route('finance.payroll.periods.export', $p->id) }}" class="{{ $btn }} border border-indigo-200 text-indigo-700 hover:bg-indigo-50"><i class="fas fa-building-columns mr-2"></i>Bank Transfer</a>
+                @if($p->status === \App\Support\Payroll\PayrollPeriodRules::LOCKED)
+                    <a href="{{ route('finance.payroll.periods.export', $p->id) }}" class="{{ $btn }} border border-indigo-200 text-indigo-700 hover:bg-indigo-50"><i class="fas fa-building-columns mr-2"></i>Bank Transfer</a>
+                @else
+                    <span title="Lock the period to download the bank transfer file" class="{{ $btn }} border border-gray-200 text-gray-400 cursor-not-allowed"><i class="fas fa-building-columns mr-2"></i>Bank Transfer</span>
+                @endif
             @endif
             @if($editable && $caps['edit'])
                 <form method="POST" action="{{ route('finance.payroll.periods.calculate', $p->id) }}">@csrf
@@ -62,6 +66,13 @@
             @endif
         </div>
     </div>
+
+    @php $noBank = $slips->filter(fn ($s) => $s->take_home_pay > 0 && trim((string) $s->bank_account) === '')->count(); @endphp
+    @if($noBank)
+        <div class="rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm px-4 py-3">
+            <i class="fas fa-triangle-exclamation mr-2"></i>{{ $noBank }} employee(s) with take-home pay have no bank account and will be left out of the bank transfer file. Add their bank details or pay them separately.
+        </div>
+    @endif
 
     {{-- Totals --}}
     @if($p->calculated_at)
