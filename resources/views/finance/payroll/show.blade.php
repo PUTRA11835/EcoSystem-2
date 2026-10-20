@@ -94,6 +94,33 @@
         </div>
     @endif
 
+    {{-- Background calculation status (only when "Calculate periods in the background" is used) --}}
+    @if(in_array($p->calc_status, ['queued', 'running'], true))
+        @php $stale = $p->updated_at && \Carbon\Carbon::parse($p->updated_at)->diffInMinutes(now()) >= 10; @endphp
+        <div class="rounded-xl border px-4 py-3 text-sm flex items-start gap-3 {{ $stale ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-blue-50 border-blue-200 text-blue-900' }}">
+            <i class="fas {{ $stale ? 'fa-triangle-exclamation' : 'fa-spinner fa-spin' }} mt-0.5"></i>
+            <div>
+                <p class="font-semibold">{{ $p->calc_status === 'running' ? 'Calculating in the background…' : 'Calculation is queued…' }}</p>
+                <p class="text-xs mt-0.5">{{ $stale ? 'It has been waiting for a long time. Check that the queue worker is running (php artisan queue:work), or switch off “Calculate periods in the background” in Payroll Settings and calculate again.' : 'This page refreshes by itself when it is done.' }}</p>
+            </div>
+        </div>
+        <script>setTimeout(function () { location.reload(); }, 5000);</script>
+    @elseif($p->calc_status === 'failed')
+        <div class="rounded-xl border border-red-200 bg-red-50 text-red-800 px-4 py-3 text-sm"><i class="fas fa-circle-xmark mr-2"></i><strong>The background calculation failed.</strong> {{ $p->calc_error }} Nothing was half-saved: the previous slips are unchanged. Calculate again.</div>
+    @endif
+
+    {{-- Data readiness: approvals still waiting inside this period --}}
+    @if($readiness)
+        @if($readiness['total'] > 0)
+            <div class="rounded-xl border px-4 py-3 text-sm {{ $blockOnPending ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-900' }}">
+                <p class="font-semibold"><i class="fas fa-hourglass-half mr-2"></i>{{ $readiness['total'] }} request(s) in {{ \Carbon\Carbon::parse($readiness['start'])->format('d M') }} – {{ \Carbon\Carbon::parse($readiness['end'])->format('d M Y') }} are still waiting for approval</p>
+                <ul class="mt-1 text-xs list-disc list-inside">@foreach($readiness['items'] as $it)@if($it['count'] > 0)<li>{{ $it['count'] }} — {{ $it['label'] }}</li>@endif @endforeach</ul>
+                <p class="text-xs mt-1">{{ $blockOnPending ? 'Calculate is refused until they are approved or rejected (Payroll Settings → Require approvals before calculating).' : 'Payroll counts only approved items, so these are NOT included yet. Approve or reject them, then Recalculate.' }}</p>
+            </div>
+        @else
+            <p class="text-xs text-green-700"><i class="fas fa-circle-check mr-1"></i>All overtime, leave, attendance corrections and reimbursements of this period are decided — nothing is waiting for approval.</p>
+        @endif
+    @endif
     {{-- Warnings --}}
     @if($warnings)
         <details class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" {{ count($warnings) <= 5 ? 'open' : '' }}>

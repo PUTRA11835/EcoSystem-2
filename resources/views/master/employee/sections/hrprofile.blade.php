@@ -34,7 +34,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="border border-gray-200 rounded-xl p-4">
             <h5 class="text-sm font-bold text-gray-900 mb-1">Profile photo</h5>
-            <p class="text-xs text-gray-500 mb-3">Optional. JPG, PNG or WEBP, maximum 4 MB. Stored privately.</p>
+            <p class="text-xs text-gray-500 mb-3">Optional. JPG, PNG or WEBP, maximum 4 MB. You can move and zoom it to fit the circle before saving. Stored privately.</p>
             <div class="flex items-center gap-4">
                 <div class="w-28 h-28 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img id="hrPhotoImg" alt="Profile photo" class="hidden w-full h-full object-cover">
@@ -209,6 +209,35 @@
 </div>
 @endif
 
+{{-- Penyesuai foto: geser dan perbesar/perkecil foto agar pas di lingkaran sebelum diunggah. Hasilnya JPEG persegi 512×512 (lingkaran hanya tampilan). --}}
+<div id="hrCropModal" class="hidden fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="hrCropTitle">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5">
+        <h4 id="hrCropTitle" class="text-base font-bold text-gray-900">Adjust your photo</h4>
+        <p class="text-xs text-gray-500 mt-1">Drag to move, use the slider (or mouse wheel) to zoom so the photo fits the circle.</p>
+        <div class="mt-4 flex justify-center">
+            <div id="hrCropStage" class="relative rounded-full overflow-hidden bg-white border border-gray-300 shadow-inner select-none"
+                 style="width:280px;height:280px;touch-action:none;cursor:grab">
+                <img id="hrCropImg" alt="" draggable="false" class="absolute pointer-events-none max-w-none"
+                     style="left:50%;top:50%;transform-origin:center;will-change:transform">
+                <div class="absolute inset-0 rounded-full pointer-events-none" style="box-shadow:inset 0 0 0 2px rgba(255,255,255,.85)"></div>
+            </div>
+        </div>
+        <div class="mt-4 flex items-center gap-3">
+            <button type="button" id="hrCropMinus" class="w-8 h-8 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 font-bold" aria-label="Zoom out">&minus;</button>
+            <input type="range" id="hrCropZoom" min="0" max="100" step="1" value="0" class="flex-1" aria-label="Zoom">
+            <button type="button" id="hrCropPlus" class="w-8 h-8 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 font-bold" aria-label="Zoom in">+</button>
+        </div>
+        <div class="mt-2 flex items-center justify-between text-xs">
+            <button type="button" id="hrCropFit" class="text-gray-600 hover:underline">Fit whole photo</button>
+            <button type="button" id="hrCropFill" class="text-gray-600 hover:underline">Fill circle</button>
+        </div>
+        <div class="mt-5 flex justify-end gap-2">
+            <button type="button" id="hrCropCancel" class="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="button" id="hrCropSave" class="px-4 py-2 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90">Save photo</button>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const root = document.getElementById('hrProfileRoot');
@@ -253,6 +282,20 @@
         if (!h || !i) { return; }
         if (has) { h.src = BASE + '/photo' + bust(); h.classList.remove('hidden'); i.classList.add('hidden'); }
         else { h.removeAttribute('src'); h.classList.add('hidden'); i.classList.remove('hidden'); }
+        updateTopbarAvatar(has);
+    }
+
+    // Avatar kanan-atas ikut berganti — hanya bila yang diubah adalah foto AKUN YANG SEDANG LOGIN (bukan foto orang lain di Master Employee).
+    function updateTopbarAvatar(has) {
+        const box = document.querySelector('[data-topbar-avatar]');
+        const img = document.getElementById('topbarAvatarImg'), txt = document.getElementById('topbarAvatarInitials');
+        if (!box || !img || !txt || String(box.dataset.employeeId) !== String(EMP)) { return; }
+        // Pemuatan awal halaman: topbar sudah benar dari server — jangan memuat ulang gambarnya; hanya bila foto baru saja diganti/dihapus.
+        const shown = !img.classList.contains('hidden');
+        if (!window.__hrPhotoTouched && shown === has) { return; }
+        window.__hrPhotoTouched = false;
+        if (has) { img.src = '/my-profile/photo' + bust(); img.classList.remove('hidden'); txt.classList.add('hidden'); }
+        else { img.removeAttribute('src'); img.classList.add('hidden'); txt.classList.remove('hidden'); }
     }
 
     function fillSelect(sel, options, placeholder) {
@@ -338,7 +381,7 @@
         const fd = new FormData();
         fd.append('file', fileOrBlob, name || 'upload');
         const r = await api('POST', BASE + '/' + kind, fd, true);
-        if (r.ok && r.json && r.json.success) { notify(r.json.message, 'success'); await load(); return true; }
+        if (r.ok && r.json && r.json.success) { if (kind === 'photo') { window.__hrPhotoTouched = true; } notify(r.json.message, 'success'); await load(); return true; }
         notify((r.json && r.json.message) || 'Upload failed.', 'error');
         return false;
     }
@@ -349,9 +392,76 @@
         const ok = typeof showConfirm === 'function' ? await showConfirm(msg, 'Remove ' + label, 'danger') : window.confirm(msg);
         if (!ok) { return; }
         const r = await api('POST', BASE + '/' + kind + '/delete');
-        if (r.ok && r.json && r.json.success) { notify(r.json.message, 'success'); await load(); }
+        if (r.ok && r.json && r.json.success) { if (kind === 'photo') { window.__hrPhotoTouched = true; } notify(r.json.message, 'success'); await load(); }
         else { notify((r.json && r.json.message) || 'Could not remove the ' + label + '.', 'error'); }
     };
+
+
+    // ── Penyesuai foto (geser + zoom di dalam lingkaran) ───────────────────
+    // Mengembalikan Blob JPEG 512×512, atau null bila dibatalkan. Gambar yang tak bisa dibaca peramban → undefined (unggah apa adanya).
+    function openCropper(file) {
+        return new Promise(function (resolve) {
+            const modal = $('hrCropModal'), stage = $('hrCropStage'), img = $('hrCropImg'), zoom = $('hrCropZoom');
+            if (!modal || !stage || !img) { resolve(undefined); return; }
+            // Pindahkan ke <body>: leluhur #profileContent memakai transform (animasi muncul) sehingga position:fixed di dalamnya meleset dari layar.
+            if (modal.parentElement !== document.body) { document.body.appendChild(modal); }
+            const V = stage.clientWidth || 280;
+            const url = URL.createObjectURL(file);
+            let w = 0, h = 0, fit = 1, fill = 1, max = 1, s = 1, tx = 0, ty = 0, drag = null;
+
+            const clamp = function () {
+                const mx = Math.abs(w * s - V) / 2, my = Math.abs(h * s - V) / 2;
+                tx = Math.max(-mx, Math.min(mx, tx)); ty = Math.max(-my, Math.min(my, ty));
+            };
+            const render = function () {
+                clamp();
+                img.style.transform = 'translate(-50%,-50%) translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+                zoom.value = String(Math.round((s - fit) / (max - fit) * 100));
+            };
+            const setScale = function (ns) { s = Math.max(fit, Math.min(max, ns)); render(); };
+            const setFromSlider = function () { setScale(fit + (max - fit) * (Number(zoom.value) / 100)); };
+
+            const finish = function (result) {
+                document.removeEventListener('keydown', onKey);
+                modal.classList.add('hidden');
+                img.removeAttribute('src'); URL.revokeObjectURL(url);
+                resolve(result);
+            };
+            const onKey = function (e) { if (e.key === 'Escape') { finish(null); } };
+
+            img.onerror = function () { document.removeEventListener('keydown', onKey); modal.classList.add('hidden'); URL.revokeObjectURL(url); resolve(undefined); };
+            img.onload = function () {
+                w = img.naturalWidth; h = img.naturalHeight;
+                img.style.width = w + 'px'; img.style.height = h + 'px';
+                fit = V / Math.max(w, h); fill = V / Math.min(w, h); max = Math.max(fill * 4, fit * 1.5);
+                s = fill; tx = 0; ty = 0;      // mulai dari "memenuhi lingkaran" (hasil yang paling umum diinginkan)
+                render();
+            };
+            stage.onpointerdown = function (e) { drag = { x: e.clientX, y: e.clientY, tx: tx, ty: ty }; stage.setPointerCapture(e.pointerId); stage.style.cursor = 'grabbing'; };
+            stage.onpointermove = function (e) { if (!drag) { return; } tx = drag.tx + (e.clientX - drag.x); ty = drag.ty + (e.clientY - drag.y); render(); };
+            stage.onpointerup = stage.onpointercancel = function () { drag = null; stage.style.cursor = 'grab'; };
+            stage.onwheel = function (e) { e.preventDefault(); setScale(s * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); };
+            zoom.oninput = setFromSlider;
+            $('hrCropPlus').onclick = function () { setScale(s * 1.15); };
+            $('hrCropMinus').onclick = function () { setScale(s / 1.15); };
+            $('hrCropFit').onclick = function () { s = fit; tx = 0; ty = 0; render(); };
+            $('hrCropFill').onclick = function () { s = fill; tx = 0; ty = 0; render(); };
+            $('hrCropCancel').onclick = function () { finish(null); };
+            $('hrCropSave').onclick = function () {
+                const out = 512, k = out / V, c = document.createElement('canvas');
+                c.width = out; c.height = out;
+                const g = c.getContext('2d');
+                g.fillStyle = '#ffffff'; g.fillRect(0, 0, out, out);
+                g.imageSmoothingQuality = 'high';
+                g.translate(out / 2 + tx * k, out / 2 + ty * k); g.scale(s * k, s * k);
+                g.drawImage(img, -w / 2, -h / 2);
+                c.toBlob(function (blob) { finish(blob || undefined); }, 'image/jpeg', 0.92);
+            };
+            modal.classList.remove('hidden');
+            document.addEventListener('keydown', onKey);
+            img.src = url;
+        });
+    }
 
     function bindFileInput(id, kind) {
         const input = $(id);
@@ -362,6 +472,12 @@
             if (!f) { return; }
             const max = kind === 'photo' ? 4 * 1024 * 1024 : 1024 * 1024;
             if (f.size > max) { notify('The image is too large. Maximum size is ' + (max / 1048576) + ' MB.', 'error'); return; }
+            if (kind === 'photo') {
+                // Foto: sesuaikan dulu di lingkaran (geser/zoom). Dibatalkan → tidak mengunggah; gambar tak terbaca → unggah apa adanya.
+                const cropped = await openCropper(f);
+                if (cropped === null) { return; }
+                if (cropped) { await uploadFile(kind, cropped, 'photo.jpg'); return; }
+            }
             await uploadFile(kind, f, f.name);
         });
     }

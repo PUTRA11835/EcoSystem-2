@@ -130,9 +130,7 @@
 
         {{-- Identitas --}}
         <div class="flex min-w-0 items-center gap-4">
-            <span class="primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm">
-                {{ \App\Support\Initials::make($user['name'] ?? $firstName, 'U') }}
-            </span>
+            @include('partials.avatar-circle', ['avatarClass' => 'primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm', 'avatarInitials' => \App\Support\Initials::make($user['name'] ?? $firstName, 'U')])
             <div class="min-w-0">
                 {{-- 'l' = nama hari penuh pada translatedFormat() (token date() PHP, BUKAN moment.js:
                      'dddd' pernah menghasilkan "03030303"). --}}

@@ -39,8 +39,36 @@ class LegalBasisService
         'enforce' => 'Enforce: the module refuses to run until its rules are marked Reviewed',
     ];
 
+    /** Saklar global "tampilkan informasi Legal Basis" (panel, peringatan, label DRAFT di seluruh aplikasi). Bawaan: tampil. */
+    public function displayEnabled(): bool
+    {
+        try {
+            return \App\Models\AppConfig::get('legal_basis_display', '1') !== '0';
+        } catch (\Throwable) {
+            return true;
+        }
+    }
+
+    public function setDisplay(bool $on): void
+    {
+        \App\Models\AppConfig::set('legal_basis_display', $on ? '1' : '0', 'Show Legal Basis panels, warnings and DRAFT labels across the app');
+    }
+
     /** Saklar penerapan satu modul (bawaan bila baris/tabel belum ada: panel & peringatan menyala, enforce mati). */
     public function switches(string $module): object
+    {
+        $sw = $this->rawSwitches($module);
+        if (!$this->displayEnabled()) {
+            // Tampilan dimatikan global: panel & peringatan disembunyikan. "Enforce" tetap berlaku sebagaimana diset (itu penjaga, bukan tampilan).
+            $sw->show_panel = 0;
+            $sw->warn_banner = 0;
+        }
+
+        return $sw;
+    }
+
+    /** Saklar apa adanya dari database (dipakai halaman pengaturan). */
+    public function rawSwitches(string $module): object
     {
         try {
             $row = DB::table('legal_basis_settings')->where('module', $module)->first();
@@ -54,7 +82,7 @@ class LegalBasisService
     /** @return \Illuminate\Support\Collection<string,object> */
     public function allSwitches()
     {
-        return collect(array_keys(self::MODULES))->mapWithKeys(fn ($m) => [$m => $this->switches($m)]);
+        return collect(array_keys(self::MODULES))->mapWithKeys(fn ($m) => [$m => $this->rawSwitches($m)]);
     }
 
     /**
@@ -215,9 +243,38 @@ class LegalBasisService
         DB::table('legal_basis_register')->where('id', $id)->update(['status' => 'active', 'reviewed_by' => $actorId, 'reviewed_at' => now(), 'updated_at' => now()]);
     }
 
+    /**
+     * "Accept review" untuk SEMUA aturan modul yang masih Needs review (versi berlaku, bukan superseded). Tetap tindakan MANUSIA:
+     * dipanggil dari tombol yang dikonfirmasi, mencatat pengulas dan waktu per baris.
+     *
+     * @return int jumlah aturan yang ditandai
+     */
+    public function markModuleReviewed(string $module, int $actorId): int
+    {
+        if (!isset(self::MODULES[$module])) {
+            throw new \DomainException('Unknown module.');
+        }
+
+        return DB::table('legal_basis_register')->where('module', $module)->where('status', 'needs_review')
+            ->update(['status' => 'active', 'reviewed_by' => $actorId, 'reviewed_at' => now(), 'updated_at' => now()]);
+    }
+
     public function markNeedsReview(int $id): void
     {
         DB::table('legal_basis_register')->where('id', $id)->update(['status' => 'needs_review', 'updated_at' => now()]);
+    }
+
+    /** Kembalikan versi yang ditandai Superseded menjadi "Needs review" (dipakai lagi setelah diulas ulang). @throws \DomainException */
+    public function restore(int $id): void
+    {
+        $row = DB::table('legal_basis_register')->where('id', $id)->first();
+        if (!$row) {
+            throw new \DomainException('Entry not found.');
+        }
+        if ($row->status !== 'superseded') {
+            throw new \DomainException('Only a superseded version can be restored.');
+        }
+        DB::table('legal_basis_register')->where('id', $id)->update(['status' => 'needs_review', 'reviewed_by' => null, 'reviewed_at' => null, 'updated_at' => now()]);
     }
 
     public function supersede(int $id): void

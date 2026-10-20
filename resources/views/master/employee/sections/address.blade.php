@@ -857,9 +857,9 @@
      */
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
+    (window.onSectionFirstShow || function (t, fn) { document.addEventListener('DOMContentLoaded', fn); })('address', function(viaSwitch) {
         addrLoadRegions();   // siapkan daftar provinsi untuk form "New"
-        loadAddresses(true);
+        if (!viaSwitch) { loadAddresses(true); }   // dibuka lewat klik tab: switchSection() -> loadSectionData() memuatnya
     });
 
 

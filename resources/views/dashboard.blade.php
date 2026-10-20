@@ -7,6 +7,11 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="user-data" content='@json(session("user"))'>
     <title>@yield('title', 'Dashboard') - EcoSystem</title>
+    {{-- Sambungan ke CDN dibuka lebih awal (mempercepat render pertama; tidak mengubah perilaku). --}}
+    <link rel="preconnect" href="https://cdn.tailwindcss.com" crossorigin>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
@@ -1666,13 +1671,25 @@
                         <div class="relative">
                             <button onclick="toggleUserDropdown()"
                                 class="flex items-center gap-3 px-4 py-2.5 border-2 border-gray-200 rounded-xl hover:bg-gray-50 hover:border-red-800 transition-all">
-                                <div
-                                    class="w-10 h-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-md">
-                                    @if(isset($user['type']) && $user['type'] === 'customer')
+                                @php
+                                    $isCustomerUser = isset($user['type']) && $user['type'] === 'customer';
+                                    $avatarV = $isCustomerUser ? null : \App\Support\Avatar::version((int) ($user['id'] ?? 0));
+                                @endphp
+                                <div data-topbar-avatar data-employee-id="{{ $isCustomerUser ? '' : ($user['id'] ?? '') }}"
+                                    class="w-10 h-10 rounded-xl primary-gradient text-white flex items-center justify-center font-bold text-sm shadow-md overflow-hidden">
+                                    @if(!$isCustomerUser)
+                                        {{-- Foto profil sendiri bila ada (diganti dari My Profile → Basic Data → Profile photo); inisial bila tidak ada / gagal dimuat. --}}
+                                        <img id="topbarAvatarImg" alt="" class="w-full h-full object-cover {{ $avatarV ? '' : 'hidden' }}"
+                                            @if($avatarV) src="{{ route('profile.photo', ['v' => $avatarV]) }}" @endif
+                                            onerror="this.classList.add('hidden'); var i = document.getElementById('topbarAvatarInitials'); if (i) { i.classList.remove('hidden'); }">
+                                    @endif
+                                    <span id="topbarAvatarInitials" class="{{ $avatarV ? 'hidden' : '' }}">
+                                    @if($isCustomerUser)
                                         {{ \App\Support\Initials::make($user['company_name'] ?? '', 'C') }}
                                     @else
                                         {{ \App\Support\Initials::make($user['name'] ?? '', 'U') }}
                                     @endif
+                                    </span>
                                 </div>
                                 <div class="text-left hidden xl:block">
                                     <div class="text-sm font-bold text-gray-900">
@@ -2440,7 +2457,9 @@
 
                     /* ---- start ---- */
                     fetchUnreadCount();
-                    setInterval(fetchUnreadCount, 15000);
+                    // Tab yang tersembunyi tidak perlu menanyai server tiap 15 detik; saat tab kembali tampil, handler visibilitychange
+                    // di atas langsung menyegarkan hitungan.
+                    setInterval(function () { if (!document.hidden) fetchUnreadCount(); }, 15000);
                 })();
             </script>
 

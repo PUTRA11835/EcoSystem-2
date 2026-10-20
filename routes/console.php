@@ -9,7 +9,11 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Proses email masuk setiap menit → buat tiket / tambah pesan ke tiket
-Schedule::command('email:process-inbox')->everyMinute();
+Schedule::command('email:process-inbox')->everyMinute()->withoutOverlapping(10);   // run lambat (Graph) tidak boleh bertumpuk
+
+// "Worker" berbasis cron untuk hosting tanpa proses permanen: tiap menit mengerjakan job yang menunggu lalu berhenti (tidak melakukan apa pun
+// bila tidak ada job). Hanya jalan bila antrean sungguhan dipakai (bukan `sync`); butuh cron `schedule:run` yang sama dengan jadwal lain.
+Schedule::command('queue:work --stop-when-empty --max-time=50 --tries=1')->everyMinute()->withoutOverlapping(5)->when(fn () => config('queue.default') !== 'sync');
 
 // Recompute delivery activity statuses tiap hari 00:05 (untuk transisi delayed berbasis tanggal)
 Schedule::command('activities:recompute-status')->dailyAt('00:05');

@@ -145,16 +145,14 @@ class NotificationController extends Controller
 
         // Unified badge count — now includes chat/message types too, so ticket
         // replies show up in the bell like any other notification.
-        $count = Notification::where('employee_id', $employeeId)
-            ->where('is_read', false)
-            ->count();
+        // Satu query (dulu dua COUNT) — endpoint ini dipanggil tiap 15 detik oleh setiap tab yang terbuka.
+        $agg = Notification::where('employee_id', $employeeId)->where('is_read', false)
+            ->selectRaw('COUNT(*) as total, COALESCE(SUM(type IN (?, ?)), 0) as messages', $messageTypes)->first();
+        $count = (int) ($agg->total ?? 0);
 
         // Message-type subset of the count above — the frontend uses this to
         // decide when to play the chat sound (vs the generic ticket sound).
-        $messageCount = Notification::where('employee_id', $employeeId)
-            ->whereIn('type', $messageTypes)
-            ->where('is_read', false)
-            ->count();
+        $messageCount = (int) ($agg->messages ?? 0);
 
         return response()->json([
             'success'             => true,

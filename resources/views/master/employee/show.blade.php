@@ -336,6 +336,25 @@
 
         <!-- Tab Content -->
         <div class="p-6">
+            {{-- Pemuatan data tab DITUNDA sampai tab pertama kali tampil (tab yang langsung tampil dimuat saat DOMContentLoaded seperti semula).
+                 Tanpa ini ±20 permintaan /api berjalan sekaligus setiap kali halaman dibuka, walau tab-nya tidak dilihat. --}}
+            <script>
+                window.__lazySections = window.__lazySections || {};
+                window.runSectionLoaders = function (tab, viaSwitch) {
+                    const q = window.__lazySections[tab];
+                    if (!q || !q.length) { return false; }
+                    window.__lazySections[tab] = [];
+                    q.forEach(function (f) { try { f(!!viaSwitch); } catch (e) { console.error(e); } });
+                    return true;
+                };
+                window.onSectionFirstShow = function (tab, fn) {
+                    (window.__lazySections[tab] = window.__lazySections[tab] || []).push(fn);
+                    document.addEventListener('DOMContentLoaded', function () {
+                        const el = document.getElementById('section-' + tab);
+                        if (!el || !el.classList.contains('hidden')) { window.runSectionLoaders(tab, false); }
+                    });
+                };
+            </script>
             @forelse($visibleSections as $key => [$tabId, $label, $partial])
             <div id="section-{{ $tabId }}" class="section-content {{ $key !== $firstKey ? 'hidden' : '' }} {{ $allows($key, 'create') ? '' : 'sec-no-create' }} {{ $allows($key, 'delete') ? '' : 'sec-no-delete' }}">
                 {{-- My Profile shows Basic Payment as a paystub recap (read-only); Master keeps the payment records. --}}
@@ -462,7 +481,8 @@
             selectedTab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
         }
 
-        // Load data for specific sections
+        // Muat data tab yang baru pertama kali dibuka (pemuatan awal ditunda), lalu data khusus bagi Basic Data / Address.
+        if (window.runSectionLoaders) { window.runSectionLoaders(sectionName, true); }
         loadSectionData(sectionName);
     }
 

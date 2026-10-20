@@ -32,9 +32,7 @@
     <section aria-label="Employee" class="rounded-xl border border-gray-200 bg-white shadow-sm">
         <div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div class="flex min-w-0 items-center gap-4">
-                <span class="primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm">
-                    {{ \App\Support\Initials::make($basic?->full_name ?: $basic?->nick_name, 'U') }}
-                </span>
+                @include('partials.avatar-circle', ['avatarClass' => 'primary-surface flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-lg font-bold text-white shadow-sm', 'avatarInitials' => \App\Support\Initials::make($basic?->full_name ?: $basic?->nick_name, 'U')])
                 <div class="min-w-0">
                     <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-gray-900">{{ $basic?->full_name ?: ($basic?->nick_name ?? 'Employee') }}</h2>
                     <p class="mt-0.5 truncate text-sm text-gray-500">

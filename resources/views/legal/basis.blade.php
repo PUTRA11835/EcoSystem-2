@@ -8,7 +8,6 @@
     $navItems = [
         ['id' => 'basis-note', 'label' => 'Before you rely on a rule', 'icon' => 'fa-triangle-exclamation'],
         ['id' => 'basis-summary', 'label' => 'Review status', 'icon' => 'fa-chart-simple'],
-        ['id' => 'basis-switches', 'label' => 'Where it applies', 'icon' => 'fa-sliders'],
         ['id' => 'basis-register', 'label' => 'Register', 'icon' => 'fa-book'],
     ];
     foreach ($basis['rows'] as $mod => $list) {

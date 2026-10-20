@@ -11,8 +11,14 @@ class AppConfig extends Model
 
     public static function get(string $key, mixed $default = null): mixed
     {
-        $row = static::where('key', $key)->first();
-        return $row ? $row->value : $default;
+        // Dibaca di setiap halaman (sidebar → pengaturan ESS): di-cache 5 menit, dibuang saat set(). Nilai kosong tidak ikut tersimpan lama.
+        $hit = \Illuminate\Support\Facades\Cache::remember('app_config_' . $key, 300, function () use ($key) {
+            $row = static::where('key', $key)->first();
+
+            return ['found' => $row !== null, 'value' => $row?->value];
+        });
+
+        return $hit['found'] ? $hit['value'] : $default;
     }
 
     public static function getJson(string $key, mixed $default = []): mixed
@@ -29,6 +35,7 @@ class AppConfig extends Model
             ['key' => $key],
             ['value' => $value, 'description' => $description]
         );
+        \Illuminate\Support\Facades\Cache::forget('app_config_' . $key);
     }
 
     public static function setJson(string $key, mixed $value, string $description = ''): void

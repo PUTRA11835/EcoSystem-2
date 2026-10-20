@@ -4244,6 +4244,17 @@ return array (
   ),
   385 => 
   array (
+    'slug' => 'finance.legal-basis.settings',
+    'name' => 'Settings',
+    'type' => 'page',
+    'parent' => 'finance.legal-basis',
+    'route' => NULL,
+    'icon' => NULL,
+    'seq' => 1,
+    'active' => true,
+  ),
+  386 => 
+  array (
     'slug' => 'employee.section.basic_data.view',
     'name' => 'View Basic Data',
     'type' => 'function',
@@ -4253,7 +4264,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  386 => 
+  387 => 
   array (
     'slug' => 'employee.section.basic_data.update',
     'name' => 'Update Basic Data',
@@ -4264,7 +4275,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  387 => 
+  388 => 
   array (
     'slug' => 'employee.section.address.view',
     'name' => 'View Address',
@@ -4275,7 +4286,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  388 => 
+  389 => 
   array (
     'slug' => 'employee.section.address.update',
     'name' => 'Update Address',
@@ -4286,7 +4297,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  389 => 
+  390 => 
   array (
     'slug' => 'employee.section.identification.view',
     'name' => 'View Identification',
@@ -4297,7 +4308,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  390 => 
+  391 => 
   array (
     'slug' => 'employee.section.identification.update',
     'name' => 'Update Identification',
@@ -4308,7 +4319,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  391 => 
+  392 => 
   array (
     'slug' => 'employee.section.family.view',
     'name' => 'View Family',
@@ -4319,7 +4330,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  392 => 
+  393 => 
   array (
     'slug' => 'employee.section.family.update',
     'name' => 'Update Family',
@@ -4330,7 +4341,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  393 => 
+  394 => 
   array (
     'slug' => 'employee.section.education.view',
     'name' => 'View Education',
@@ -4341,7 +4352,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  394 => 
+  395 => 
   array (
     'slug' => 'employee.section.education.update',
     'name' => 'Update Education',
@@ -4352,7 +4363,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  395 => 
+  396 => 
   array (
     'slug' => 'employee.section.qualification.view',
     'name' => 'View Qualification',
@@ -4363,7 +4374,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  396 => 
+  397 => 
   array (
     'slug' => 'employee.section.qualification.update',
     'name' => 'Update Qualification',
@@ -4374,7 +4385,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  397 => 
+  398 => 
   array (
     'slug' => 'employee.section.contract.view',
     'name' => 'View Contract',
@@ -4385,7 +4396,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  398 => 
+  399 => 
   array (
     'slug' => 'employee.section.contract.update',
     'name' => 'Update Contract',
@@ -4396,7 +4407,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  399 => 
+  400 => 
   array (
     'slug' => 'employee.section.bank.view',
     'name' => 'View Bank Account',
@@ -4407,7 +4418,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  400 => 
+  401 => 
   array (
     'slug' => 'employee.section.bank.update',
     'name' => 'Update Bank Account',
@@ -4418,7 +4429,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  401 => 
+  402 => 
   array (
     'slug' => 'employee.section.payment.view',
     'name' => 'View Basic Payment',
@@ -4429,7 +4440,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  402 => 
+  403 => 
   array (
     'slug' => 'employee.section.payment.update',
     'name' => 'Update Basic Payment',
@@ -4440,7 +4451,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  403 => 
+  404 => 
   array (
     'slug' => 'employee.section.attachment.view',
     'name' => 'View Attachment',
@@ -4451,7 +4462,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  404 => 
+  405 => 
   array (
     'slug' => 'employee.section.attachment.update',
     'name' => 'Update Attachment',
@@ -4462,7 +4473,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  405 => 
+  406 => 
   array (
     'slug' => 'customer.section.basic_data.view',
     'name' => 'View Basic Data',
@@ -4473,7 +4484,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  406 => 
+  407 => 
   array (
     'slug' => 'customer.section.basic_data.update',
     'name' => 'Update Basic Data',
@@ -4484,7 +4495,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  407 => 
+  408 => 
   array (
     'slug' => 'customer.section.address.view',
     'name' => 'View Address',
@@ -4495,7 +4506,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  408 => 
+  409 => 
   array (
     'slug' => 'customer.section.address.update',
     'name' => 'Update Address',
@@ -4506,7 +4517,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  409 => 
+  410 => 
   array (
     'slug' => 'customer.section.identification.view',
     'name' => 'View Identification',
@@ -4517,7 +4528,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  410 => 
+  411 => 
   array (
     'slug' => 'customer.section.identification.update',
     'name' => 'Update Identification',
@@ -4528,7 +4539,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  411 => 
+  412 => 
   array (
     'slug' => 'customer.section.contact.view',
     'name' => 'View Contact',
@@ -4539,7 +4550,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  412 => 
+  413 => 
   array (
     'slug' => 'customer.section.contact.update',
     'name' => 'Update Contact',
@@ -4550,7 +4561,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  413 => 
+  414 => 
   array (
     'slug' => 'customer.section.bank.view',
     'name' => 'View Bank Account',
@@ -4561,7 +4572,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  414 => 
+  415 => 
   array (
     'slug' => 'customer.section.bank.update',
     'name' => 'Update Bank Account',
@@ -4572,7 +4583,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  415 => 
+  416 => 
   array (
     'slug' => 'customer.section.credential.view',
     'name' => 'View Credential',
@@ -4583,7 +4594,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  416 => 
+  417 => 
   array (
     'slug' => 'customer.section.credential.update',
     'name' => 'Update Credential',
@@ -4594,7 +4605,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  417 => 
+  418 => 
   array (
     'slug' => 'customer.section.history.view',
     'name' => 'View History',
@@ -4605,7 +4616,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  418 => 
+  419 => 
   array (
     'slug' => 'customer.section.history.update',
     'name' => 'Update History',
@@ -4616,7 +4627,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  419 => 
+  420 => 
   array (
     'slug' => 'customer.section.attachment.view',
     'name' => 'View Attachment',
@@ -4627,7 +4638,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  420 => 
+  421 => 
   array (
     'slug' => 'customer.section.attachment.update',
     'name' => 'Update Attachment',
@@ -4638,7 +4649,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  421 => 
+  422 => 
   array (
     'slug' => 'employee.section.hr_profile.view',
     'name' => 'View HR Profile',
@@ -4649,7 +4660,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  422 => 
+  423 => 
   array (
     'slug' => 'employee.section.hr_profile.update',
     'name' => 'Update HR Profile',
@@ -4660,7 +4671,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  423 => 
+  424 => 
   array (
     'slug' => 'employee.section.engagement.view',
     'name' => 'View Engagement',
@@ -4671,7 +4682,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  424 => 
+  425 => 
   array (
     'slug' => 'employee.section.engagement.update',
     'name' => 'Update Engagement',
@@ -4682,7 +4693,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  425 => 
+  426 => 
   array (
     'slug' => 'employee.section.engagement_rate.view',
     'name' => 'View Engagement Rate',
@@ -4693,7 +4704,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  426 => 
+  427 => 
   array (
     'slug' => 'employee.section.engagement_rate.update',
     'name' => 'Update Engagement Rate',
@@ -4704,7 +4715,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  427 => 
+  428 => 
   array (
     'slug' => 'employee.section.salary.view',
     'name' => 'View Salary Components',
@@ -4715,7 +4726,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  428 => 
+  429 => 
   array (
     'slug' => 'employee.section.salary.update',
     'name' => 'Update Salary Components',
@@ -4726,7 +4737,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  429 => 
+  430 => 
   array (
     'slug' => 'employee.section.compensation.view',
     'name' => 'View Compensation',
@@ -4737,7 +4748,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  430 => 
+  431 => 
   array (
     'slug' => 'employee.section.compensation.update',
     'name' => 'Update Compensation',
@@ -4748,7 +4759,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  431 => 
+  432 => 
   array (
     'slug' => 'external.section.basic_data.view',
     'name' => 'View Basic Data',
@@ -4759,7 +4770,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  432 => 
+  433 => 
   array (
     'slug' => 'external.section.basic_data.update',
     'name' => 'Update Basic Data',
@@ -4770,7 +4781,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  433 => 
+  434 => 
   array (
     'slug' => 'external.section.address.view',
     'name' => 'View Address',
@@ -4781,7 +4792,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  434 => 
+  435 => 
   array (
     'slug' => 'external.section.address.update',
     'name' => 'Update Address',
@@ -4792,7 +4803,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  435 => 
+  436 => 
   array (
     'slug' => 'external.section.identification.view',
     'name' => 'View Identification',
@@ -4803,7 +4814,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  436 => 
+  437 => 
   array (
     'slug' => 'external.section.identification.update',
     'name' => 'Update Identification',
@@ -4814,7 +4825,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  437 => 
+  438 => 
   array (
     'slug' => 'external.section.education.view',
     'name' => 'View Education',
@@ -4825,7 +4836,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  438 => 
+  439 => 
   array (
     'slug' => 'external.section.education.update',
     'name' => 'Update Education',
@@ -4836,7 +4847,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  439 => 
+  440 => 
   array (
     'slug' => 'external.section.qualification.view',
     'name' => 'View Qualification',
@@ -4847,7 +4858,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  440 => 
+  441 => 
   array (
     'slug' => 'external.section.qualification.update',
     'name' => 'Update Qualification',
@@ -4858,7 +4869,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  441 => 
+  442 => 
   array (
     'slug' => 'external.section.bank.view',
     'name' => 'View Bank Account',
@@ -4869,7 +4880,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  442 => 
+  443 => 
   array (
     'slug' => 'external.section.bank.update',
     'name' => 'Update Bank Account',
@@ -4880,7 +4891,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  443 => 
+  444 => 
   array (
     'slug' => 'external.section.attachment.view',
     'name' => 'View Attachment',
@@ -4891,7 +4902,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  444 => 
+  445 => 
   array (
     'slug' => 'external.section.attachment.update',
     'name' => 'Update Attachment',
@@ -4902,7 +4913,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  445 => 
+  446 => 
   array (
     'slug' => 'external.section.hr_profile.view',
     'name' => 'View HR Profile',
@@ -4913,7 +4924,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  446 => 
+  447 => 
   array (
     'slug' => 'external.section.hr_profile.update',
     'name' => 'Update HR Profile',
@@ -4924,7 +4935,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  447 => 
+  448 => 
   array (
     'slug' => 'external.section.engagement.view',
     'name' => 'View Engagement',
@@ -4935,7 +4946,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  448 => 
+  449 => 
   array (
     'slug' => 'external.section.engagement.update',
     'name' => 'Update Engagement',
@@ -4946,7 +4957,7 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
-  449 => 
+  450 => 
   array (
     'slug' => 'external.section.engagement_rate.view',
     'name' => 'View Engagement rate',
@@ -4957,7 +4968,7 @@ return array (
     'seq' => 1,
     'active' => true,
   ),
-  450 => 
+  451 => 
   array (
     'slug' => 'external.section.engagement_rate.update',
     'name' => 'Update Engagement rate',

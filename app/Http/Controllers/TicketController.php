@@ -356,7 +356,7 @@ class TicketController extends Controller
                 ], 401);
             }
             
-            Log::info('Session user found', [
+            Log::debug('Session user found', [
                 'user_id' => $sessionUser['id'],
                 'user_type' => $sessionUser['type'],
                 'role_id' => $sessionUser['role']['id']
@@ -382,7 +382,7 @@ class TicketController extends Controller
 
             // External employee: hanya bisa lihat ticket yang dia handle (sebagai lead atau member)
             if ($isRestrictedExternal) {
-                Log::info('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
+                Log::debug('External employee viewing own tickets only', ['employee_id' => $sessionUser['id']]);
                 $employeeId = $sessionUser['id'];
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('ticket.is_hidden')
@@ -393,7 +393,7 @@ class TicketController extends Controller
 
             // Admin: bisa lihat semua ticket, atau filter unassigned jika ?unassigned=1
             } elseif ($sessionUser['role']['id'] === RoleId::EC_ADMINISTRATOR->value) {
-                Log::info('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
+                Log::debug('Admin viewing tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('ticket.is_hidden');
@@ -405,7 +405,7 @@ class TicketController extends Controller
             // atau filter unassigned jika ?unassigned=1. Tab "Unassigned Ticket" terpisah (permission
             // 'ticket.unassigned') menangani kasus khusus lihat tiket belum ada PIC.
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_USER->value) {
-                Log::info('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
+                Log::debug('Employee viewing all tickets', ['unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
                     ->whereNull('ticket.is_hidden');
@@ -420,7 +420,7 @@ class TicketController extends Controller
                 array_merge(RoleId::HEAD_GROUP, RoleId::HELPDESK_GROUP),
                 true
             )) {
-                Log::info('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
+                Log::debug('Staff viewing tickets', ['role_id' => $sessionUser['role']['id'], 'unassigned' => $filterUnassigned]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('ticket.is_hidden');
@@ -431,7 +431,7 @@ class TicketController extends Controller
             // Support Manager: "All Tickets" = semua tiket organisasi (sama seperti Head)
             // "My Tickets" = hanya tiket dari delivery yang dia kelola (/api/tickets/my)
             } elseif ($sessionUser['role']['id'] === RoleId::DELIVERY_SUPPORT_MANAGER->value) {
-                Log::info('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
+                Log::debug('Support Manager viewing all tickets', ['employee_id' => $sessionUser['id']]);
 
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('ticket.is_hidden');
@@ -451,7 +451,7 @@ class TicketController extends Controller
                     ], 403);
                 }
 
-                Log::info('Custom role viewing tickets via role_menu permission', [
+                Log::debug('Custom role viewing tickets via role_menu permission', [
                     'role_id' => $sessionUser['role']['id'],
                     'employee_id' => $sessionUser['id'],
                 ]);
@@ -511,7 +511,7 @@ class TicketController extends Controller
                 $tickets = $query->get();
             }
 
-            Log::info('Tickets fetched', ['count' => $tickets->count()]);
+            Log::debug('Tickets fetched', ['count' => $tickets->count()]);
 
             // Weighted average progress per tiket dari consultant_mandays_detail
             $ticketIds   = $tickets->pluck('ticket_id')->toArray();
@@ -1367,14 +1367,14 @@ class TicketController extends Controller
                 ], 401);
             }
 
-            Log::info('My Tickets - Session User:', $sessionUser);
+            Log::debug('My Tickets - Session User:', $sessionUser);
 
             $isExternalEmployee = strtolower($sessionUser['employee_type'] ?? 'internal') === 'external';
 
             // External employee (non-admin): hanya ticket yang mereka handle
             if ($isExternalEmployee && $sessionUser['role']['id'] !== RoleId::EC_ADMINISTRATOR->value) {
                 $employeeId = $sessionUser['id'];
-                Log::info('My Tickets - External employee', ['employee_id' => $employeeId]);
+                Log::debug('My Tickets - External employee', ['employee_id' => $employeeId]);
                 $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'moduleMaster'])
                     ->whereNull('ticket.is_hidden')
                     ->where(function ($q) use ($employeeId) {
@@ -1392,7 +1392,7 @@ class TicketController extends Controller
                 $isDsUserScope    = $employee && $employee->hasMenuPermission('ticket.my-tickets.ds-user');
 
                 if ($isDsManagerScope) {
-                    Log::info('My Tickets - DS Manager scope', ['employee_id' => $employeeId]);
+                    Log::debug('My Tickets - DS Manager scope', ['employee_id' => $employeeId]);
 
                     $managedDeliveryIds = DB::table('delivery_support_managers')
                         ->where('employee_id', $employeeId)
@@ -1411,7 +1411,7 @@ class TicketController extends Controller
                 } else {
                     // DS User scope (default fallback juga, untuk role custom tanpa permission eksplisit):
                     // tiket dimana employee jadi PIC atau member.
-                    Log::info('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
+                    Log::debug('My Tickets - DS User scope', ['employee_id' => $employeeId, 'explicit_permission' => $isDsUserScope]);
 
                     $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy'])
                         ->whereNull('ticket.is_hidden')

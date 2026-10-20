@@ -40,6 +40,7 @@ class PayrollAuditTest extends TestCase
             $t->timestamp('locked_at')->nullable();
             $t->unsignedBigInteger('locked_by')->nullable();
             $t->unsignedBigInteger('created_by')->nullable();
+            $t->string('calc_status')->nullable();   // background calculation (queued / running / …)
             $t->timestamps();
         });
         Schema::create('payroll_slips', function (Blueprint $t) {

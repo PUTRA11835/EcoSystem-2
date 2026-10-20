@@ -449,9 +449,9 @@
             @endif
 @php $sb['offboarding'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-            {{-- Business & Legal → Legal: ONE item for the Legal summary (dashboard) and the Legal Basis register (tabs of the same page). --}}
-            @if($can('legal') || $can('finance.legal-basis'))
-                @include('partials.ess-nav-item', ['href' => $can('legal') ? route('legal') : route('finance.legal-basis.index'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal', 'legal/basis*'), 'nested' => false])
+            {{-- Business & Legal → Legal: ONE item for the Legal page (tabs: Dashboard · Register · Settings); opens the first tab this person may see. --}}
+            @if($can('legal') || $can('finance.legal-basis') || $can('finance.legal-basis.settings'))
+                @include('partials.ess-nav-item', ['href' => $can('legal') ? route('legal') : route($can('finance.legal-basis') ? 'finance.legal-basis.index' : 'finance.legal-basis.settings'), 'icon' => 'fas fa-scale-balanced', 'label' => 'Legal Basis', 'active' => Request::is('legal', 'legal/basis*'), 'nested' => false])
             @endif
 @php $sb['legal_basis'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp

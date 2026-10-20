@@ -7,6 +7,8 @@
     ['id' => 'bpjs-tax', 'label' => 'BPJS & PPh 21', 'icon' => 'fa-landmark'],
     ['id' => 'net-rounding', 'label' => 'Net pay rounding', 'icon' => 'fa-calculator'],
     ['id' => 'cutoff-loans', 'label' => 'Cut-off, timesheet & loans', 'icon' => 'fa-hourglass-half'],
-    ['id' => 'payslip', 'label' => 'Payslip', 'icon' => 'fa-file-invoice'],
+    ['id' => 'data-readiness', 'label' => 'Data readiness', 'icon' => 'fa-clipboard-check'],
+    ['id' => 'queueCard', 'label' => 'Background check', 'icon' => 'fa-server'],
+    ['id' => 'signerCard', 'label' => 'Payslip', 'icon' => 'fa-file-invoice'],
     ['id' => 'other-rules', 'label' => 'Where other rules live', 'icon' => 'fa-link'],
 ]])

@@ -441,6 +441,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/staging-email-attachments/{stagingId}', [StagingTicketController::class, 'proxyEmailAttachment'])
         ->name('staging.email-attachment.proxy');
     Route::get('/my-profile', [ProfileController::class, 'myProfile'])->name('profile.my');
+    Route::get('/my-profile/photo', [ProfileController::class, 'myPhoto'])->name('profile.photo');
     Route::get('/my-profile/onboarding-progress', [ProfileController::class, 'myOnboardingProgress'])->name('profile.onboarding-progress');
     Route::post('/my-profile/change-password', [ProfileController::class, 'changePassword'])->name('profile.change-password');
 
