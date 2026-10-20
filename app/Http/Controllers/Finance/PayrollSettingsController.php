@@ -34,13 +34,73 @@ class PayrollSettingsController extends Controller
         $row = PayrollSetting::current();
 
         return view('finance.payroll.settings', [
-            'settings' => $this->engine->settings() + $row->only(['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title', 'slip_language']),
+            'settings' => $this->engine->settings() + $row->only(['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title', 'slip_language',
+                'hr_signer_role_id', 'hr_signer_employee_id', 'finance_signer_role_id', 'finance_signer_employee_id']),
+            'signerRoles' => $this->signerRoles(), 'signerPeople' => $this->signerPeople(), 'signerTitles' => \App\Models\Position::options(),
             'canEdit' => (bool) $me?->hasMenuPermission('finance.payroll.settings', 'can_edit'),
             'enabled' => (bool) $row->module_enabled,
             'enabledAt' => $row->enabled_at,
             'enabledBy' => $row->enabled_by ? DB::table('employee_basic_data')->where('employee_id', $row->enabled_by)->selectRaw("TRIM(CONCAT(COALESCE(first_name,''),' ',COALESCE(last_name,''))) as n")->value('n') : null,
             'periodsCount' => DB::table('payroll_periods')->count(),
         ]);
+    }
+
+    /** Role yang punya karyawan aktif (untuk dropdown penandatangan). @return array<int,array{id:int,name:string}> */
+    private function signerRoles(): array
+    {
+        return DB::table('employee_role as r')->join('employee_role_assignment as a', 'a.role_id', '=', 'r.id')->join('employee as e', 'e.employee_id', '=', 'a.employee_id')
+            ->where('e.is_active', 1)->groupBy('r.id', 'r.name')->orderBy('r.name')->get(['r.id', 'r.name'])
+            ->map(fn ($r) => ['id' => (int) $r->id, 'name' => $r->name])->all();
+    }
+
+    /** Karyawan aktif beserta role-nya, untuk menyaring dropdown user menurut role. @return array<int,array<string,mixed>> */
+    private function signerPeople(): array
+    {
+        $rows = DB::table('employee as e')->join('employee_role_assignment as a', 'a.employee_id', '=', 'e.employee_id')
+            ->leftJoin('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')->where('e.is_active', 1)
+            ->get(['e.employee_id', 'e.eci', 'b.position', 'a.role_id', DB::raw("TRIM(CONCAT(COALESCE(b.first_name,''),' ',COALESCE(b.last_name,''))) as full_name")]);
+        $out = [];
+        foreach ($rows as $r) {
+            $out[$r->employee_id] ??= ['id' => (int) $r->employee_id, 'name' => $r->full_name !== '' ? $r->full_name : $r->eci, 'eci' => $r->eci, 'position' => $r->position, 'roles' => []];
+            $out[$r->employee_id]['roles'][] = (int) $r->role_id;
+        }
+        usort($out, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+        return array_values($out);
+    }
+
+    /** Kirim job uji ke antrean (tidak menyentuh data). Bila antrean `sync`, job langsung selesai di sini. */
+    public function queueTest(): \Illuminate\Http\JsonResponse
+    {
+        $token = \Illuminate\Support\Str::random(16);
+        \Illuminate\Support\Facades\Cache::put('queue_test_pending', ['token' => $token, 'at' => now()->timestamp], now()->addMinutes(30));
+        \App\Jobs\QueueHeartbeatJob::dispatch($token);
+
+        return response()->json(['success' => true]);
+    }
+
+    /** Status antrean untuk kartu Settings: driver, jumlah menunggu/gagal, dan hasil uji worker terakhir. */
+    public function queueStatus(): \Illuminate\Http\JsonResponse
+    {
+        $driver = (string) config('queue.default');
+        $pending = $failed = null;
+        try {
+            if ($driver === 'database' && \Illuminate\Support\Facades\Schema::hasTable('jobs')) { $pending = (int) DB::table('jobs')->count(); }
+            if (\Illuminate\Support\Facades\Schema::hasTable('failed_jobs')) { $failed = (int) DB::table('failed_jobs')->count(); }
+        } catch (\Throwable) {
+            // hitungan hanya informasi
+        }
+        $test = \Illuminate\Support\Facades\Cache::get('queue_test_pending');
+        $state = 'none';
+        $seconds = null;
+        if ($test) {
+            $done = \Illuminate\Support\Facades\Cache::get('queue_test_done_' . $test['token']);
+            $state = $done ? 'ok' : 'waiting';
+            $seconds = $done ? max(0, $done - $test['at']) : (now()->timestamp - $test['at']);
+        }
+
+        return response()->json(['driver' => $driver, 'jobs_table' => $pending, 'failed' => $failed, 'test' => ['state' => $state, 'seconds' => $seconds],
+            'last_seen' => \Illuminate\Support\Facades\Cache::get('queue_worker_last_seen')]);
     }
 
     public function saveSettings(Request $request): RedirectResponse
@@ -68,10 +128,34 @@ class PayrollSettingsController extends Controller
         $notes = trim((string) $request->input('internal_notes'));
         if (mb_strlen($notes) > 2000) { $errors[] = 'Internal notes are limited to 2000 characters.'; }
         $in['internal_notes'] = $notes === '' ? null : $notes;
-        foreach (['hr_signer_name', 'hr_signer_title', 'finance_signer_name', 'finance_signer_title'] as $k) {
-            $v = trim((string) $request->input($k));
-            if (mb_strlen($v) > 150) { $errors[] = 'Signer name and title are limited to 150 characters.'; }
-            $in[$k] = $v === '' ? null : $v;
+        // Penandatangan slip: pilih ROLE → USER → jabatan (dropdown). Nama/jabatan disimpan sebagai snapshot teks untuk dicetak di slip.
+        $current = PayrollSetting::current();
+        foreach (['hr' => 'HR', 'finance' => 'Finance'] as $who => $label) {
+            $empId = (int) $request->input("{$who}_signer_employee_id") ?: null;
+            $roleId = (int) $request->input("{$who}_signer_role_id") ?: null;
+            $title = trim((string) $request->input("{$who}_signer_title"));
+            if ($empId) {
+                $emp = DB::table('employee as e')->leftJoin('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')
+                    ->where('e.employee_id', $empId)->where('e.is_active', 1)
+                    ->first(['e.employee_id', 'b.position', DB::raw("TRIM(CONCAT(COALESCE(b.first_name,''),' ',COALESCE(b.last_name,''))) as full_name")]);
+                if (!$emp) {
+                    $errors[] = "{$label} signer: choose an active employee.";
+                } elseif ($roleId && !DB::table('employee_role_assignment')->where('employee_id', $empId)->where('role_id', $roleId)->exists()) {
+                    $errors[] = "{$label} signer: that employee does not hold the chosen role.";
+                } else {
+                    $allowed = array_merge(\App\Models\Position::options(), array_filter([$emp->position, $current->{"{$who}_signer_title"}]));
+                    if ($title !== '' && !in_array($title, $allowed, true)) { $errors[] = "{$label} signer: choose the title from the list."; }
+                    $in["{$who}_signer_name"] = $emp->full_name !== '' ? $emp->full_name : null;
+                    $in["{$who}_signer_title"] = $title !== '' ? $title : ($emp->position ?: null);
+                }
+                $in["{$who}_signer_employee_id"] = $empId;
+                $in["{$who}_signer_role_id"] = $roleId;
+            } elseif ($request->boolean("{$who}_signer_keep") && $current->{"{$who}_signer_name"} && !$current->{"{$who}_signer_employee_id"}) {
+                // Nama lama yang diketik sebelum fitur ini: dipertahankan sampai diganti dengan pilihan role + user.
+            } else {
+                $in["{$who}_signer_name"] = null; $in["{$who}_signer_title"] = null;
+                $in["{$who}_signer_employee_id"] = null; $in["{$who}_signer_role_id"] = null;
+            }
         }
         $modes = ['none', 'nearest', 'up', 'down'];
         if (!in_array($in['overtime_wage_basis'], ['base_fixed', 'base_only'], true)) { $errors[] = 'Choose the overtime wage basis.'; }
@@ -116,6 +200,8 @@ class PayrollSettingsController extends Controller
             'timesheet_allowance_enabled' => $request->boolean('timesheet_allowance_enabled'),
             'tax_timesheet_allowance' => $request->boolean('tax_timesheet_allowance'),
             'loan_deduction_enabled' => $request->boolean('loan_deduction_enabled'),
+            'block_on_pending_inputs' => $request->boolean('block_on_pending_inputs'),
+            'calculate_in_background' => $request->boolean('calculate_in_background'),
         ]);
         $row->save();
 

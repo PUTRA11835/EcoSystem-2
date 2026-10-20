@@ -681,7 +681,7 @@
      */
 
     // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
+    (window.onSectionFirstShow || function (t, fn) { document.addEventListener('DOMContentLoaded', fn); })('family', function() {
         loadFamilies();
     });
 

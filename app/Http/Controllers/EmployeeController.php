@@ -34,7 +34,7 @@ class EmployeeController extends Controller
         try {
             $user = session('user');
             
-            Log::info('=== EMPLOYEE INDEX PAGE ACCESSED ===', [
+            Log::debug('=== EMPLOYEE INDEX PAGE ACCESSED ===', [
                 'user_id' => $user['id'] ?? null,
                 'user_type' => $user['type'] ?? null,
                 'user_name' => $user['name'] ?? null,
@@ -102,7 +102,7 @@ class EmployeeController extends Controller
         try {
             $user = session('user');
             
-            Log::info('=== EMPLOYEE DETAIL PAGE ACCESSED ===', [
+            Log::debug('=== EMPLOYEE DETAIL PAGE ACCESSED ===', [
                 'employee_id' => $id,
                 'user_id' => $user['id'] ?? null,
                 'user_type' => $user['type'] ?? null,
@@ -202,7 +202,7 @@ class EmployeeController extends Controller
                 return redirect()->route('master.employee.detail', $id);
             }
 
-            Log::info('=== EMPLOYEE DATA LOADED SUCCESSFULLY ===', [
+            Log::debug('=== EMPLOYEE DATA LOADED SUCCESSFULLY ===', [
                 'employee_id' => $id,
                 'eci' => $employee->eci ?? null
             ]);
@@ -260,7 +260,7 @@ class EmployeeController extends Controller
     public function getData(Request $request)
     {
         try {
-            Log::info('=== API: FETCHING EMPLOYEES ===', [
+            Log::debug('=== API: FETCHING EMPLOYEES ===', [
                 'filters' => $request->all(),
                 'user_ip' => $request->ip()
             ]);
@@ -372,7 +372,7 @@ class EmployeeController extends Controller
                 return $emp;
             });
 
-            Log::info('=== API: EMPLOYEES FETCHED SUCCESSFULLY ===', [
+            Log::debug('=== API: EMPLOYEES FETCHED SUCCESSFULLY ===', [
                 'count' => $employees->count(),
                 'total' => $paginator->total(),
                 'filters_applied' => $request->all()
@@ -413,7 +413,7 @@ class EmployeeController extends Controller
      */
     public function exportToExcel(Request $request)
     {
-        Log::info('=== API: EXPORTING EMPLOYEES ===', [
+        Log::debug('=== API: EXPORTING EMPLOYEES ===', [
             'filters' => $request->all(),
             'user_ip' => $request->ip()
         ]);
@@ -518,7 +518,7 @@ class EmployeeController extends Controller
                     $query->where('eb.deletion_flag', true);
                     break;
             }
-            Log::info('Filter applied: status', ['status' => $request->status]);
+            Log::debug('Filter applied: status', ['status' => $request->status]);
         }
 
         // Filter by employee (ECI or name).
@@ -527,7 +527,7 @@ class EmployeeController extends Controller
         // kolom nama (termasuk nick_name + full name gabungan).
         if ($request->filled('employee')) {
             $this->applyNameSearch($query, $request->employee);
-            Log::info('Filter applied: employee', ['search' => $request->employee]);
+            Log::debug('Filter applied: employee', ['search' => $request->employee]);
         }
 
         // Filter by department.
@@ -542,13 +542,13 @@ class EmployeeController extends Controller
             if ($departments) {
                 $query->whereIn('eb.department', $departments);
             }
-            Log::info('Filter applied: department', ['department' => $departments]);
+            Log::debug('Filter applied: department', ['department' => $departments]);
         }
 
         // Global search
         if ($request->filled('search')) {
             $this->applyNameSearch($query, $request->search, true);
-            Log::info('Global search applied', ['search' => $request->search]);
+            Log::debug('Global search applied', ['search' => $request->search]);
         }
 
         // Filter by profile lock state (Onboarding › Verify & Lock): 'locked' | 'unlocked'.
@@ -577,7 +577,7 @@ class EmployeeController extends Controller
             $homeBases = array_filter(explode(',', $request->home_base));
             if (!empty($homeBases)) {
                 $query->whereIn('eb.home_base', $homeBases);
-                Log::info('Filter applied: home_base', ['home_base' => $homeBases]);
+                Log::debug('Filter applied: home_base', ['home_base' => $homeBases]);
             }
         }
 
@@ -587,7 +587,7 @@ class EmployeeController extends Controller
             $positions = array_values(array_filter(array_map('trim', explode(',', $request->position)), fn ($p) => $p !== ''));
             if (!empty($positions)) {
                 $query->whereIn('eb.position', $positions);
-                Log::info('Filter applied: position', ['position' => $positions]);
+                Log::debug('Filter applied: position', ['position' => $positions]);
             }
         }
 
@@ -604,7 +604,7 @@ class EmployeeController extends Controller
                         ->join('modules as m', 'eq.module_id', '=', 'm.id')
                         ->whereIn('m.name', $moduleNames);
                 });
-                Log::info('Filter applied: modules', ['modules' => $moduleNames]);
+                Log::debug('Filter applied: modules', ['modules' => $moduleNames]);
             }
         }
     }
@@ -642,7 +642,7 @@ class EmployeeController extends Controller
     public function getDetail($id)
     {
         try {
-            Log::info('=== API: FETCHING EMPLOYEE DETAIL ===', [
+            Log::debug('=== API: FETCHING EMPLOYEE DETAIL ===', [
                 'employee_id' => $id
             ]);
 
@@ -711,7 +711,7 @@ class EmployeeController extends Controller
                 ], 404);
             }
 
-            Log::info('=== API: EMPLOYEE DETAIL FETCHED SUCCESSFULLY ===', [
+            Log::debug('=== API: EMPLOYEE DETAIL FETCHED SUCCESSFULLY ===', [
                 'employee_id' => $id,
                 'eci' => $employee->eci
             ]);

@@ -116,7 +116,10 @@
         <div class="xl:col-span-3 space-y-6">
             <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
                 <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between gap-3">
-                    <h3 class="text-sm font-bold text-gray-800">Final Settlement Calculation</h3>
+                    <h3 class="text-sm font-bold text-gray-800">Final Settlement Calculation
+                        @php $legalDraft = app(\App\Services\Legal\LegalBasisService::class)->pending('offboarding'); @endphp
+                        @if($legalDraft)<span class="ml-2 align-middle inline-block px-2 py-0.5 text-[10px] font-bold rounded bg-amber-100 text-amber-800" title="Rules not reviewed yet: {{ implode(', ', $legalDraft) }}">DRAFT — legal basis not reviewed</span>@endif
+                    </h3>
                     <span class="text-[10px] text-gray-400">Legal basis: UU 6/2023, PP 35/2021, PP 68/2009 — see the register below</span>
                 </div>
 

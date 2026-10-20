@@ -200,6 +200,22 @@ class LegalBasisService
         DB::table('legal_basis_register')->where('id', $id)->update(['status' => 'active', 'reviewed_by' => $actorId, 'reviewed_at' => now(), 'updated_at' => now()]);
     }
 
+    /**
+     * "Accept review" untuk SEMUA aturan modul yang masih Needs review (versi berlaku, bukan superseded). Tetap tindakan MANUSIA:
+     * dipanggil dari tombol yang dikonfirmasi, mencatat pengulas dan waktu per baris.
+     *
+     * @return int jumlah aturan yang ditandai
+     */
+    public function markModuleReviewed(string $module, int $actorId): int
+    {
+        if (!isset(self::MODULES[$module])) {
+            throw new \DomainException('Unknown module.');
+        }
+
+        return DB::table('legal_basis_register')->where('module', $module)->where('status', 'needs_review')
+            ->update(['status' => 'active', 'reviewed_by' => $actorId, 'reviewed_at' => now(), 'updated_at' => now()]);
+    }
+
     public function markNeedsReview(int $id): void
     {
         DB::table('legal_basis_register')->where('id', $id)->update(['status' => 'needs_review', 'updated_at' => now()]);

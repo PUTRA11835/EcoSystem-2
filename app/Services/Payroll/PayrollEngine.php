@@ -81,6 +81,8 @@ class PayrollEngine
             'tax_timesheet_allowance'     => (bool) $r->tax_timesheet_allowance,
             'loan_deduction_enabled'      => (bool) $r->loan_deduction_enabled,
             'internal_notes'              => $r->internal_notes,
+            'block_on_pending_inputs'     => (bool) $r->block_on_pending_inputs,
+            'calculate_in_background'     => (bool) $r->calculate_in_background,
         ];
     }
 
@@ -98,6 +100,36 @@ class PayrollEngine
         $from = $settings['attendance_effective_from'] ?? null;
 
         return $from === null || $from === '' || $start >= $from;
+    }
+
+    /**
+     * Kesiapan masukan periode: berapa pengajuan yang MASIH MENUNGGU persetujuan pada rentang absensi periode (lembur, cuti/izin,
+     * koreksi absensi, reimbursement) untuk karyawan yang ikut payroll. Mesin hanya membaca yang sudah disetujui, jadi yang menunggu
+     * belum terhitung — angka ini memberi tahu Finance sebelum Calculate. Hanya membaca.
+     *
+     * @param  array<string,mixed>  $period  baris payroll_periods (period_start/end, attendance_start/end)
+     * @return array{items:array<int,array{key:string,label:string,count:int}>,total:int,start:string,end:string}
+     */
+    public function inputReadiness(array $period): array
+    {
+        $win = PayrollPeriodRules::attendanceWindow($period);
+        [$s, $e] = [$win['start'], $win['end']];
+        $ids = DB::table('employee_hr_profile')->where('payroll_activated', 1)->pluck('employee_id')->all();
+        $count = function (string $table, \Closure $q) use ($ids): int {
+            try {
+                return $ids ? (int) $q(DB::table($table)->whereIn('employee_id', $ids))->count() : 0;
+            } catch (\Throwable) {
+                return 0;   // tabel/kolom belum ada di rilis ini: dilewati, tidak menghalangi payroll
+            }
+        };
+        $items = [
+            ['key' => 'overtime', 'label' => 'Overtime requests waiting for approval', 'count' => $count('overtime_requests', fn ($q) => $q->where('status', 'submitted')->whereBetween('overtime_date', [$s, $e]))],
+            ['key' => 'leave', 'label' => 'Leave / permit applications waiting for approval', 'count' => $count('leave_permit_applications', fn ($q) => $q->where('status', 'pending')->where('start_date', '<=', $e)->where('end_date', '>=', $s))],
+            ['key' => 'corrections', 'label' => 'Attendance corrections waiting for approval', 'count' => $count('attendance_corrections', fn ($q) => $q->where('status', 'pending')->whereBetween('attendance_date', [$s, $e]))],
+            ['key' => 'reimbursement', 'label' => 'Reimbursements waiting for approval', 'count' => $count('reimbursement_requests', fn ($q) => $q->whereNull('deleted_at')->where('status', 'submitted')->whereBetween('created_at', [$s . ' 00:00:00', $e . ' 23:59:59']))],
+        ];
+
+        return ['items' => $items, 'total' => array_sum(array_column($items, 'count')), 'start' => $s, 'end' => $e];
     }
 
     /** Kode verifikasi slip: HMAC angka-angka utamanya dengan kunci aplikasi (tidak dapat ditebak, berubah bila angka berubah). */

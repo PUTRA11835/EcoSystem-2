@@ -231,19 +231,117 @@
             <p class="text-xs text-gray-500"><i class="fas fa-lightbulb mr-1"></i>Tip: choose Calendar proration if payroll must follow the exact working days of each month, or Fixed divisor if your company uses a constant monthly policy.</p>
         </div>
 
-        {{-- Payslip --}}
+        {{-- Approvals & background --}}
         <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-            <h3 class="text-sm font-bold text-gray-900">Payslip</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">HR signer name</label><input type="text" name="hr_signer_name" maxlength="150" value="{{ old('hr_signer_name', $v('hr_signer_name')) }}" @disabled($dis) class="{{ $input }}"></div>
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">HR signer title</label><input type="text" name="hr_signer_title" maxlength="150" placeholder="HR Manager" value="{{ old('hr_signer_title', $v('hr_signer_title')) }}" @disabled($dis) class="{{ $input }}"></div>
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Finance signer name</label><input type="text" name="finance_signer_name" maxlength="150" value="{{ old('finance_signer_name', $v('finance_signer_name')) }}" @disabled($dis) class="{{ $input }}"></div>
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Finance signer title</label><input type="text" name="finance_signer_title" maxlength="150" placeholder="Finance Manager" value="{{ old('finance_signer_title', $v('finance_signer_title')) }}" @disabled($dis) class="{{ $input }}"></div>
-                <div><label class="block text-xs font-semibold text-gray-600 mb-1">Default payslip language</label>
-                    <select name="slip_language" @disabled($dis) class="{{ $input }}"><option value="id" @selected($v('slip_language') !== 'en')>Indonesian</option><option value="en" @selected($v('slip_language') === 'en')>English</option></select>
-                    <p class="text-xs text-gray-500 mt-1">The language can still be chosen each time a payslip is opened.</p></div>
-            </div>
+            <div><h3 class="text-sm font-bold text-gray-900">Data readiness &amp; background processing</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Payroll only counts approved overtime, leave, attendance corrections and reimbursements. These switches help Finance keep the order: approvals first, payroll after.</p></div>
+            <div>{!! $sw('block_on_pending_inputs', 'Require approvals before calculating', 'When on, Calculate is refused while overtime, leave, attendance corrections or reimbursements of the period are still waiting for approval. When off (default), the period page only shows how many are waiting.') !!}</div>
+            <div>{!! $sw('calculate_in_background', 'Calculate periods in the background', 'Runs “Calculate” as a background job so a large payroll cannot time out the page. Needs a queue worker (php artisan queue:work) on the server — leave OFF if you are not sure one is running; without a worker the period would stay “queued”. Currently: queue = ' . config('queue.default') . (config('queue.default') === 'sync' ? ' (background is unavailable, calculations run directly)' : '') . '.') !!}</div>
         </div>
+
+        {{-- Queue check --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3" id="queueCard">
+            <div><h3 class="text-sm font-bold text-gray-900">Background processing check</h3>
+                <p class="text-xs text-gray-500 mt-0.5">A “queue worker” is a small program on the server that picks up background jobs. Run the test to find out whether one is alive before you switch on “Calculate periods in the background”.</p></div>
+            <div class="flex flex-wrap items-center gap-3">
+                <button type="button" id="qtBtn" @disabled($dis) class="px-3.5 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50"><i class="fas fa-vial mr-2"></i>Run worker test</button>
+                <span id="qtResult" class="text-sm text-gray-600">Not tested yet.</span>
+            </div>
+            <p id="qtInfo" class="text-xs text-gray-500"></p>
+        </div>
+        <script>
+        (function () {
+            const btn = document.getElementById('qtBtn'), res = document.getElementById('qtResult'), info = document.getElementById('qtInfo');
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const get = () => fetch(@json(route('finance.payroll.settings.queue-status')), { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' }).then(r => r.json());
+            const paint = (s) => {
+                info.textContent = 'Queue driver: ' + s.driver + (s.jobs_table !== null ? ' · jobs waiting: ' + s.jobs_table : '') + (s.failed !== null ? ' · failed jobs: ' + s.failed : '');
+                if (s.test.state === 'ok') res.innerHTML = s.driver === 'sync'
+                    ? '<span class="text-amber-700 font-semibold"><i class="fas fa-circle-info mr-1"></i>Queue is “sync”: jobs run immediately, so no worker is needed — and background calculation is not available.</span>'
+                    : '<span class="text-green-700 font-semibold"><i class="fas fa-circle-check mr-1"></i>A worker is alive — it answered in ' + s.test.seconds + ' s.</span>';
+                else if (s.test.state === 'waiting') res.innerHTML = '<span class="text-amber-700"><i class="fas fa-spinner fa-spin mr-1"></i>Waiting for a worker… ' + s.test.seconds + ' s' + (s.test.seconds > 20 ? ' — no answer yet. Probably no worker is running; keep the background switch OFF.' : '') + '</span>';
+                return s.test.state === 'waiting';
+            };
+            const poll = (n) => get().then(s => { if (paint(s) && n < 40) setTimeout(() => poll(n + 1), 2000); });
+            get().then(paint);
+            btn.addEventListener('click', () => {
+                btn.disabled = true; res.textContent = 'Sending the test…';
+                fetch(@json(route('finance.payroll.settings.queue-test')), { method: 'POST', headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf }, credentials: 'same-origin' })
+                    .then(() => { btn.disabled = false; poll(0); }).catch(() => { btn.disabled = false; res.textContent = 'Could not send the test.'; });
+            });
+        })();
+        </script>
+
+        {{-- Payslip --}}
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5" id="signerCard">
+            <div>
+                <h3 class="text-sm font-bold text-gray-900">Payslip</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Choose the signer by <strong>role first</strong>, then the <strong>user</strong> who holds it. The title is picked from the position list and follows the user’s position by default.</p>
+            </div>
+            @foreach(['hr' => 'HR', 'finance' => 'Finance'] as $who => $whoLabel)
+                @php
+                    $legacy = $v($who . '_signer_name') && !$v($who . '_signer_employee_id');
+                @endphp
+                <div class="rounded-lg border border-gray-200 p-4 space-y-3" data-signer="{{ $who }}">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500">{{ $whoLabel }} signer</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label class="block text-xs font-semibold text-gray-600 mb-1">Role</label>
+                            <select name="{{ $who }}_signer_role_id" data-searchable="true" data-search-placeholder="Search role…" data-signer-role @disabled($dis) class="{{ $input }}">
+                                <option value="">— Select role —</option>
+                                @foreach($signerRoles as $ro)<option value="{{ $ro['id'] }}" @selected((int) $v($who . '_signer_role_id') === $ro['id'])>{{ $ro['name'] }}</option>@endforeach
+                            </select></div>
+                        <div><label class="block text-xs font-semibold text-gray-600 mb-1">User</label>
+                            <select name="{{ $who }}_signer_employee_id" data-searchable="true" data-search-placeholder="Search name or employee ID…" data-signer-user data-selected="{{ (int) $v($who . '_signer_employee_id') }}" @disabled($dis) class="{{ $input }}">
+                                <option value="">— Select user —</option>
+                            </select></div>
+                        <div><label class="block text-xs font-semibold text-gray-600 mb-1">Title</label>
+                            <select name="{{ $who }}_signer_title" data-searchable="true" data-search-placeholder="Search title…" data-signer-title data-selected="{{ $v($who . '_signer_title') }}" @disabled($dis) class="{{ $input }}">
+                                <option value="">— Select title —</option>
+                                @foreach($signerTitles as $t)<option value="{{ $t }}" @selected($v($who . '_signer_title') === $t)>{{ $t }}</option>@endforeach
+                                @if($v($who . '_signer_title') && !in_array($v($who . '_signer_title'), $signerTitles, true))<option value="{{ $v($who . '_signer_title') }}" selected>{{ $v($who . '_signer_title') }}</option>@endif
+                            </select></div>
+                    </div>
+                    @if($legacy)
+                        <div class="flex items-center justify-between gap-3 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-3 py-2" data-signer-legacy>
+                            <span><i class="fas fa-circle-info mr-1"></i>Currently typed by hand: <strong>{{ $v($who . '_signer_name') }}</strong>@if($v($who . '_signer_title')) — {{ $v($who . '_signer_title') }}@endif. Pick a role and user to replace it.</span>
+                            <label class="flex items-center gap-1.5 font-semibold shrink-0"><input type="checkbox" name="{{ $who }}_signer_keep" value="1" checked @disabled($dis) class="rounded border-gray-300"> Keep</label>
+                        </div>
+                    @endif
+                </div>
+            @endforeach
+            <div class="md:w-1/2"><label class="block text-xs font-semibold text-gray-600 mb-1">Default payslip language</label>
+                <select name="slip_language" @disabled($dis) class="{{ $input }}"><option value="id" @selected($v('slip_language') !== 'en')>Indonesian</option><option value="en" @selected($v('slip_language') === 'en')>English</option></select>
+                <p class="text-xs text-gray-500 mt-1">The language can still be chosen each time a payslip is opened.</p></div>
+        </div>
+        <script>
+        (function () {
+            const PEOPLE = @json($signerPeople);
+            document.querySelectorAll('[data-signer]').forEach(function (box) {
+                const role = box.querySelector('[data-signer-role]'), user = box.querySelector('[data-signer-user]'), title = box.querySelector('[data-signer-title]');
+                const ensureTitle = function (t) {
+                    if (!t) return;
+                    if (!Array.from(title.options).some(function (o) { return o.value === t; })) { const o = document.createElement('option'); o.value = t; o.textContent = t; title.appendChild(o); }
+                };
+                const fillUsers = function (selected) {
+                    const rid = parseInt(role.value || '0', 10);
+                    user.innerHTML = '';
+                    const blank = document.createElement('option'); blank.value = ''; blank.textContent = rid ? '— Select user —' : '— Select a role first —'; user.appendChild(blank);
+                    PEOPLE.filter(function (p) { return rid && p.roles.indexOf(rid) !== -1; }).forEach(function (p) {
+                        const o = document.createElement('option'); o.value = p.id; o.textContent = p.name + ' (' + p.eci + ')'; user.appendChild(o);
+                    });
+                    user.value = selected ? String(selected) : '';
+                    user.dispatchEvent(new Event('change', { bubbles: true }));
+                };
+                role.addEventListener('change', function () { fillUsers(null); });
+                user.addEventListener('change', function () {
+                    const p = PEOPLE.find(function (x) { return String(x.id) === user.value; });
+                    if (p && p.position && !title.value) { ensureTitle(p.position); title.value = p.position; title.dispatchEvent(new Event('change', { bubbles: true })); }
+                    const legacy = box.querySelector('[data-signer-legacy]'); if (legacy && user.value) legacy.classList.add('hidden');
+                });
+                fillUsers(parseInt(user.dataset.selected || '0', 10) || null);
+            });
+        })();
+        </script>
         @if($canEdit)
             <div><button type="submit" class="px-5 py-2.5 text-sm font-semibold rounded-lg primary-gradient text-white hover:opacity-90"><i class="fas fa-floppy-disk mr-2"></i>Save payroll settings</button></div>
         @else

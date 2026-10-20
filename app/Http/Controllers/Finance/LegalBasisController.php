@@ -59,6 +59,18 @@ class LegalBasisController extends Controller
         return $this->act(fn () => $this->legal->markReviewed($id, $this->actorId()), 'Marked as reviewed.');
     }
 
+    /** Accept review untuk semua aturan satu modul sekaligus (setelah Legal/pihak berwenang selesai memeriksa). */
+    public function reviewModule(string $module)
+    {
+        try {
+            $n = $this->legal->markModuleReviewed($module, $this->actorId());
+        } catch (\DomainException $e) {
+            return back()->withErrors(['legal' => $e->getMessage()]);
+        }
+
+        return back()->with('success', $n ? "{$n} rule(s) accepted as reviewed." : 'Nothing to accept: every rule of this module is already reviewed.');
+    }
+
     public function needsReview(int $id)
     {
         return $this->act(fn () => $this->legal->markNeedsReview($id), 'Marked as needs review.');

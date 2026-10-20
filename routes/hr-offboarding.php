@@ -53,6 +53,7 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/', [LegalBasisController::class, 'index'])->name('index');
         Route::post('/', [LegalBasisController::class, 'store'])->name('store')->middleware($can('create'));
         Route::post('/switches', [LegalBasisController::class, 'saveSwitches'])->name('switches')->middleware($can('edit'));
+        Route::post('/module/{module}/review', [LegalBasisController::class, 'reviewModule'])->name('review-module')->whereIn('module', ['pph21', 'bpjs', 'overtime', 'contract', 'offboarding'])->middleware($can('edit'));
         Route::whereNumber('id')->group(function () use ($can) {
             Route::post('/{id}/update', [LegalBasisController::class, 'update'])->name('update')->middleware($can('edit'));
             Route::post('/{id}/review', [LegalBasisController::class, 'review'])->name('review')->middleware($can('edit'));
