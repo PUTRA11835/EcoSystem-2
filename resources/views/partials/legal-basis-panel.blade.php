@@ -15,7 +15,7 @@
             <div><h3 class="text-sm font-bold text-gray-800">Legal basis</h3>
                 <p class="text-[11px] text-gray-500 mt-0.5">The regulations behind these rules, with the date each was last amended. {{ $legalSummary['total'] }} registered {{ "" }}@if($legalSummary['needs_review'] > 0) · <span class="text-amber-700 font-semibold">{{ $legalSummary['needs_review'] }} need review</span> @endif @if($legalSummary['stale'] > 0) · <span class="text-amber-700 font-semibold">{{ $legalSummary['stale'] }} last reviewed over 12 months ago</span> @endif.</p></div>
         </div>
-        @if($legalCan)<a href="{{ route('finance.legal-basis.index', ['module' => $legalModule]) }}" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50">Manage legal basis</a>@endif
+        @if($legalCan)<a href="{{ route('finance.legal-basis.index', ['module' => $legalModule]) }}#basis-register" class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50">Manage legal basis</a>@endif
     </div>
     @if($legalSummary['needs_review'] > 0)
         <div class="px-5 py-2.5 text-[11px] bg-amber-50 border-b border-amber-100 text-amber-900"><i class="fas fa-triangle-exclamation mr-1"></i> Some entries were written from the preparer's knowledge and have not been checked against the official text yet. Treat them as a reference until a person marks them reviewed.</div>

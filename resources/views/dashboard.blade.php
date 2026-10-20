@@ -1737,7 +1737,8 @@
             </header>
 
             <!-- Content Area -->
-            <div class="overflow-x-hidden">
+            {{-- `clip` (not `hidden`) so sticky elements inside pages (e.g. Payroll Settings sidebar) can stick to the viewport; `hidden` is the fallback for old browsers. --}}
+            <div style="overflow-x: hidden; overflow-x: clip;">
                 <div class="@yield('content-class', 'p-6')">
                     @yield('content')
                 </div>

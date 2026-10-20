@@ -109,6 +109,8 @@ class Notification extends Model
             'external_invoice_verified'    => 'Your invoice was verified',
             'external_invoice_rejected'    => 'Your invoice was rejected',
             'external_payment_paid'        => 'Your invoice was paid',
+            'reimbursement_paid'           => 'Your reimbursement was paid',
+            'reimbursement_payment_reversed' => 'The payment of your reimbursement was reversed',
             default                        => $from . ' sent you a notification',
         };
     }

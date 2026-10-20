@@ -33,8 +33,12 @@
     @include('partials.legal-basis-panel', ['legalModule' => 'contract'])
     @include('hr-general.recruitment.components.form-errors')
 
+    <div class="lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:gap-6 items-start space-y-4 lg:space-y-0">
+    @include('finance.payroll.components.settings-nav')
+    <div class="space-y-6 min-w-0">
+
     {{-- ───────── Module status (separate permission) ───────── --}}
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+    <div id="payroll-module" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5">
         <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
                 <div class="flex items-center gap-2">
@@ -81,7 +85,7 @@
         @endphp
 
         {{-- Work schedule, proration --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
+        <div id="work-schedule" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
             <h3 class="text-sm font-bold text-gray-900">Work schedule &amp; proration</h3>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -122,7 +126,7 @@
         </div>
 
         {{-- Attendance --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
+        <div id="attendance" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Attendance deductions</h3>
                 <p class="text-xs text-gray-500 mt-0.5">Read from Attendance and Leave &amp; Permit. Absence is derived (workdays − days with attendance − approved leave); an employee with no attendance record at all in the period is never deducted.</p>
@@ -167,7 +171,7 @@
         </div>
 
         {{-- Earnings --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        <div id="earnings" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
             <h3 class="text-sm font-bold text-gray-900">Earnings</h3>
             <div>{!! $sw('overtime_enabled', 'Enable overtime calculation', 'Approved overtime requests in the period are paid at PP 35/2021 multipliers on 1/173 of (base salary + fixed allowances).') !!}</div>
             <div>{!! $sw('include_reimbursement', 'Include reimbursement in payroll', 'Reimbursements approved inside the period (IDR) are added as non-taxable earnings, once only.') !!}</div>
@@ -188,7 +192,7 @@
         </div>
 
         {{-- BPJS & tax --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        <div id="bpjs-tax" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
             <h3 class="text-sm font-bold text-gray-900">BPJS &amp; PPh 21</h3>
             <div>{!! $sw('bpjs_enabled', 'Enable BPJS deduction', 'Rates, caps and effective dates are in BPJS → Settings; each employee’s BPJS flags in Master → Employee → Compensation.') !!}</div>
             <div>{!! $sw('pph21_enabled', 'Enable PPh 21 deduction', 'Rates and PTKP are in PPh 21 → Settings.') !!}</div>
@@ -200,7 +204,7 @@
         </div>
 
         {{-- Net pay rounding --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        <div id="net-rounding" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
             <h3 class="text-sm font-bold text-gray-900">Net pay rounding</h3>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Net pay rounding</label>
@@ -212,7 +216,7 @@
         </div>
 
         {{-- Cut-off, timesheet, loans --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
+        <div id="cutoff-loans" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
             <div><h3 class="text-sm font-bold text-gray-900">Cut-off, timesheet &amp; loans</h3>
                 <p class="text-xs text-gray-500 mt-0.5">Switches the people in charge can turn on or off. Items marked <span class="font-semibold">not connected yet</span> are saved and ready, but have no effect on a payslip until their source module is linked.</p></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
@@ -232,7 +236,7 @@
         </div>
 
         {{-- Approvals & background --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+        <div id="data-readiness" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
             <div><h3 class="text-sm font-bold text-gray-900">Data readiness &amp; background processing</h3>
                 <p class="text-xs text-gray-500 mt-0.5">Payroll only counts approved overtime, leave, attendance corrections and reimbursements. These switches help Finance keep the order: approvals first, payroll after.</p></div>
             <div>{!! $sw('block_on_pending_inputs', 'Require approvals before calculating', 'When on, Calculate is refused while overtime, leave, attendance corrections or reimbursements of the period are still waiting for approval. When off (default), the period page only shows how many are waiting.') !!}</div>
@@ -240,7 +244,7 @@
         </div>
 
         {{-- Queue check --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3" id="queueCard">
+        <div class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3" id="queueCard">
             <div><h3 class="text-sm font-bold text-gray-900">Background processing check</h3>
                 <p class="text-xs text-gray-500 mt-0.5">A “queue worker” is a small program on the server that picks up background jobs. Run the test to find out whether one is alive before you switch on “Calculate periods in the background”.</p></div>
             <div class="flex flex-wrap items-center gap-3">
@@ -273,7 +277,7 @@
         </script>
 
         {{-- Payslip --}}
-        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5" id="signerCard">
+        <div class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5" id="signerCard">
             <div>
                 <h3 class="text-sm font-bold text-gray-900">Payslip</h3>
                 <p class="text-xs text-gray-500 mt-0.5">Choose the signer by <strong>role first</strong>, then the <strong>user</strong> who holds it. The title is picked from the position list and follows the user’s position by default.</p>
@@ -349,11 +353,14 @@
         @endif
     </form>
 
-    <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5 max-w-3xl text-sm text-gray-600 space-y-1">
+    <div id="other-rules" class="pst-section bg-white rounded-xl border border-gray-200 shadow-sm p-5 max-w-3xl text-sm text-gray-600 space-y-1">
         <h3 class="text-sm font-bold text-gray-900 mb-1">Where the other rules live</h3>
         <p>• BPJS rates and caps → <a class="text-indigo-700 hover:underline" href="{{ route('finance.bpjs.index') }}">BPJS</a></p>
         <p>• PTKP, progressive and TER rates, employer-premium treatment → <a class="text-indigo-700 hover:underline" href="{{ route('finance.pph21.index') }}">PPh 21</a></p>
         <p>• Salary components, PTKP status, BPJS flags and “include in payroll” per employee → Master → Employee → <strong>Compensation</strong> tab</p>
     </div>
+
+    </div>{{-- /sections --}}
+    </div>{{-- /sidebar + sections --}}
 </div>
 @endsection

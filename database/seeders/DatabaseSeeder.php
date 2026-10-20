@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             // bukan via seeder. Login admin: ECI_ADMIN / password123.
             RoleSeeder::class,             // wajib: isi tabel employee_role (FK role_id)
             MenuSeeder::class,             // isi tabel menu + role_menu (permission matrix)
+            MenuRegistrySeeder::class,     // slug yang lahir sesudah MenuSeeder (migrasi men-skip-nya di instalasi bersih); hanya admin yang diberi akses
             HolidaySeeder::class,          // impor hari libur dari config ke tabel `holidays`
             WilayahSeeder::class,          // referensi wilayah Indonesia (dropdown alamat)
             EmployeeSeeder::class,         // hanya akun ECI_ADMIN
@@ -31,6 +32,9 @@ class DatabaseSeeder extends Seeder
             // Aktifkan (hapus komentar) hanya untuk instance demo/testing, atau
             // jalankan satu per satu lewat:
             //   php artisan db:seed --class="Database\Seeders\Kpi\KpiTemplateSeeder"
+            // DemoDataSeeder::class,            // SEMUA akun & dokumen uji HR/Finance/Legal sekaligus, urutannya sudah benar (menolak production)
+            // DeliveryProjectPhaseSeeder::class, // fase bawaan Delivery Project (data referensi; aman diulang)
+            // SlaSeeder::class,                 // kebijakan SLA bawaan
             // CustomerSeeder::class,            // customer dummy
             // DeliveryProjectSeeder::class,     // delivery project dummy
             // DbmlMissingTablesSeeder::class,   // membuat seed_employee dummy

@@ -154,6 +154,21 @@ class LegalBasisService
         return $rows->map(fn ($r) => $this->decode($r));
     }
 
+    /** Everything the Legal page needs to show the register: rows per module, counters, switches and the not-reviewed rules. */
+    public function registerPage(?string $module = ''): array
+    {
+        $module = (string) $module;
+        $rows = $this->all(isset(self::MODULES[$module]) ? $module : null);
+        $stale = $rows->filter(fn ($r) => $r->status === 'active' && $r->reviewed_at && strtotime($r->reviewed_at) < strtotime('-12 months'))->count();
+
+        return [
+            'rows' => $rows->groupBy('module'), 'module' => isset(self::MODULES[$module]) ? $module : '', 'modules' => self::MODULES, 'types' => self::TYPES,
+            'statuses' => self::STATUSES, 'badges' => self::BADGES, 'confidence' => self::CONFIDENCE,
+            'switches' => $this->allSwitches(), 'pending' => collect(array_keys(self::MODULES))->mapWithKeys(fn ($m) => [$m => $this->pending($m)]),
+            'counts' => ['total' => $rows->count(), 'needs_review' => $rows->where('status', 'needs_review')->count(), 'stale' => $stale, 'reviewed' => $rows->where('status', 'active')->count()],
+        ];
+    }
+
     /** Ringkasan untuk panel di halaman Settings: jumlah belum diulas, tertua ditinjau. @return array{total:int,needs_review:int,stale:int,rows:\Illuminate\Support\Collection} */
     public function summary(string $module)
     {
