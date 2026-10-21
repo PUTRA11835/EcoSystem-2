@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class EmployeeEducationController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get all employee education records
      */
@@ -181,6 +183,8 @@ class EmployeeEducationController extends Controller
             'attachment_drive_link.url' => 'Drive link must be a valid URL',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for education record', [
                 'employee_id' => $employeeId,
@@ -189,7 +193,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Employee education record data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -304,6 +308,8 @@ class EmployeeEducationController extends Controller
             'attachment_drive_link.url' => 'Drive link must be a valid URL',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for education record update', [
                 'employee_id' => $employeeId,
@@ -313,7 +319,7 @@ class EmployeeEducationController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Employee education record data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }

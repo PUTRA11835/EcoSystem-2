@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class EmployeeBasicDataController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get current user's ECI
      */
@@ -186,6 +188,8 @@ class EmployeeBasicDataController extends Controller
             'since_date.date'     => 'Since Date must be a valid date.',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -354,6 +358,8 @@ class EmployeeBasicDataController extends Controller
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',
             ]);
+
+            $this->friendly($validator);
 
             if ($validator->fails()) {
                 return response()->json([

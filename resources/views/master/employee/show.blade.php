@@ -452,6 +452,20 @@
     // dirender sama sekali (lihat $visibleSections di atas).
     let currentSection = @json($firstKey ? $visibleSections[$firstKey][0] : 'basic-data');
 
+    /**
+     * Teks galat dari respons API (422): satu galat = kalimatnya; beberapa = daftar per kolom. Server sudah menulis tiap galat dengan
+     * nama kolom dan batasnya (mis. "Account Number must be 6–20 digits — you entered 10"), jadi cukup ditampilkan apa adanya.
+     */
+    window.apiErrorText = function (data, fallback) {
+        const lines = [];
+        if (data && data.errors && typeof data.errors === 'object') {
+            Object.values(data.errors).forEach(function (list) { (Array.isArray(list) ? list : [list]).forEach(function (m) { if (m) { lines.push(String(m)); } }); });
+        }
+        if (lines.length === 1) { return lines[0]; }
+        if (lines.length > 1) { return 'Please correct the following:\n' + lines.map(function (l) { return '\u2022 ' + l; }).join('\n'); }
+        return (data && data.message) ? data.message : fallback;
+    };
+
     // Switch between sections/tabs
     function switchSection(sectionName) {
         currentSection = sectionName;

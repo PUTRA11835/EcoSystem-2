@@ -200,8 +200,8 @@
 
             <!-- Telephone Extension -->
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Extension</label>
-                <input type="text" id="telephoneExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5" title="Extension (ext.): the internal line number you dial after the main telephone number reaches the switchboard, e.g. 123. Leave empty if the telephone has none.">Extension (ext.)</label>
+                <input type="text" id="telephoneExt" placeholder="e.g. 123" maxlength="10" inputmode="numeric" title="Internal extension number of this telephone (maximum 10 characters). Leave empty if none." class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Fax -->
@@ -212,8 +212,8 @@
 
             <!-- Fax Extension -->
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Extension</label>
-                <input type="text" id="faxExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5" title="Extension (ext.): the internal line number of the fax machine behind a shared main number. Leave empty if none.">Extension (ext.)</label>
+                <input type="text" id="faxExt" placeholder="e.g. 123" maxlength="10" inputmode="numeric" title="Internal extension number of this fax (maximum 10 characters). Leave empty if none." class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Email (Personal) -->

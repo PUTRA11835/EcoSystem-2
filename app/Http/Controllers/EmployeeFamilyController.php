@@ -12,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 
 class EmployeeFamilyController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Validation rules for family member
      */
@@ -107,10 +109,12 @@ class EmployeeFamilyController extends Controller
     {
         $validator = Validator::make($request->all(), $this->validationRules());
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -167,10 +171,12 @@ class EmployeeFamilyController extends Controller
     {
         $validator = Validator::make($request->all(), $this->validationRules());
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -335,10 +341,12 @@ class EmployeeFamilyController extends Controller
             'families.*.birth_date' => 'nullable|date|before_or_equal:today',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }

@@ -519,7 +519,7 @@
                     loadEducationToForm(educationId);
                 }
             } else {
-                showNotification('Failed to save education: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The education record could not be saved. Please try again.') : (data.message || 'The education record could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving education:', error);

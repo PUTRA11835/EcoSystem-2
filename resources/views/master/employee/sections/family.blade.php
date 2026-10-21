@@ -589,7 +589,7 @@
                     loadFamilyToForm(familyId);
                 }
             } else {
-                showNotification('Failed to save family member: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The family member could not be saved. Please try again.') : (data.message || 'The family member could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving family:', error);
