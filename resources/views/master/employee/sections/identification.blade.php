@@ -38,8 +38,8 @@
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="DRIVER_LICENSE">Driver License (SIM)</button>
                         <button type="button" class="js-internal-only custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KESEHATAN">BPJS Kesehatan</button>
                         <button type="button" class="js-internal-only custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS_KETENAGAKERJAAN">BPJS Ketenagakerjaan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAS">KITAS</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAP">KITAP</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAS">KITAS (Temporary Stay Permit)</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KITAP">KITAP (Permanent Stay Permit)</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="OTHER">Other</button>
                     </div>
                 </div>
@@ -320,8 +320,8 @@
             'DRIVER_LICENSE': 'Driver License (SIM)',
             'BPJS_KESEHATAN': 'BPJS Kesehatan',
             'BPJS_KETENAGAKERJAAN': 'BPJS Ketenagakerjaan',
-            'KITAS': 'KITAS',
-            'KITAP': 'KITAP',
+            'KITAS': 'KITAS (Temporary Stay Permit)',
+            'KITAP': 'KITAP (Permanent Stay Permit)',
             'OTHER': 'Other'
         };
         return types[type] || type;

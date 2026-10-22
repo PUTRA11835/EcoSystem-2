@@ -117,9 +117,11 @@ class OffboardingController extends Controller
         return back()->with('success', 'Final settlement calculated and saved.');
     }
 
-    public function deactivate(int $id)
+    public function deactivate(Request $request, int $id)
     {
-        return $this->step(fn () => $this->offboarding->deactivateAccess($id, $this->actorId()), 'Access deactivated: the person can no longer log in.');
+        $reason = $request->input('force_reason');
+
+        return $this->step(fn () => $this->offboarding->deactivateAccess($id, $this->actorId(), false, is_string($reason) ? $reason : null), 'Access deactivated: the person can no longer log in.');
     }
 
     public function complete(int $id)

@@ -94,6 +94,7 @@
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Mrs.">Mrs.</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ms.">Ms.</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Dr.">Dr.</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Prof.">Prof.</button>
                         </div>
                     </div>
                 </div>
@@ -133,12 +134,11 @@
                         <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Religion</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Islam">Islam</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Christianity">Christianity</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Catholicism">Catholicism</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hinduism">Hinduism</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Buddhism">Buddhism</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Christian">Christian</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Catholic">Catholic</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Hindu">Hindu</button>
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Buddhist">Buddhist</button>
                             <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Konghucu">Konghucu</button>
-                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Other">Other</button>
                         </div>
                     </div>
                 </div>
@@ -471,7 +471,7 @@
                 setCustomDropdownValue('familyTitle', family.title || '');
                 document.getElementById('familyName').value = family.name || '';
                 setCustomDropdownValue('familyGender', family.gender || '');
-                setCustomDropdownValue('familyReligion', family.religion || '');
+                setCustomDropdownValue('familyReligion', ({ Christianity: 'Christian', Catholicism: 'Catholic', Hinduism: 'Hindu', Buddhism: 'Buddhist', Confucian: 'Konghucu', Budha: 'Buddhist' })[family.religion] || family.religion || '');   // nilai lama ditampilkan dengan nama baku (sama dengan Basic Data)
                 document.getElementById('familyCountry').value = family.country || '';
                 document.getElementById('familyBirthPlace').value = family.birth_place || '';
                 document.getElementById('familyBirthDate').value = family.birth_date || '';

@@ -27,20 +27,20 @@
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KTP">KTP / ID Card</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="NPWP">NPWP</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Paspor">Paspor / Passport</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Paspor">Passport</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Kesehatan">BPJS Kesehatan</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Ketenagakerjaan">BPJS Ketenagakerjaan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ijazah">Ijazah / Diploma</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transkrip Nilai">Transkrip Nilai</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sertifikat">Sertifikat</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kontrak Kerja">Kontrak Kerja</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SK Pengangkatan">SK Pengangkatan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surat Referensi">Surat Referensi</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ijazah">Diploma Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transkrip Nilai">Academic Transcript</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sertifikat">Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kontrak Kerja">Employment Contract</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SK Pengangkatan">Appointment Letter</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surat Referensi">Reference Letter</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="CV">CV / Resume</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Akta Lahir">Akta Lahir</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kartu Keluarga">Kartu Keluarga</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Foto">Foto</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Lainnya">Lainnya</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Akta Lahir">Birth Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kartu Keluarga">Family Card (KK)</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Foto">Photo</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Lainnya">Other</button>
                     </div>
                 </div>
             </div>
@@ -132,6 +132,13 @@
 </div>
 
 <script>
+    // Nilai tersimpan (Indonesia/lama) -> teks tampilan Inggris yang sama dengan dropdown
+    const ATTACH_TYPE_LABELS = {
+        'KTP': 'KTP / ID Card', 'Paspor': 'Passport', 'Ijazah': 'Diploma Certificate', 'Transkrip Nilai': 'Academic Transcript',
+        'Sertifikat': 'Certificate', 'Kontrak Kerja': 'Employment Contract', 'SK Pengangkatan': 'Appointment Letter',
+        'Surat Referensi': 'Reference Letter', 'CV': 'CV / Resume', 'Akta Lahir': 'Birth Certificate',
+        'Kartu Keluarga': 'Family Card (KK)', 'Foto': 'Photo', 'Lainnya': 'Other'
+    };
     let attachmentsData = [];
     let selectedAttachmentId = null;
     let deleteAttachmentId = null;
@@ -172,6 +179,7 @@
     function renderAttachmentTable(attachments) {
         const tbody = document.getElementById('attachmentTableBody');
         tbody.innerHTML = attachments.map(att => {
+            const typeLabel = ATTACH_TYPE_LABELS[att.document_type] || att.document_type || '-';
             const size   = att.file_size ? formatFileSize(att.file_size) : '-';
             const date   = att.created_at ? new Date(att.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const fileUrl = `/storage/${att.file_path}`;
@@ -191,7 +199,7 @@
                     </td>
                     <td class="px-4 py-3 text-sm">
                         <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            ${att.document_type || '-'}
+                            ${typeLabel}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600">${size}</td>
