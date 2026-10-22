@@ -114,14 +114,15 @@ class EmployeeIdentificationController extends Controller
                 if ($error) {
                     $v->errors()->add('identification_number', $error);
                 } else {
-                    // Kolom ini UNIK di seluruh sistem: pesan yang jelas (tanpa menyebut milik siapa) menggantikan galat 500 yang dulu muncul.
+                    // Nomor UNIK per JENIS identitas (bukan global): NPWP 16 digit memang sama dengan NIK KTP. Pesan jelas (tanpa menyebut milik siapa) menggantikan galat 500.
                     $dup = \Illuminate\Support\Facades\DB::table('employee_identification')
+                        ->where('identification_type', (string) $request->identification_type)
                         ->where('identification_number', \App\Support\Validation\FieldFormats::identificationNormalize((string) $request->identification_type, (string) $request->identification_number));
                     if ($request->route('identificationId')) {
                         $dup->where('identification_id', '!=', $request->route('identificationId'));
                     }
                     if ($dup->exists()) {
-                        $v->errors()->add('identification_number', 'This number is already registered in the system (identification numbers must be unique). Check for typing errors, or contact HR if the number is yours.');
+                        $v->errors()->add('identification_number', 'This number is already registered in the system (each identification type must have a unique number). Check for typing errors, or contact HR if the number is yours.');
                     }
                 }
             }
@@ -232,14 +233,15 @@ class EmployeeIdentificationController extends Controller
                 if ($error) {
                     $v->errors()->add('identification_number', $error);
                 } else {
-                    // Kolom ini UNIK di seluruh sistem: pesan yang jelas (tanpa menyebut milik siapa) menggantikan galat 500 yang dulu muncul.
+                    // Nomor UNIK per JENIS identitas (bukan global): NPWP 16 digit memang sama dengan NIK KTP. Pesan jelas (tanpa menyebut milik siapa) menggantikan galat 500.
                     $dup = \Illuminate\Support\Facades\DB::table('employee_identification')
+                        ->where('identification_type', (string) $request->identification_type)
                         ->where('identification_number', \App\Support\Validation\FieldFormats::identificationNormalize((string) $request->identification_type, (string) $request->identification_number));
                     if ($request->route('identificationId')) {
                         $dup->where('identification_id', '!=', $request->route('identificationId'));
                     }
                     if ($dup->exists()) {
-                        $v->errors()->add('identification_number', 'This number is already registered in the system (identification numbers must be unique). Check for typing errors, or contact HR if the number is yours.');
+                        $v->errors()->add('identification_number', 'This number is already registered in the system (each identification type must have a unique number). Check for typing errors, or contact HR if the number is yours.');
                     }
                 }
             }
