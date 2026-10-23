@@ -695,8 +695,10 @@ class SlaService
      * but whose delivery support was not yet known at validation time.
      *
      * Safe to call multiple times; skips if the SLA is already finalised (met/breached).
+     * $force = true bypasses that skip — used when the ticket's priority/scale/type is
+     * edited, so the attached policy follows the ticket's current classification.
      */
-    public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null, ?TicketSla $preloadedSla = null): void
+    public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null, ?TicketSla $preloadedSla = null, bool $force = false): void
     {
         $sla = $preloadedSla ?? TicketSla::where('ticket_id', $ticket->ticket_id)->first();
 
@@ -707,7 +709,7 @@ class SlaService
         }
 
         // Already has a resolved response status — don't regress
-        if (in_array($sla->response_status, ['met', 'breached'], true) && $sla->sla_policy_id) {
+        if (!$force && in_array($sla->response_status, ['met', 'breached'], true) && $sla->sla_policy_id) {
             return;
         }
 
