@@ -201,6 +201,70 @@ class DeliveryProjectController extends Controller
     }
 
     /**
+     * Export revenue SELURUH Delivery Project (tidak ikut filter tabel) —
+     * satu baris per project: revenue, plan/actual cost, gross profit, dan
+     * posisi penagihan TOP. Lihat DeliveryProjectRevenueExport.
+     */
+    public function exportRevenue()
+    {
+        $projects = DeliveryProject::with('client.basicData')->get();
+        $projectIds = $projects->pluck('id');
+
+        // Sama dengan export(): Actual Cost = SUM actual_amount seluruh cost item.
+        $actualCosts = DeliveryProjectCost::whereIn('delivery_projects_id', $projectIds)
+            ->selectRaw('delivery_projects_id, SUM(actual_amount) AS total')
+            ->groupBy('delivery_projects_id')
+            ->pluck('total', 'delivery_projects_id');
+
+        // Amount TOP dihitung ulang dari revenue terkini (effectiveAmount), bukan
+        // kolom tersimpan yang bisa basi.
+        $paymentTerms = DeliveryProjectPaymentTerm::whereIn('delivery_projects_id', $projectIds)
+            ->get()
+            ->groupBy('delivery_projects_id');
+
+        $rows = $projects
+            ->map(function (DeliveryProject $project) use ($actualCosts, $paymentTerms) {
+                $revenue = (float) ($project->revenue ?? 0);
+                $terms   = $paymentTerms[$project->id] ?? collect();
+                $amount  = fn ($t) => $t->effectiveAmount($revenue);
+                // Invoiced = termin ber-Invoice No (sama dengan export Invoiced TOP).
+                $invoiced = $terms->filter(fn ($t) => trim((string) $t->invoice_number) !== '');
+
+                return [
+                    'io_number'           => $project->io_number,
+                    'customer'            => $project->client->basicData->name_1 ?? null,
+                    'project_type'        => $project->project_type,
+                    'project_name'        => $project->name,
+                    'ae_name'             => $project->ae_name,
+                    'project_owner'       => $project->project_owner,
+                    'category'            => $project->category,
+                    'status'              => $project->status,
+                    'contract_start_date' => $project->contract_start_date,
+                    'contract_end_date'   => $project->contract_end_date,
+                    'revenue'             => $revenue,
+                    'plan_cost'           => (float) ($project->plan_cost ?? 0),
+                    'actual_cost'         => (float) ($actualCosts[$project->id] ?? 0),
+                    'top_terms'           => $terms->count(),
+                    'top_amount'          => $terms->sum($amount),
+                    'invoiced'            => $invoiced->sum($amount),
+                    'paid'                => $terms->where('status', 'Paid')->sum($amount),
+                ];
+            })
+            ->sortBy([
+                fn ($a, $b) => strnatcasecmp((string) $a['customer'], (string) $b['customer']),
+                fn ($a, $b) => strnatcasecmp((string) $a['io_number'], (string) $b['io_number']),
+                fn ($a, $b) => strnatcasecmp((string) $a['project_name'], (string) $b['project_name']),
+            ])
+            ->values()
+            ->all();
+
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\DeliveryProjectRevenueExport($rows),
+            'Delivery_Project_Revenue_' . now()->format('Ymd_His') . '.xlsx'
+        );
+    }
+
+    /**
      * Hitung jumlah baris total & yang belum Closed per project untuk salah satu
      * tabel section (issue/risk/WRICEF) dalam satu query.
      *
@@ -252,14 +316,9 @@ class DeliveryProjectController extends Controller
 
     public function store(Request $request)
     {
-        // Body Hire boleh berbagi satu IO number lintas delivery — tapi HANYA dalam
-        // company yang sama. Type lain tetap wajib unik global.
-        $ioNumberRule = ['required', 'string', 'max:255'];
-        if ($request->input('project_type') === 'Body Hire') {
-            $ioNumberRule[] = $this->sameCompanyIoRule($request->input('client_id'));
-        } else {
-            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number');
-        }
+        // Semua project type boleh berbagi satu IO number lintas delivery — tapi
+        // HANYA dalam company (client) yang sama.
+        $ioNumberRule = ['required', 'string', 'max:255', $this->sameCompanyIoRule($request->input('client_id'))];
 
         $request->validate([
             'client_id' => ['required', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
@@ -509,7 +568,7 @@ class DeliveryProjectController extends Controller
         // (tabel `customer`), dibedakan kolom `type` = Vendor.
         $vendors = Customer::with('basicData')->vendors()->get()->sortBy(fn($v) => strtolower($v->basicData->name_1 ?? $v->customer_code ?? 'zzz'))->values();
 
-        // IO number existing milik company yang sama (untuk pilihan Body Hire).
+        // IO number existing milik company yang sama (pilihan di field IO/Number Order).
         $sameCompanyIos = DeliveryProject::where('client_id', $project->client_id)
             ->where('id', '!=', $project->id)
             ->whereNotNull('io_number')
@@ -620,13 +679,8 @@ class DeliveryProjectController extends Controller
         } elseif ($field === 'high_level_risk') {
             $rules['value'] = ['nullable', Rule::in(['Low', 'Moderate', 'High'])];
         } elseif ($field === 'io_number') {
-            // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
-            $rules['value'] = ['required', 'string', 'max:255'];
-            if ($project->project_type === 'Body Hire') {
-                $rules['value'][] = $this->sameCompanyIoRule($project->client_id, $project->id);
-            } else {
-                $rules['value'][] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
-            }
+            // IO boleh dipakai ulang dalam company yang sama (semua project type).
+            $rules['value'] = ['required', 'string', 'max:255', $this->sameCompanyIoRule($project->client_id, $project->id)];
         } elseif ($field === 'description') {
             $rules['value'] = 'nullable|string|max:5000';
         } elseif ($field === 'name') {
@@ -674,16 +728,10 @@ class DeliveryProjectController extends Controller
 
     public function updateGeneralInfo(Request $request, DeliveryProject $project)
     {
-        // Body Hire: IO boleh dipakai ulang dalam company yang sama; type lain unik.
-        // Pakai type/client yang dikirim; fallback ke nilai project saat ini.
-        $incomingType   = $request->input('project_type', $project->project_type);
+        // IO boleh dipakai ulang dalam company yang sama (semua project type).
+        // Pakai client yang dikirim; fallback ke client project saat ini.
         $incomingClient = $request->input('client_id', $project->client_id);
-        $ioNumberRule   = ['required', 'string', 'max:255'];
-        if ($incomingType === 'Body Hire') {
-            $ioNumberRule[] = $this->sameCompanyIoRule($incomingClient, $project->id);
-        } else {
-            $ioNumberRule[] = Rule::unique('delivery_projects', 'io_number')->ignore($project->id);
-        }
+        $ioNumberRule   = ['required', 'string', 'max:255', $this->sameCompanyIoRule($incomingClient, $project->id)];
 
         $validated = $request->validate([
             'client_id'           => ['nullable', Rule::exists('customer', 'customer_id')->where('type', Customer::TYPE_CUSTOMER)],
@@ -861,7 +909,7 @@ class DeliveryProjectController extends Controller
      */
     /**
      * IO number yang sudah ada, dikelompokkan per company (client_id):
-     * [client_id => ['IO-1', 'IO-2', ...]]. Dipakai form Body Hire agar user
+     * [client_id => ['IO-1', 'IO-2', ...]]. Dipakai form create agar user
      * bisa memilih IO existing milik company yang sama.
      */
     private function existingIosByClient(): array
@@ -875,20 +923,23 @@ class DeliveryProjectController extends Controller
     }
 
     /**
-     * Rule IO number untuk project Body Hire: IO boleh dipakai ulang, TETAPI hanya
+     * Rule IO number (semua project type): IO boleh dipakai ulang, TETAPI hanya
      * dalam company (client) yang sama. Gagal bila IO yang sama sudah dipakai oleh
-     * project company lain. $ignoreId mengecualikan project yang sedang diedit.
+     * project company lain — termasuk project tanpa company, atau bila project ini
+     * sendiri belum punya company. $ignoreId mengecualikan project yang sedang diedit.
      */
     private function sameCompanyIoRule($clientId, $ignoreId = null): \Closure
     {
         return function ($attribute, $value, $fail) use ($clientId, $ignoreId) {
-            $query = DeliveryProject::where('io_number', $value)
-                ->where('client_id', '!=', $clientId);
+            $query = DeliveryProject::where('io_number', $value);
+            if ($clientId) {
+                $query->where(fn($q) => $q->where('client_id', '!=', $clientId)->orWhereNull('client_id'));
+            }
             if ($ignoreId) {
                 $query->where('id', '!=', $ignoreId);
             }
             if ($query->exists()) {
-                $fail('IO Number tersebut sudah digunakan company lain. Untuk Body Hire, IO Number hanya boleh dipakai ulang dalam company yang sama.');
+                $fail('IO Number tersebut sudah digunakan company lain. IO Number hanya boleh dipakai ulang dalam company yang sama.');
             }
         };
     }

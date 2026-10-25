@@ -102,15 +102,15 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-900 mb-1">IO/Number Order</label>
                     <input type="text" name="io_number" value="{{ $project->io_number }}"
-                           @if($project->project_type === 'Body Hire') list="io_number_options" autocomplete="off" @endif
+                           list="io_number_options" autocomplete="off"
                            class="block w-full py-2.5 px-3 border border-gray-300 rounded-md shadow-sm text-sm primary-focus"
                            placeholder="e.g. IO-2026-001">
-                    @if($project->project_type === 'Body Hire')
-                        <datalist id="io_number_options">
-                            @foreach($sameCompanyIos as $io)<option value="{{ $io }}"></option>@endforeach
-                        </datalist>
+                    <datalist id="io_number_options">
+                        @foreach($sameCompanyIos as $io)<option value="{{ $io }}"></option>@endforeach
+                    </datalist>
+                    @if($sameCompanyIos->isNotEmpty())
                         <p class="mt-1 text-xs text-blue-600">
-                            <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company ini, atau ketik IO number baru.
+                            <i class="fas fa-info-circle mr-1"></i>Pilih IO number yang sudah ada milik company ini, atau ketik IO number baru.
                         </p>
                     @endif
                 </div>

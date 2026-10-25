@@ -200,6 +200,11 @@
                             <span class="block text-xs text-gray-500">Projects currently shown in the table (follows filters)</span>
                         </button>
                         @if($can('delivery-project.delivery-info.view'))
+                        <a href="{{ route('projects.exportRevenue') }}" onclick="closeProjExportMenu()"
+                           class="block px-4 py-2.5 hover:bg-gray-50 transition border-t border-gray-100">
+                            <span class="block text-sm font-semibold text-gray-800">Project Revenue</span>
+                            <span class="block text-xs text-gray-500">All delivery projects — revenue, cost, gross profit &amp; billing status</span>
+                        </a>
                         <a href="{{ route('projects.paymentTerms.exportInvoiced') }}" onclick="closeProjExportMenu()"
                            class="block px-4 py-2.5 hover:bg-gray-50 transition border-t border-gray-100">
                             <span class="block text-sm font-semibold text-gray-800">Invoiced Terms of Payment</span>
