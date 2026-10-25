@@ -170,8 +170,14 @@ return [
         // Domain milik tenant (pisah koma). Alamat di luar daftar ini = guest.
         'internal_domains' => env('TEAMS_INTERNAL_DOMAINS') ?: 'eclectic.co.id',
 
-        // Tujuan setelah guest menerima undangan.
-        'guest_redirect_url' => env('TEAMS_GUEST_REDIRECT_URL') ?: 'https://teams.microsoft.com',
+        // Tujuan setelah guest menerima undangan. WAJIB menyebut tenant: guest
+        // Email OTP (Gmail tanpa akun Microsoft) tidak dikenali halaman login
+        // umum teams.microsoft.com — ia ditolak "We couldn't find an account"
+        // atau "You don't have the required permissions to access this org"
+        // (terbukti 22 Okt 2026). Tautan yang sama juga yang dipakai guest
+        // untuk masuk lagi di kemudian hari.
+        'guest_redirect_url' => env('TEAMS_GUEST_REDIRECT_URL')
+            ?: 'https://teams.microsoft.com/?tenantId=' . (env('MS_TEAMS_TENANT_ID') ?: env('MS_TENANT_ID')),
 
         // Batas ukuran satu gambar Teams yang diunduh ke storage tiket (MB).
         // Gambar melebihi ini tidak diunduh; pesannya tetap masuk dengan penanda
