@@ -3030,6 +3030,12 @@ class TicketController extends Controller
                     $ticket->syncDraftResolutionMembers();
                 }
 
+                // Priority/scale/type menentukan SLA policy — tanpa ini ticket_slas tetap
+                // menunjuk policy lama (mis. target 24 jam padahal sekarang Medium/Medium = 48).
+                if ($ticket->wasChanged(['ticket_priority', 'scale', 'ticket_type'])) {
+                    app(\App\Services\SlaService::class)->syncPolicy($ticket, null, null, true);
+                }
+
                 // Jalur kedua penetapan PIC (edit tiket / Take This Ticket), sejajar
                 // dengan assignTicketLead().
                 $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']

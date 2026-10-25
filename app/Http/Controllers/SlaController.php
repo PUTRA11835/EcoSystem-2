@@ -566,11 +566,14 @@ class SlaController extends Controller
             $query->whereHas('ticket', fn ($q) => $q->where('customer_id', $request->customer_id));
         }
 
+        // Periode report berpatokan ke tanggal tiket dibuat (sama dengan list tiket), bukan
+        // sla_start_at — tiket yang dibuat di luar jam kerja di hari terakhir bulan punya
+        // sla_start_at di hari kerja berikutnya (bulan berikutnya), sehingga jumlahnya beda.
         if ($request->filled('start_date')) {
-            $query->whereDate('sla_start_at', '>=', $request->start_date);
+            $query->whereHas('ticket', fn ($q) => $q->whereDate('created_at', '>=', $request->start_date));
         }
         if ($request->filled('end_date')) {
-            $query->whereDate('sla_start_at', '<=', $request->end_date);
+            $query->whereHas('ticket', fn ($q) => $q->whereDate('created_at', '<=', $request->end_date));
         }
 
         // 'pending'/'paused' are ball-holder-state-driven (set directly by ticket status
@@ -1090,8 +1093,14 @@ class SlaController extends Controller
         $toWorkingDays = fn (?float $h) => $h !== null ? round($h / 8, 2) : null;
 
         $endStatuses = SlaService::END_STATUSES;
+        // Actual close moment — same fallback chain as SlaService::liveResolutionMetrics().
+        // Not updated_at: that moves on any later edit/note after closing. end_date is cast
+        // to 'date' on the model, so read the raw value to keep the time part.
+        $rawEndDate  = $t?->getRawOriginal('end_date');
         $closedAt    = ($t && in_array($t->status, $endStatuses))
-                       ? $t->updated_at?->toDateTimeString()
+                       ? ($s->resolved_at
+                          ?? ($rawEndDate ? \Carbon\Carbon::parse($rawEndDate) : null)
+                          ?? $t->updated_at)?->toDateTimeString()
                        : null;
 
         // "SLA Resolution Status" (Achieved/Not Achieved) — Type of Service = CR is exempt
