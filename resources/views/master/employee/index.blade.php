@@ -64,7 +64,23 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             </div>
         </div>
 
-        <div id="employeeTableWrapper" class="overflow-x-auto border border-gray-200 rounded-lg">
+        <!-- Pencarian: selalu terlihat. Memakai filter yang sama dengan "Full Name" di header tabel (ECI atau nama, per kata). -->
+        <div class="mb-4 flex flex-wrap items-center gap-3" role="search">
+            <div class="relative flex-1 min-w-[260px] max-w-2xl">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input type="search" id="employeeSearchBox" autocomplete="off" spellcheck="false" maxlength="100"
+                    placeholder="Search by name or employee ID (ECI)…" aria-label="Search employees"
+                    class="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                <button type="button" id="employeeSearchClear" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" aria-label="Clear search" title="Clear search">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <span class="hidden md:inline text-[11px] text-gray-400">Press <kbd class="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-500 font-mono text-[10px]">/</kbd> to search · use the column filters for position, module, division and more</span>
+        </div>
+
+        <div id="employeeTableWrapper" class="overflow-x-auto border border-gray-200 rounded-lg" aria-busy="false">
             <table class="w-full" style="min-width:1600px;">
                 <thead class="bg-gray-50">
                     <tr>
@@ -707,7 +723,25 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
     }
 
+    // Indikator memuat: baris kerangka (skeleton) saat tabel masih kosong, tabel diredupkan saat memuat ulang (pencarian/filter).
+    let _empRequestSeq = 0;
+    function setEmployeeLoading(on) {
+        const tbody = document.getElementById('employeeTableBody');
+        const wrap = document.getElementById('employeeTableWrapper');
+        if (!tbody) return;
+        wrap?.setAttribute('aria-busy', on ? 'true' : 'false');
+        if (!on) { tbody.classList.remove('opacity-50'); return; }
+        if (tbody.querySelector('tr.employee-row')) {
+            tbody.classList.add('opacity-50');
+        } else {
+            tbody.innerHTML = Array.from({ length: 8 }, (_, i) => `
+                <tr aria-hidden="true"><td colspan="12" class="px-4 py-3.5"><div class="h-4 rounded bg-gray-100 animate-pulse" style="width:${[92, 84, 96, 78, 88, 72, 94, 80][i]}%"></div></td></tr>`).join('');
+        }
+    }
+
     async function fetchEmployees(filters = {}, page = currentPage) {
+        const mySeq = ++_empRequestSeq;
+        setEmployeeLoading(true);
         try {
             const params = new URLSearchParams({ ...filters, page, per_page: perPage });
             const response = await fetch(`/api/employees?${params}`, {
@@ -721,6 +755,7 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
             });
 
             const data = await response.json();
+            if (mySeq !== _empRequestSeq) return;   // ada permintaan yang lebih baru (mis. masih mengetik): abaikan balasan lama
 
             if (data.success) {
                 // Jika halaman saat ini melampaui jumlah halaman hasil (mis. setelah
@@ -740,7 +775,16 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                 showNotification(data.message || 'Failed to fetch employees', 'error');
             }
         } catch (error) {
-            showNotification('An error occurred while fetching employees', 'error');
+            if (mySeq === _empRequestSeq) {
+                document.getElementById('employeeTableBody')?.querySelector('tr.employee-row') || renderTable([]);
+                showNotification('An error occurred while fetching employees', 'error');
+            }
+        } finally {
+            if (mySeq === _empRequestSeq) {
+                setEmployeeLoading(false);
+                // Gagal sebelum ada baris: jangan biarkan baris kerangka tertinggal selamanya
+                if (document.querySelector('#employeeTableBody tr[aria-hidden="true"]')) renderTable([]);
+            }
         }
     }
 
@@ -844,6 +888,37 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
     function toggleResetFilters() {
         const any = Object.values(getCurrentFilters()).some(v => v !== '');
         document.getElementById('employeeResetFilters')?.classList.toggle('hidden', !any);
+        syncEmployeeSearchBox();
+    }
+
+    // Kotak pencarian di atas tabel = filter "employee" (sama dengan pencarian di header Full Name).
+    function syncEmployeeSearchBox() {
+        const box = document.getElementById('employeeSearchBox');
+        if (!box) return;
+        const value = window.EMP_F ? window.EMP_F.employee : '';
+        if (document.activeElement !== box && box.value !== value) box.value = value;
+        document.getElementById('employeeSearchClear')?.classList.toggle('hidden', !box.value);
+    }
+
+    function initEmployeeSearch() {
+        const box = document.getElementById('employeeSearchBox'), clear = document.getElementById('employeeSearchClear');
+        if (!box) return;
+        box.addEventListener('input', () => {
+            clear?.classList.toggle('hidden', !box.value);
+            ehfSearch('employee', box.value, 350);
+        });
+        box.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); ehfSearch('employee', box.value, 0); }
+            if (e.key === 'Escape' && box.value) { e.stopPropagation(); box.value = ''; clear?.classList.add('hidden'); ehfSearch('employee', '', 0); }
+        });
+        clear?.addEventListener('click', () => { box.value = ''; clear.classList.add('hidden'); ehfSearch('employee', '', 0); box.focus(); });
+        // Pintasan "/" memfokuskan pencarian (kecuali sedang mengetik di kolom lain).
+        document.addEventListener('keydown', e => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target, typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+            if (typing) return;
+            e.preventDefault(); box.focus(); box.select();
+        });
     }
 
     function goToPage(page) {
@@ -889,8 +964,11 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-16 h-16 mx-auto mb-4 text-gray-300">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                         </svg>
-                        <p class="text-base font-medium text-gray-900 mb-2">No employees found</p>
-                        <small class="text-sm text-gray-500">Click "Create Employee" to add a new employee</small>
+                        ${Object.values(getCurrentFilters()).some(v => v !== '')
+                            ? `<p class="text-base font-medium text-gray-900 mb-2">No employees match your search</p>
+                               <small class="text-sm text-gray-500">Check the spelling, try fewer words, or <a href="#" onclick="resetFilters(); return false;" class="underline font-semibold">reset the filters</a>.</small>`
+                            : `<p class="text-base font-medium text-gray-900 mb-2">No employees found</p>
+                               <small class="text-sm text-gray-500">Click "Create Employee" to add a new employee</small>`}
                     </td>
                 </tr>
             `;
@@ -1714,11 +1792,15 @@ const canEmployeeAction = {{ $can('master.employee.action') ? 'true' : 'false' }
         }
 
         if (typeof initCustomDropdowns === 'function') initCustomDropdowns();   // dropdowns in the create/edit modal
-        await loadModuleFilterOptions();
+        initEmployeeSearch();
+
+        // Dulu: menunggu /api/modules selesai BARU meminta daftar karyawan (dua perjalanan berurutan). Kini keduanya berangkat bersamaan;
+        // filter yang dipulihkan sudah ada di EMP_F, jadi daftar tidak bergantung pada opsi Module. Centang Module disinkronkan sesudahnya.
+        const modulesReady = loadModuleFilterOptions();
         ehfSyncAll();
         toggleResetFilters();
-
         fetchEmployees(getCurrentFilters(), currentPage);
+        modulesReady.then(() => ehfSyncAll());
 
         // Dari External → Consultants → Add Consultant (?create=external): buka formulir dengan Employee Group = EXTERNAL.
         if (new URLSearchParams(location.search).get('create') === 'external' && typeof openCreateModal === 'function') {

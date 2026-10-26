@@ -280,6 +280,7 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('modules')->group(function () {
         Route::get('/', [ModuleController::class, 'index']);
         Route::post('/', [ModuleController::class, 'store']);
+        Route::get('/overview', [ModuleController::class, 'overview']);   // lead + member semua module sekaligus (didaftarkan SEBELUM /{id})
         Route::get('/{id}', [ModuleController::class, 'show']);
         Route::get('/{id}/members', [ModuleController::class, 'members']);
         Route::put('/{id}', [ModuleController::class, 'update']);

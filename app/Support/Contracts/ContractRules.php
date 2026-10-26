@@ -332,12 +332,14 @@ class ContractRules
             $met = !empty($ok[$item['key']]);
             $row = $item + ['ok' => $met];
             $rows[] = $row;
-            if (!$met) {
+            // Butir opsional (`optional => true`) tampil, tetapi tidak menghalangi dan tidak dihitung.
+            if (!$met && empty($item['optional'])) {
                 $missing[] = $row;
             }
         }
-        $total = count($rows);
-        $done = $total - count($missing);
+        $required = array_values(array_filter($rows, fn ($r) => empty($r['optional'])));
+        $total = count($required);
+        $done = count(array_filter($required, fn ($r) => $r['ok']));
 
         return [
             'items'   => $rows,

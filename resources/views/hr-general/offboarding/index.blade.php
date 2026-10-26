@@ -67,7 +67,7 @@
             <button type="button" onclick="closeOffModal()" class="text-gray-400 hover:text-gray-600" aria-label="Close"><i class="fas fa-times"></i></button></div>
         <div class="px-5 py-4 space-y-3 overflow-y-auto">
             <div><label class="{{ $label }}" for="oEmployee">Employee or consultant</label>
-                <select id="oEmployee" name="employee_id" required class="{{ $input }}"><option value="">Select a person</option>
+                <select id="oEmployee" name="employee_id" required data-searchable="true" data-search-placeholder="Search name or employee ID…" class="{{ $input }}"><option value="">Select a person</option>
                     @foreach($employees as $e)<option value="{{ $e['id'] }}" data-kind="{{ $e['kind'] }}" @selected((string) old('employee_id') === (string) $e['id'])>{{ $e['eci'] }} — {{ $e['name'] }} · {{ $e['kind'] }}</option>@endforeach</select></div>
             <div><label class="{{ $label }}" for="oType">Offboarding type</label><select id="oType" name="offboarding_type" required class="{{ $input }}"><option value="">Select a person first</option></select></div>
             <div id="oReasonWrap" class="hidden"><label class="{{ $label }}" for="oReason">Reason for the termination</label>

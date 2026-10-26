@@ -106,8 +106,8 @@ class AppServiceProvider extends ServiceProvider
             ['master.employee.index', 'master.employee.sections.basicdata'],
             function ($view) {
                 // Guard: hindari error bila tabel belum ada (mis. saat migrate awal).
-                $positionOptions   = Schema::hasTable('positions') ? Position::options() : [];
-                $departmentOptions = Schema::hasTable('departments') ? Department::options() : [];
+                $positionOptions   = \App\Support\SchemaCache::hasTable('positions') ? Position::options() : [];
+                $departmentOptions = \App\Support\SchemaCache::hasTable('departments') ? Department::options() : [];
 
                 $view->with('homeBaseOptions', HomeBase::options())
                      ->with('positionOptions', $positionOptions)
@@ -125,7 +125,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer(
             'master.employee.sections.basicdata',
             function ($view) {
-                $supervisorOptions = Schema::hasTable('employee')
+                $supervisorOptions = \App\Support\SchemaCache::hasTable('employee')
                     ? \App\Models\Employee::with('basicData:employee_id,first_name,last_name')
                         ->where('is_active', true)
                         ->get(['employee_id', 'eci'])
@@ -148,7 +148,7 @@ class AppServiceProvider extends ServiceProvider
         View::composer(
             'master.employee.sections.qualification',
             function ($view) {
-                $levelOptions = Schema::hasTable('grades') ? Grade::levelOptions() : [];
+                $levelOptions = \App\Support\SchemaCache::hasTable('grades') ? Grade::levelOptions() : [];
                 $view->with('qualificationLevelOptions', $levelOptions);
             }
         );

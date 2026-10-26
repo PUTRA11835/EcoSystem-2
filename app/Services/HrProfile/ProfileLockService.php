@@ -27,7 +27,7 @@ class ProfileLockService
     public function isLocked(int $employeeId): bool
     {
         try {
-            if ($employeeId <= 0 || !Schema::hasTable('employee_hr_profile')) {
+            if ($employeeId <= 0 || !\App\Support\SchemaCache::hasTable('employee_hr_profile')) {
                 return false;
             }
 

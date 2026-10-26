@@ -66,16 +66,27 @@ class EmployeeController extends Controller
      */
     private function listSummary(): array
     {
-        $base = fn () => DB::table('employee as e')->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
-            ->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'));
+        $hasProfile = \App\Support\SchemaCache::hasTable('employee_hr_profile');
+        $locked = $hasProfile
+            ? "SUM(CASE WHEN EXISTS (SELECT 1 FROM employee_hr_profile hp WHERE hp.employee_id = e.employee_id AND hp.locked_at IS NOT NULL) THEN 1 ELSE 0 END)"
+            : '0';
+
+        // Satu kueri berkondisi (dulu 5 kueri hitung terpisah dengan join yang sama). Semantik tiap angka sama dengan sebelumnya.
+        $row = DB::table('employee as e')->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'))
+            ->selectRaw("COUNT(*) AS total,
+                SUM(CASE WHEN eb.block = 0 AND eb.deletion_flag = 0 THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN eb.block = 1 THEN 1 ELSE 0 END) AS blocked,
+                SUM(CASE WHEN eb.employee_group = 'INTERNSHIP' THEN 1 ELSE 0 END) AS internship,
+                {$locked} AS locked")
+            ->first();
 
         return [
-            'total'      => $base()->count(),
-            'active'     => $base()->where('eb.block', false)->where('eb.deletion_flag', false)->count(),
-            'blocked'    => $base()->where('eb.block', true)->count(),
-            'internship' => $base()->where('eb.employee_group', 'INTERNSHIP')->count(),
-            'locked'     => Schema::hasTable('employee_hr_profile')
-                ? $base()->whereExists(fn ($q) => $q->selectRaw('1')->from('employee_hr_profile as hp')->whereColumn('hp.employee_id', 'e.employee_id')->whereNotNull('hp.locked_at'))->count() : 0,
+            'total'      => (int) ($row->total ?? 0),
+            'active'     => (int) ($row->active ?? 0),
+            'blocked'    => (int) ($row->blocked ?? 0),
+            'internship' => (int) ($row->internship ?? 0),
+            'locked'     => (int) ($row->locked ?? 0),
         ];
     }
 
@@ -291,7 +302,7 @@ class EmployeeController extends Controller
 
             // Profil terkunci oleh HR (Onboarding › Verify & Lock). Subquery, bukan join, supaya tidak menggandakan
             // baris; tabel belum ada (rilis sebelum migrasi) → kolom diabaikan.
-            if (Schema::hasTable('employee_hr_profile')) {
+            if (\App\Support\SchemaCache::hasTable('employee_hr_profile')) {
                 $query->selectSub(
                     DB::table('employee_hr_profile as hp')->select('hp.locked_at')->whereColumn('hp.employee_id', 'e.employee_id')->limit(1),
                     'profile_locked_at'
@@ -552,7 +563,7 @@ class EmployeeController extends Controller
         }
 
         // Filter by profile lock state (Onboarding › Verify & Lock): 'locked' | 'unlocked'.
-        if (in_array($request->input('lock'), ['locked', 'unlocked'], true) && Schema::hasTable('employee_hr_profile')) {
+        if (in_array($request->input('lock'), ['locked', 'unlocked'], true) && \App\Support\SchemaCache::hasTable('employee_hr_profile')) {
             $locked = DB::table('employee_hr_profile as hpf')->selectRaw('1')
                 ->whereColumn('hpf.employee_id', 'e.employee_id')->whereNotNull('hpf.locked_at');
             $request->input('lock') === 'locked' ? $query->whereExists($locked) : $query->whereNotExists($locked);

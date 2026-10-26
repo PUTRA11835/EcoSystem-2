@@ -62,11 +62,18 @@ return [
     'pkwt_max_months' => 60,
 
     /**
-     * Syarat minimum sebelum kontrak dibuat. `check` dipahami ContractService::readinessFacts():
+     * Syarat minimum sebelum kontrak dibuat. `check` dipahami ContractService::readiness():
      *   identification:<TIPE> · address:<kolom> · hr:<kolom> · bank:<kolom> · attachment:<kata kunci>
+     * `attachment` boleh memuat beberapa kata kunci dipisah "|" (mis. KK|Kartu Keluarga): dokumen dikenali dari jenis, judul, atau nama
+     * berkasnya. `optional => true` = tampil di kartu tetapi TIDAK menghalangi dan tidak dihitung dalam persen.
+     * `for => 'internal'` = hanya berlaku bagi karyawan INTERNAL (kontrak External memakai ContractService yang sama dan tidak ikut disyaratkan).
+     * Revisi UAT 26 Okt 2026: + NPWP, BPJS Kesehatan, BPJS Ketenagakerjaan, dokumen CV dan Ijazah; kartu NPWP opsional.
      */
     'readiness' => [
         ['key' => 'nik',            'label' => 'NIK',                     'check' => 'identification:KTP',          'section' => 'identification'],
+        ['key' => 'npwp',           'label' => 'NPWP number',             'check' => 'identification:NPWP',         'section' => 'identification', 'for' => 'internal'],
+        ['key' => 'bpjs_kes',       'label' => 'BPJS Kesehatan number',   'check' => 'identification:BPJS_KESEHATAN',        'section' => 'identification', 'for' => 'internal'],
+        ['key' => 'bpjs_tk',        'label' => 'BPJS Ketenagakerjaan number', 'check' => 'identification:BPJS_KETENAGAKERJAAN', 'section' => 'identification', 'for' => 'internal'],
         ['key' => 'cell_phone',     'label' => 'Mobile number',           'check' => 'address:cell_phone',          'section' => 'address'],
         ['key' => 'email_personal', 'label' => 'Personal email',          'check' => 'address:email_personal',      'section' => 'address'],
         ['key' => 'street',         'label' => 'Domicile address',        'check' => 'address:street',              'section' => 'address'],
@@ -78,6 +85,9 @@ return [
         ['key' => 'bank_account',   'label' => 'Account number',          'check' => 'bank:account_number',         'section' => 'bank'],
         ['key' => 'bank_holder',    'label' => 'Account holder name',     'check' => 'bank:account_holder',         'section' => 'bank'],
         ['key' => 'doc_ktp',        'label' => 'KTP document',            'check' => 'attachment:KTP',              'section' => 'attachment'],
-        ['key' => 'doc_kk',         'label' => 'KK document',             'check' => 'attachment:KK',               'section' => 'attachment'],
+        ['key' => 'doc_kk',         'label' => 'Kartu Keluarga (KK) document', 'check' => 'attachment:KK|Kartu Keluarga', 'section' => 'attachment'],
+        ['key' => 'doc_cv',         'label' => 'Curriculum Vitae (CV) document', 'check' => 'attachment:CV|Curriculum Vitae|Resume', 'section' => 'attachment', 'for' => 'internal'],
+        ['key' => 'doc_ijazah',     'label' => 'Ijazah (diploma) document', 'check' => 'attachment:Ijazah|Diploma',  'section' => 'attachment', 'for' => 'internal'],
+        ['key' => 'doc_npwp',       'label' => 'NPWP card document (optional)', 'check' => 'attachment:NPWP',        'section' => 'attachment', 'optional' => true, 'for' => 'internal'],
     ],
 ];

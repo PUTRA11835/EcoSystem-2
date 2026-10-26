@@ -350,6 +350,33 @@ class ContractRulesTest extends TestCase
         $this->assertSame(100, R::readiness([], [])['percent'], 'tanpa syarat = siap');
     }
 
+    public function test_optional_readiness_items_never_block_and_are_not_counted(): void
+    {
+        $items = [['key' => 'a', 'label' => 'A'], ['key' => 'card', 'label' => 'Card', 'optional' => true]];
+
+        $r = R::readiness($items, ['a' => true]);
+        $this->assertTrue($r['ready'], 'butir opsional yang kosong tidak menghalangi');
+        $this->assertSame(100, $r['percent']);
+        $this->assertSame(1, $r['total'], 'butir opsional tidak dihitung');
+        $this->assertSame([], $r['missing']);
+        $this->assertCount(2, $r['items'], 'tetapi tetap tampil di kartu');
+
+        $r = R::readiness($items, ['card' => true]);
+        $this->assertFalse($r['ready'], 'butir wajib yang kosong tetap menghalangi walau yang opsional terisi');
+        $this->assertSame(0, $r['percent']);
+    }
+
+    public function test_readiness_config_covers_the_hr_revision(): void
+    {
+        $cfg = require __DIR__ . '/../../../config/hc_contract.php';
+        $byKey = collect($cfg['readiness'])->keyBy('key');
+        foreach (['npwp', 'bpjs_kes', 'bpjs_tk', 'doc_ktp', 'doc_kk', 'doc_cv', 'doc_ijazah'] as $key) {
+            $this->assertTrue($byKey->has($key), "{$key} wajib ada");
+            $this->assertEmpty($byKey[$key]['optional'] ?? null, "{$key} wajib (bukan opsional)");
+        }
+        $this->assertTrue($byKey['doc_npwp']['optional'] ?? false, 'kartu NPWP opsional');
+    }
+
     public function test_every_readiness_item_has_a_checkable_rule(): void
     {
         $cfg = require __DIR__ . '/../../../config/hc_contract.php';
