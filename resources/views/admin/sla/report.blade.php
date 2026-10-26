@@ -933,7 +933,8 @@ function renderTable(tickets) {
                 </span>
             </td>
             <td class="px-2 py-2 text-center bg-green-50/20">
-                <span class="text-[10px] font-semibold ${resAchieveColor}">${t.resolution?.time_status || '—'}</span>
+                <span class="text-[10px] font-semibold ${resAchieveColor}${t.resolution?.time_status_reason ? ' cursor-help underline decoration-dotted' : ''}"
+                    ${t.resolution?.time_status_reason ? `title="${t.resolution.time_status_reason.replace(/"/g, '&quot;')}"` : ''}>${t.resolution?.time_status || '—'}</span>
             </td>
             <td class="px-2 py-2 bg-green-50/20 text-[10px] text-gray-600">${fmtDT(t.closed_at)}</td>
             <td class="px-2 py-2 text-center bg-green-50/20 border-r border-gray-200">${notesCell}</td>

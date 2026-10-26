@@ -1129,7 +1129,7 @@ class SlaController extends Controller
         // "SLA Resolution Status" (Achieved/Not Achieved) — Ticket Type = Change Request is exempt
         // (change requests aren't held to the resolution SLA), and it's only meaningful once
         // the ticket is actually Closed (Resolution Duration (STOP-GO) is a final figure).
-        $resolutionTimeStatus = $this->slaResolutionAchievement(
+        [$resolutionTimeStatus, $resolutionTimeStatusReason] = $this->slaResolutionAchievement(
             $t?->ticket_type,
             $t?->status,
             $resolutionActualHours,
@@ -1180,6 +1180,7 @@ class SlaController extends Controller
                 'resolved_at'   => ($firstResolvedAt ?? $this->sla->firstResolvedAt($s))?->toDateTimeString(),
                 'doc_sent_at'   => ($docSentAt ?? $this->sla->resolutionDocSentAt($s))?->toDateTimeString(),
                 'time_status'   => $resolutionTimeStatus,
+                'time_status_reason' => $resolutionTimeStatusReason,
                 'met'           => in_array($resolutionStatus, ['met', 'pending_validation']),
             ],
             'waiting_hours'          => $this->sla->liveTotalWaitingHours($s, $pauses),
@@ -1200,26 +1201,36 @@ class SlaController extends Controller
      *     to the resolution SLA) → N/A. Type of Service (delivery support type) is not used.
      *   - Only meaningful once the ticket is actually Closed — Resolution Duration
      *     (STOP-GO) is a final, stop-go figure that isn't settled before then → N/A.
+     *
+     * Returns [status, reason] — reason explains an N/A (shown as a tooltip), null otherwise.
      */
     private function slaResolutionAchievement(
         ?string $ticketType,
         ?string $ticketStatus,
         ?float $actualHours,
         ?float $targetHours
-    ): string {
+    ): array {
         if ($ticketType === 'Change Request') {
-            return 'N/A';
+            return ['N/A', 'Ticket Type = Change Request tidak dinilai SLA resolution.'];
+        }
+
+        if ($ticketStatus === 'cancelled') {
+            return ['N/A', 'Tiket cancelled — hanya tiket closed yang dinilai.'];
         }
 
         if ($ticketStatus !== 'closed') {
-            return 'N/A';
+            return ['N/A', 'Tiket belum closed — status dinilai setelah tiket closed.'];
         }
 
-        if ($actualHours === null || $targetHours === null) {
-            return 'N/A';
+        if ($targetHours === null) {
+            return ['N/A', 'Tiket tidak punya SLA Policy (target resolution kosong). Buat policy untuk delivery support + priority tiket ini di SLA Configuration.'];
         }
 
-        return $actualHours <= $targetHours ? 'Achieved' : 'Not Achieved';
+        if ($actualHours === null) {
+            return ['N/A', 'Resolution Duration (STOP-GO) tidak bisa dihitung (waktu mulai SLA kosong).'];
+        }
+
+        return [$actualHours <= $targetHours ? 'Achieved' : 'Not Achieved', null];
     }
 
     /**
