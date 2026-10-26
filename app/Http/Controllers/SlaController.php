@@ -90,7 +90,7 @@ class SlaController extends Controller
 
         $policies = $query->orderBy('delivery_support_id')
             ->orderByRaw("FIELD(priority, 'Very High', 'High', 'Medium', 'Low')")
-            ->orderByRaw("FIELD(scale, 'Simple', 'Medium', 'Complex')")
+            ->orderByDesc('is_active')
             ->get()
             ->map(fn ($p) => $this->formatPolicy($p));
 
@@ -106,7 +106,6 @@ class SlaController extends Controller
         $v = Validator::make($request->all(), [
             'delivery_support_id' => 'required|exists:delivery_support,id',
             'priority'            => 'required|in:Low,Medium,High,Very High',
-            'scale'               => 'required|in:Simple,Medium,Complex',
             'response_hours'      => 'required|numeric|min:0.01|max:999',
             'resolution_hours'    => 'required|numeric|min:0.1|max:999',
             'is_24_hours'         => 'boolean',
@@ -121,22 +120,29 @@ class SlaController extends Controller
         }
 
         $deliverySupportId = (int) $request->delivery_support_id;
-        $exists = SlaPolicy::where('delivery_support_id', $deliverySupportId)
-            ->where('priority', $request->priority)
-            ->where('scale', $request->scale)
-            ->exists();
+        $samePair = SlaPolicy::where('delivery_support_id', $deliverySupportId)
+            ->where('priority', $request->priority);
 
-        if ($exists) {
+        if ((clone $samePair)->where('is_active', true)->exists()) {
             return response()->json([
                 'success' => false,
-                'message' => 'A policy for this delivery support / priority / scale combination already exists.',
+                'message' => 'An active policy for this delivery support / priority combination already exists.',
+            ], 422);
+        }
+
+        // Unique index DB masih (delivery_support_id, priority, scale) dan policy baru selalu
+        // pakai DEFAULT_SCALE, jadi policy nonaktif dengan scale itu harus diaktifkan, bukan dibuat ulang.
+        if ((clone $samePair)->where('scale', SlaPolicy::DEFAULT_SCALE)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'An inactive policy for this delivery support / priority combination already exists. Edit and activate it instead.',
             ], 422);
         }
 
         $policy = SlaPolicy::create([
             'delivery_support_id' => $deliverySupportId,
             'priority'            => $request->priority,
-            'scale'               => $request->scale,
+            'scale'               => SlaPolicy::DEFAULT_SCALE,
             'response_hours'      => $request->response_hours,
             'resolution_hours'    => $request->resolution_hours,
             'is_24_hours'         => $request->priority === 'Very High' ? true : $request->boolean('is_24_hours', false),
@@ -175,7 +181,24 @@ class SlaController extends Controller
             return response()->json(['success' => false, 'errors' => $v->errors()], 422);
         }
 
-        $policy  = SlaPolicy::findOrFail($id);
+        $policy = SlaPolicy::findOrFail($id);
+
+        // Hanya boleh satu policy aktif per delivery support + priority.
+        if (!$policy->is_active && $request->boolean('is_active')) {
+            $otherActive = SlaPolicy::where('delivery_support_id', $policy->delivery_support_id)
+                ->where('priority', $policy->priority)
+                ->where('is_active', true)
+                ->where('id', '!=', $policy->id)
+                ->exists();
+
+            if ($otherActive) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Another active policy for this delivery support / priority combination already exists. Deactivate it first.',
+                ], 422);
+            }
+        }
+
         $updates = $request->only([
             'response_hours', 'resolution_hours', 'is_24_hours',
             'work_start_time', 'work_end_time',

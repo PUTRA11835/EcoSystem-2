@@ -2,7 +2,7 @@
 
 @section('title', 'SLA Configuration')
 @section('page-title', 'SLA Configuration')
-@section('page-subtitle', 'Manage Service Level Agreement policies per customer, priority and scale')
+@section('page-subtitle', 'Manage Service Level Agreement policies per delivery support and priority')
 
 @section('content')
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -105,21 +105,6 @@
                                 </div>
                             </div>
                         </th>
-                        {{-- Scale column filter --}}
-                        <th class="text-left px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                            <div class="cfg-cf-wrap relative inline-flex items-center gap-1.5">
-                                <span>Scale</span>
-                                <button type="button" class="cfg-cf-btn w-5 h-5 rounded flex items-center justify-center hover:bg-gray-200 transition" data-col="scale">
-                                    <i class="fas fa-filter text-[9px] cfg-cf-icon text-gray-300" data-col="scale"></i>
-                                </button>
-                                <div id="cfgPanel-scale" class="cfg-cf-panel hidden absolute top-full left-0 mt-1 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 p-3" style="min-width:160px">
-                                    <input type="text" id="cfgSearch-scale" placeholder="Search…" oninput="cfgFilterOpts('scale', this.value)"
-                                        class="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-200 mb-2">
-                                    <div id="cfgOptions-scale" class="space-y-0.5 max-h-[180px] overflow-y-auto"></div>
-                                    <button type="button" onclick="cfgClearFilter('scale')" class="mt-2 text-[10px] text-gray-400 hover:text-red-500 transition">Clear</button>
-                                </div>
-                            </div>
-                        </th>
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response</th>
                         <th class="text-center px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution</th>
                         {{-- Mode column filter --}}
@@ -155,7 +140,7 @@
                 </thead>
                 <tbody id="policyTableBody">
                     <tr>
-                        <td colspan="{{ $canManage ? 9 : 8 }}" class="py-16 text-center">
+                        <td colspan="{{ $canManage ? 8 : 7 }}" class="py-16 text-center">
                             <div class="flex flex-col items-center gap-2 text-gray-300">
                                 <i class="fas fa-spinner fa-spin text-3xl"></i>
                                 <p class="text-sm">Loading policies...</p>
@@ -214,26 +199,15 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
-                        <select name="priority" id="addPriority" required onchange="updatePreview()"
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                            <option value="Very High">1: Very High</option>
-                            <option value="High">2: High</option>
-                            <option value="Medium" selected>3: Medium</option>
-                            <option value="Low">4: Low</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
-                        <select name="scale" id="addScale" required onchange="updatePreview()"
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                            <option value="Simple" selected>Simple</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Complex">Complex</option>
-                        </select>
-                    </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
+                    <select name="priority" id="addPriority" required onchange="updatePreview()"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                        <option value="Very High">1: Very High</option>
+                        <option value="High">2: High</option>
+                        <option value="Medium" selected>3: Medium</option>
+                        <option value="Low">4: Low</option>
+                    </select>
                 </div>
 
                 <div>
@@ -476,7 +450,7 @@ document.querySelectorAll('.ds-opt').forEach(btn => {
 // ── SLA config ────────────────────────────────────────────────────────────────
 
 const CAN_MANAGE = {{ $canManage ? 'true' : 'false' }};
-const COL_COUNT  = CAN_MANAGE ? 9 : 8;
+const COL_COUNT  = CAN_MANAGE ? 8 : 7;
 
 const PRIO_NUM   = { 'Very High': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
 const PRIO_LABEL = { 'Very High': '1: Very High', 'High': '2: High', 'Medium': '3: Medium', 'Low': '4: Low' };
@@ -487,16 +461,15 @@ const PRIO_CFG   = {
     'Low':       { bg: 'bg-blue-50',   text: 'text-blue-700',   dot: 'bg-blue-400'   },
 };
 
-function makeLabel(dsName, priority, scale) {
+function makeLabel(dsName, priority) {
     const short = dsName ? dsName.toUpperCase().replace(/\s+/g,'').substring(0,10) : '—';
-    return `${short}${PRIO_NUM[priority] || '?'}: ${priority} / ${scale}`;
+    return `${short}${PRIO_NUM[priority] || '?'}: ${priority}`;
 }
 
 // ── Preview (Add modal) ───────────────────────────────────────────────────────
 function updatePreview() {
     const dsName = _dsSelected.name || null;
     const priority = document.getElementById('addPriority').value;
-    const scale    = document.getElementById('addScale').value;
     const is24hEl  = document.getElementById('add24h');
     const labelEl  = document.getElementById('add24hLabel');
     const noteEl   = document.getElementById('add24hNote');
@@ -513,7 +486,7 @@ function updatePreview() {
         labelEl.classList.add('cursor-pointer', 'hover:bg-gray-100');
         noteEl.textContent = 'Count all hours; otherwise business hours only (per the window below)';
     }
-    document.getElementById('labelPreview').textContent = makeLabel(dsName, priority, scale);
+    document.getElementById('labelPreview').textContent = makeLabel(dsName, priority);
 }
 
 function validateAddWindow() {
@@ -528,7 +501,7 @@ function validateAddWindow() {
 }
 
 // ── Column filter system (config page) ───────────────────────────────────────
-const CFG_CF = { priority: '', scale: '', mode: '', cfgstatus: '' };
+const CFG_CF = { priority: '', mode: '', cfgstatus: '' };
 
 const CFG_CF_OPTIONS = {
     priority:  [
@@ -536,11 +509,6 @@ const CFG_CF_OPTIONS = {
         { val: 'High',      label: '2: High'      },
         { val: 'Medium',    label: '3: Medium'    },
         { val: 'Low',       label: '4: Low'       },
-    ],
-    scale:     [
-        { val: 'Simple',  label: 'Simple'  },
-        { val: 'Medium',  label: 'Medium'  },
-        { val: 'Complex', label: 'Complex' },
     ],
     mode:      [
         { val: '24h',      label: '∞ 24/7'          },
@@ -625,7 +593,7 @@ document.addEventListener('click', function(e) {
     }
 }, true);
 
-['priority','scale','mode','cfgstatus'].forEach(col => cfgBuildOpts(col));
+['priority','mode','cfgstatus'].forEach(col => cfgBuildOpts(col));
 
 // ── Load & Render ─────────────────────────────────────────────────────────────
 let _allPolicies = [];
@@ -658,7 +626,6 @@ async function loadPolicies() {
 function applyFilters() {
     const filtered = _allPolicies.filter(p => {
         if (CFG_CF.priority  && p.priority !== CFG_CF.priority) return false;
-        if (CFG_CF.scale     && p.scale    !== CFG_CF.scale)    return false;
         if (CFG_CF.cfgstatus === 'active'   && !p.is_active)    return false;
         if (CFG_CF.cfgstatus === 'inactive' &&  p.is_active)    return false;
         if (CFG_CF.mode === '24h'      && !p.is_24_hours)       return false;
@@ -702,7 +669,7 @@ function renderPolicies(policies) {
         }
 
         const prioConf = PRIO_CFG[p.priority] || { bg:'bg-gray-100', text:'text-gray-600', dot:'bg-gray-400' };
-        const label    = makeLabel(p.delivery_support_name, p.priority, p.scale);
+        const label    = makeLabel(p.delivery_support_name, p.priority);
 
         const dsCell = p.delivery_support_name
             ? `<div class="flex items-center gap-2">
@@ -747,9 +714,6 @@ function renderPolicies(policies) {
                 <span class="inline-flex items-center gap-1.5 text-xs font-semibold ${prioConf.text} ${prioConf.bg} px-2.5 py-1 rounded-full whitespace-nowrap">
                     <span class="w-1.5 h-1.5 rounded-full ${prioConf.dot}"></span>${PRIO_LABEL[p.priority] || p.priority}
                 </span>
-            </td>
-            <td class="px-4 py-3">
-                <span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">${p.scale}</span>
             </td>
             <td class="px-4 py-3 text-center">
                 <div class="leading-tight">
@@ -798,7 +762,7 @@ function openEditModal(p) {
     document.getElementById('editWorkEnd').setCustomValidity('');
     document.getElementById('editBreakEnd').setCustomValidity('');
     document.getElementById('editIsActive').checked      = p.is_active;
-    document.getElementById('editPolicyLabel').textContent = makeLabel(p.delivery_support_name, p.priority, p.scale);
+    document.getElementById('editPolicyLabel').textContent = makeLabel(p.delivery_support_name, p.priority);
 
     _editPriority = p.priority;
     document.getElementById('edit24h').checked = p.is_24_hours;
@@ -891,7 +855,6 @@ async function submitAddPolicy(e) {
             body: JSON.stringify({
                 delivery_support_id: parseInt(dsId),
                 priority:            form.priority.value,
-                scale:               form.scale.value,
                 response_hours:      respGetHours('addResponseHours', 'addResponseUnit'),
                 resolution_hours:    parseFloat(form.resolution_hours.value),
                 is_24_hours:         form.is_24_hours.checked,

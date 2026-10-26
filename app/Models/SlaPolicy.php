@@ -8,6 +8,10 @@ class SlaPolicy extends Model
 {
     protected $table = 'sla_policies';
 
+    // Scale tidak lagi dipakai untuk pencocokan policy (cukup delivery support + priority).
+    // Kolom scale tetap ada (enum NOT NULL), jadi policy baru diisi nilai ini.
+    public const DEFAULT_SCALE = 'Medium';
+
     protected $fillable = [
         'delivery_support_id',
         'priority',
@@ -52,12 +56,11 @@ class SlaPolicy extends Model
     }
 
     /**
-     * Cari policy yang cocok untuk delivery support + priority + scale tertentu.
+     * Cari policy aktif yang cocok untuk delivery support + priority tertentu.
      */
-    public static function findFor(?int $deliverySupportId, string $priority, string $scale): ?self
+    public static function findFor(?int $deliverySupportId, string $priority): ?self
     {
         return self::where('priority', $priority)
-            ->where('scale', $scale)
             ->where('is_active', true)
             ->where('delivery_support_id', $deliverySupportId)
             ->first();

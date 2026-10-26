@@ -3030,9 +3030,9 @@ class TicketController extends Controller
                     $ticket->syncDraftResolutionMembers();
                 }
 
-                // Priority/scale/type menentukan SLA policy — tanpa ini ticket_slas tetap
-                // menunjuk policy lama (mis. target 24 jam padahal sekarang Medium/Medium = 48).
-                if ($ticket->wasChanged(['ticket_priority', 'scale', 'ticket_type'])) {
+                // Priority/type menentukan SLA policy — tanpa ini ticket_slas tetap
+                // menunjuk policy lama (mis. target 24 jam padahal sekarang Medium = 48).
+                if ($ticket->wasChanged(['ticket_priority', 'ticket_type'])) {
                     app(\App\Services\SlaService::class)->syncPolicy($ticket, null, null, true);
                 }
 

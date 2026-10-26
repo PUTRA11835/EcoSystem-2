@@ -683,7 +683,6 @@
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-200">
                             <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Priority</th>
-                            <th class="text-left px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Scale</th>
                             <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Response (h)</th>
                             <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Resolution (h)</th>
                             <th class="text-center px-4 py-2.5 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Mode</th>
@@ -695,7 +694,7 @@
                     </thead>
                     <tbody id="slaPolicyTableBody">
                         <tr>
-                            <td colspan="{{ ($canManage && $can('delivery-support.sla.manage')) ? 7 : 6 }}" class="py-10 text-center">
+                            <td colspan="{{ ($canManage && $can('delivery-support.sla.manage')) ? 6 : 5 }}" class="py-10 text-center">
                                 <div class="flex flex-col items-center gap-2 text-gray-300">
                                     <i class="fas fa-spinner fa-spin text-2xl"></i>
                                     <p class="text-xs">Loading policies...</p>
@@ -1647,7 +1646,7 @@ async function generateDeliverableFolder() {
 
 const SLA_DS_ID    = {{ $support->id }};
 const SLA_CAN_MGMT = {{ ($canManage && $can('delivery-support.sla.manage')) ? 'true' : 'false' }};
-const SLA_COL      = SLA_CAN_MGMT ? 7 : 6;
+const SLA_COL      = SLA_CAN_MGMT ? 6 : 5;
 
 const SLA_PRIO_NUM   = { 'Very High': 1, 'High': 2, 'Medium': 3, 'Low': 4 };
 const SLA_PRIO_LABEL = { 'Very High': '1: Very High', 'High': '2: High', 'Medium': '3: Medium', 'Low': '4: Low' };
@@ -1717,7 +1716,6 @@ function renderSlaPolicies(policies) {
                     <span class="w-1.5 h-1.5 rounded-full ${pc.dot}"></span>${SLA_PRIO_LABEL[p.priority] || p.priority}
                 </span>
             </td>
-            <td class="px-4 py-3"><span class="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded">${p.scale}</span></td>
             <td class="px-4 py-3 text-center"><span class="text-sm font-bold text-gray-800">${p.response_hours}</span></td>
             <td class="px-4 py-3 text-center"><span class="text-sm font-bold text-gray-800">${p.resolution_hours}</span></td>
             <td class="px-4 py-3 text-center">${modeCell}</td>
@@ -1836,7 +1834,6 @@ async function submitSlaAddPolicy(e) {
 function openSlaEditModal(p) {
     document.getElementById('slaEditId').value         = p.id;
     document.getElementById('slaEditPriority').value   = p.priority;
-    document.getElementById('slaEditScale').value      = p.scale;
     respSetHours('slaEditResponse', 'slaEditResponseUnit', p.response_hours);
     document.getElementById('slaEditResolution').value = p.resolution_hours;
     document.getElementById('slaEdit24h').checked      = p.is_24_hours;
@@ -1894,7 +1891,6 @@ async function submitSlaEditPolicy(e) {
     btn.disabled = true;
     const payload = {
         priority:         document.getElementById('slaEditPriority').value,
-        scale:            document.getElementById('slaEditScale').value,
         response_hours:   respGetHours('slaEditResponse', 'slaEditResponseUnit'),
         resolution_hours: document.getElementById('slaEditResolution').value,
         is_24_hours:      document.getElementById('slaEdit24h').checked,
@@ -1971,26 +1967,15 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
                 </button>
             </div>
             <form id="slaAddForm" onsubmit="submitSlaAddPolicy(event)" class="p-6 space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
-                        <select name="priority" id="slaAddPriority" required onchange="slaUpdateAdd24h()"
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                            <option value="Very High">1: Very High</option>
-                            <option value="High">2: High</option>
-                            <option value="Medium" selected>3: Medium</option>
-                            <option value="Low">4: Low</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale <span class="text-red-500">*</span></label>
-                        <select name="scale" id="slaAddScale" required
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
-                            <option value="Simple" selected>Simple</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Complex">Complex</option>
-                        </select>
-                    </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority <span class="text-red-500">*</span></label>
+                    <select name="priority" id="slaAddPriority" required onchange="slaUpdateAdd24h()"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-300">
+                        <option value="Very High">1: Very High</option>
+                        <option value="High">2: High</option>
+                        <option value="Medium" selected>3: Medium</option>
+                        <option value="Low">4: Low</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response <span class="text-red-500">*</span></label>
@@ -2073,26 +2058,15 @@ document.addEventListener('DOMContentLoaded', loadSlaPolicies);
             </div>
             <form id="slaEditForm" onsubmit="submitSlaEditPolicy(event)" class="p-6 space-y-4">
                 <input type="hidden" id="slaEditId">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
-                        <select id="slaEditPriority" required onchange="slaUpdateEdit24h()"
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                            <option value="Very High">1: Very High</option>
-                            <option value="High">2: High</option>
-                            <option value="Medium">3: Medium</option>
-                            <option value="Low">4: Low</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-600 mb-1.5">Scale</label>
-                        <select id="slaEditScale" required
-                            class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
-                            <option value="Simple">Simple</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Complex">Complex</option>
-                        </select>
-                    </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1.5">Priority</label>
+                    <select id="slaEditPriority" required onchange="slaUpdateEdit24h()"
+                        class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm text-gray-700 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        <option value="Very High">1: Very High</option>
+                        <option value="High">2: High</option>
+                        <option value="Medium">3: Medium</option>
+                        <option value="Low">4: Low</option>
+                    </select>
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Response</label>

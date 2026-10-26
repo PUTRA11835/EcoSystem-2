@@ -583,12 +583,11 @@ class SlaService
         }
 
         $priority          = $ticket->ticket_priority ?? 'Medium';
-        $scale             = $ticket->scale ?? 'Simple';
         $deliverySupportId = \Illuminate\Support\Facades\DB::table('delivery_support_activities')
             ->where('ticket_id', $ticket->ticket_id)
             ->value('delivery_support_id');
 
-        $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
+        $policy = SlaPolicy::findFor($deliverySupportId, $priority);
 
         $receivedAt  = $staging?->created_at ?? $ticket->created_at;
         $respondedAt = $ticket->created_at;
@@ -695,7 +694,7 @@ class SlaService
      * but whose delivery support was not yet known at validation time.
      *
      * Safe to call multiple times; skips if the SLA is already finalised (met/breached).
-     * $force = true bypasses that skip — used when the ticket's priority/scale/type is
+     * $force = true bypasses that skip — used when the ticket's priority/type is
      * edited, so the attached policy follows the ticket's current classification.
      */
     public function syncPolicy(Ticket $ticket, ?int $deliverySupportId = null, ?TicketSla $preloadedSla = null, bool $force = false): void
@@ -714,7 +713,6 @@ class SlaService
         }
 
         $priority = $ticket->ticket_priority ?? 'Medium';
-        $scale    = $ticket->scale ?? 'Simple';
 
         // Use explicitly provided ID, fallback to lookup from delivery_support_activities
         if ($deliverySupportId === null) {
@@ -723,7 +721,7 @@ class SlaService
                 ->value('delivery_support_id');
         }
 
-        $policy = SlaPolicy::findFor($deliverySupportId, $priority, $scale);
+        $policy = SlaPolicy::findFor($deliverySupportId, $priority);
 
         if (!$policy) {
             Log::info('SlaService@syncPolicy: still no matching policy after delivery support assignment', [
