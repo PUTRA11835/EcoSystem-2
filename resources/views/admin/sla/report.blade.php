@@ -180,6 +180,36 @@
                         </div>
                     </div>
 
+                    {{-- SLA Response Time (Achieved / Not Achieved) --}}
+                    <div class="custom-dd relative" data-onchange="applyReportFilters" data-fixed="true" style="min-width:150px">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All SLA Response</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterResponseTime" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:170px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All SLA Response</button>
+                            @foreach(['Achieved','Not Achieved','No SLA Config'] as $rt)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $rt }}">{{ $rt }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    {{-- SLA Resolution Status (Achieved / Not Achieved / N/A — computed server-side) --}}
+                    <div class="custom-dd relative" data-onchange="applyReportFilters" data-fixed="true" style="min-width:150px">
+                        <button type="button" class="custom-dd-btn w-full flex items-center justify-between pl-3 pr-2.5 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-500 hover:border-gray-400 transition-all text-left gap-2">
+                            <span class="custom-dd-label">All SLA Resolution</span>
+                            <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <input type="hidden" id="filterResolutionStatus" value="">
+                        <div class="custom-dd-panel hidden absolute top-full left-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:260px; min-width:170px;">
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm font-medium text-gray-900 bg-gray-50 hover:bg-gray-50 transition-colors" data-value="">All SLA Resolution</button>
+                            @foreach(['Achieved','Not Achieved','N/A'] as $rs)
+                            <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $rs }}">{{ $rs }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+
                     {{-- Search ticket --}}
                     <div class="relative">
                         <input type="text" id="cfInput-ticket" placeholder="Cari tiket…" oninput="applyReportFilters()"
@@ -435,12 +465,31 @@ function fmtHHMM(h) {
     return String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
 }
 
+// "SLA Response Time" (achieved) column — Achieved if Response Duration <= SLA Response Time (Hour), else Not Achieved.
+// If not yet responded, fall back to the raw status label (e.g. Active).
+// If there's no SLA config (policy) for this delivery support, warn instead of silently comparing against a null target.
+// Shared by the table, the Excel export and the SLA Response filter so all three agree.
+function responseAchievement(t) {
+    if (t.sla_policy_missing) {
+        return { label: 'No SLA Config', color: 'text-amber-600' };
+    }
+    if (t.response?.actual_hours != null && t.response?.target_hours != null) {
+        const achieved = parseFloat(t.response.actual_hours) <= parseFloat(t.response.target_hours);
+        return { label: achieved ? 'Achieved' : 'Not Achieved', color: achieved ? 'text-green-600' : 'text-red-600' };
+    }
+    return {
+        label: STATUS_CFG[t.response?.status]?.label || '',
+        color: t.response?.status === 'met' ? 'text-green-600' : t.response?.status === 'breached' ? 'text-red-600' : 'text-gray-400',
+    };
+}
 
 function clearFilters() {
     setCustomDropdownValue('filterCustomer', '');
     setCustomDropdownValue('filterStatus', '');
     setCustomDropdownValue('filterTypeOfService', '');
     setCustomDropdownValue('filterTicketType', '');
+    setCustomDropdownValue('filterResponseTime', '');
+    setCustomDropdownValue('filterResolutionStatus', '');
     const searchInput = document.getElementById('cfInput-ticket');
     if (searchInput) searchInput.value = '';
     document.getElementById('filterDateFrom').value = '';
@@ -458,8 +507,10 @@ function updateClearBtn() {
     const s    = document.getElementById('filterStatus').value;
     const tos  = document.getElementById('filterTypeOfService').value;
     const tt   = document.getElementById('filterTicketType').value;
+    const rt   = document.getElementById('filterResponseTime').value;
+    const rs   = document.getElementById('filterResolutionStatus').value;
     const q    = (document.getElementById('cfInput-ticket')?.value || '').trim();
-    const hasFilter = c || s || tos || tt || q || from || to;
+    const hasFilter = c || s || tos || tt || rt || rs || q || from || to;
     document.getElementById('clearBtn')?.classList.toggle('hidden', !hasFilter);
 }
 
@@ -607,14 +658,7 @@ function exportToExcel() {
             }
 
             const typeOfService = t.delivery_support_type || '';
-            let respStatusLabel;
-            if (t.sla_policy_missing) {
-                respStatusLabel = 'No SLA Config';
-            } else if (t.response?.actual_hours != null && t.response?.target_hours != null) {
-                respStatusLabel = parseFloat(t.response.actual_hours) <= parseFloat(t.response.target_hours) ? 'Achieved' : 'Not Achieved';
-            } else {
-                respStatusLabel = STATUS_CFG[t.response?.status]?.label || '';
-            }
+            const respStatusLabel = responseAchievement(t).label;
             return {
                 'No': idx + 1,
                 'Year': t.year || '',
@@ -717,11 +761,15 @@ function applyReportFilters() {
     const tosF    = document.getElementById('filterTypeOfService')?.value || '';
     const ttF     = document.getElementById('filterTicketType')?.value || '';
     const stF     = document.getElementById('filterStatus')?.value || '';
+    const rtF     = document.getElementById('filterResponseTime')?.value || '';
+    const rsF     = document.getElementById('filterResolutionStatus')?.value || '';
 
     const filtered = _allTickets.filter(t => {
         if (tosF && t.delivery_support_type !== tosF) return false;
         if (ttF && t.ticket_type !== ttF) return false;
         if (stF && t.ticket_status !== stF) return false;
+        if (rtF && responseAchievement(t).label !== rtF) return false;
+        if (rsF && (t.resolution?.time_status || '') !== rsF) return false;
         if (ticketQ && !(t.ticket_number || '').toLowerCase().includes(ticketQ)
                     && !(t.customer_name || '').toLowerCase().includes(ticketQ)
                     && !(t.description  || '').toLowerCase().includes(ticketQ)) return false;
@@ -799,21 +847,10 @@ function renderTable(tickets) {
         const resAchieveColor = t.resolution?.time_status === 'Achieved' ? 'text-green-600'
             : t.resolution?.time_status === 'Not Achieved' ? 'text-red-600' : 'text-gray-400';
 
-        // SLA Response Time (achieved) — Achieved if Response Duration <= SLA Response Time (Hour), else Not Achieved.
-        // If not yet responded, fall back to the raw status label (e.g. Active).
-        // If there's no SLA config (policy) for this delivery support, warn instead of silently comparing against a null target.
-        let respStatusLabel, respStatusColor;
-        if (t.sla_policy_missing) {
-            respStatusLabel = 'No SLA Config';
-            respStatusColor = 'text-amber-600';
-        } else if (t.response?.actual_hours != null && t.response?.target_hours != null) {
-            const respAchieved = parseFloat(t.response.actual_hours) <= parseFloat(t.response.target_hours);
-            respStatusLabel = respAchieved ? 'Achieved' : 'Not Achieved';
-            respStatusColor = respAchieved ? 'text-green-600' : 'text-red-600';
-        } else {
-            respStatusLabel = STATUS_CFG[t.response?.status]?.label || '—';
-            respStatusColor = t.response?.status === 'met' ? 'text-green-600' : t.response?.status === 'breached' ? 'text-red-600' : 'text-gray-400';
-        }
+        // SLA Response Time (achieved) — see responseAchievement().
+        const respAch         = responseAchievement(t);
+        const respStatusLabel = respAch.label || '—';
+        const respStatusColor = respAch.color;
 
         const desc = (t.description || '').substring(0, 70) + ((t.description || '').length > 70 ? '…' : '');
         const ticketUrl = t.ticket_id ? `/ticket/${t.ticket_id}` : '#';

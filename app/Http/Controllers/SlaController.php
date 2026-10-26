@@ -1126,11 +1126,11 @@ class SlaController extends Controller
                           ?? $t->updated_at)?->toDateTimeString()
                        : null;
 
-        // "SLA Resolution Status" (Achieved/Not Achieved) — Type of Service = CR is exempt
+        // "SLA Resolution Status" (Achieved/Not Achieved) — Ticket Type = Change Request is exempt
         // (change requests aren't held to the resolution SLA), and it's only meaningful once
         // the ticket is actually Closed (Resolution Duration (STOP-GO) is a final figure).
         $resolutionTimeStatus = $this->slaResolutionAchievement(
-            $deliverySupportType,
+            $t?->ticket_type,
             $t?->status,
             $resolutionActualHours,
             $resolutionTargetHours
@@ -1196,18 +1196,18 @@ class SlaController extends Controller
      * "SLA Resolution Status" column (Achieved / Not Achieved / N/A) — mirrors the report's
      * Excel template: compare Resolution Duration (STOP-GO) against the SLA Resolution
      * (HOUR) target, except:
-     *   - Type of Service = 'CR' tickets are exempt (change requests aren't held to the
-     *     resolution SLA) → N/A.
+     *   - Ticket Type = 'Change Request' tickets are exempt (change requests aren't held
+     *     to the resolution SLA) → N/A. Type of Service (delivery support type) is not used.
      *   - Only meaningful once the ticket is actually Closed — Resolution Duration
      *     (STOP-GO) is a final, stop-go figure that isn't settled before then → N/A.
      */
     private function slaResolutionAchievement(
-        ?string $deliverySupportType,
+        ?string $ticketType,
         ?string $ticketStatus,
         ?float $actualHours,
         ?float $targetHours
     ): string {
-        if ($deliverySupportType === 'CR') {
+        if ($ticketType === 'Change Request') {
             return 'N/A';
         }
 
