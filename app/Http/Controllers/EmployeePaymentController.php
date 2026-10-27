@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class EmployeePaymentController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get all employee payment records
      */
@@ -175,6 +177,8 @@ class EmployeePaymentController extends Controller
             'verify_link.url' => 'Verify link must be a valid URL',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for payment record', [
                 'employee_id' => $employeeId,
@@ -183,7 +187,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Employee payment information is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -293,6 +297,8 @@ class EmployeePaymentController extends Controller
             'verify_link.url' => 'Verify link must be a valid URL',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for payment record update', [
                 'employee_id' => $employeeId,
@@ -302,7 +308,7 @@ class EmployeePaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Employee payment information is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -758,10 +764,12 @@ class EmployeePaymentController extends Controller
                 'end_date' => 'required|date|after_or_equal:start_date',
             ]);
 
+            $this->friendly($validator);
+
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Employee payment information is invalid.',
+                    'message' => $validator->errors()->first(),
                     'errors' => $validator->errors()
                 ], 422);
             }

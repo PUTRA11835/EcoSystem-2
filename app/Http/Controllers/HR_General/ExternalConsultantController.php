@@ -75,6 +75,61 @@ class ExternalConsultantController extends Controller
     }
 
     /**
+     * Urutan Employee ID (ECI) konsultan + cek ketersediaan, untuk formulir "Add consultant" (ECI diketik manual, tidak dibuat otomatis).
+     * Pola yang berlaku: huruf E + 2 digit tahun + 3 digit urut (mis. E26060). Yang ditampilkan: usulan berikutnya, beberapa ID terakhir,
+     * nomor yang masih kosong (celah), dan — bila `eci` dikirim — apakah ID itu sudah dipakai siapa pun (karyawan internal maupun konsultan,
+     * juga nama pengguna akun) serta apakah Nick Name (`nick`) sudah dipakai. Hanya MEMBACA.
+     */
+    public function eciSequence(Request $request)
+    {
+        $prefix = 'E' . now()->format('y');
+        $pattern = '/^' . preg_quote($prefix, '/') . '(\d{3})$/i';
+
+        $used = \Illuminate\Support\Facades\DB::table('employee')->where('eci', 'like', $prefix . '%')->pluck('eci')
+            ->merge(\Illuminate\Support\Facades\DB::table('auth_users')->where('username', 'like', $prefix . '%')->pluck('username'))
+            ->map(fn ($v) => strtoupper((string) $v))->unique();
+        $numbers = $used->map(fn ($v) => preg_match($pattern, $v, $m) ? (int) $m[1] : null)->filter()->sort()->values();
+
+        $max = (int) ($numbers->last() ?? 0);
+        $gaps = [];
+        for ($i = 1; $i < $max && count($gaps) < 8; $i++) {
+            if (!$numbers->contains($i)) {
+                $gaps[] = $prefix . str_pad((string) $i, 3, '0', STR_PAD_LEFT);
+            }
+        }
+        $names = \Illuminate\Support\Facades\DB::table('employee as e')->leftJoin('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')
+            ->whereIn('e.eci', $numbers->sortDesc()->take(6)->map(fn ($n) => $prefix . str_pad((string) $n, 3, '0', STR_PAD_LEFT))->all())
+            ->get(['e.eci', 'b.first_name', 'b.last_name'])->keyBy(fn ($r) => strtoupper($r->eci));
+        $recent = $numbers->sortDesc()->take(6)->map(function ($n) use ($prefix, $names) {
+            $eci = $prefix . str_pad((string) $n, 3, '0', STR_PAD_LEFT);
+            $r = $names->get($eci);
+
+            return ['eci' => $eci, 'name' => $r ? trim(($r->first_name ?? '') . ' ' . ($r->last_name ?? '')) : ''];
+        })->values()->all();
+
+        $out = [
+            'success' => true, 'prefix' => $prefix, 'format' => $prefix . '###',
+            'next' => $prefix . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT), 'recent' => $recent, 'gaps' => $gaps,
+        ];
+
+        $eci = trim((string) $request->query('eci', ''));
+        if ($eci !== '') {
+            $holder = \Illuminate\Support\Facades\DB::table('employee as e')->leftJoin('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')
+                ->where('e.eci', $eci)->first(['e.eci', 'b.first_name', 'b.last_name']);
+            $login = \Illuminate\Support\Facades\DB::table('auth_users')->where('username', $eci)->exists();
+            $out['eci_taken'] = $holder !== null || $login;
+            $out['eci_used_by'] = $holder ? trim(($holder->first_name ?? '') . ' ' . ($holder->last_name ?? '')) : null;
+            $out['eci_format_ok'] = (bool) preg_match('/^E\d{5}$/i', $eci);
+        }
+        $nick = trim((string) $request->query('nick', ''));
+        if ($nick !== '') {
+            $out['nick_taken'] = \Illuminate\Support\Facades\DB::table('employee_basic_data')->where('nick_name', $nick)->exists();
+        }
+
+        return response()->json($out);
+    }
+
+    /**
      * Tambah konsultan baru (tombol "Add Consultant"): memakai logika pembuatan karyawan yang sama dengan Master Employee,
      * tetapi Employee Group dikunci EXTERNAL dan izinnya = Create pada `general.external.consultants` (diatur Admin).
      */

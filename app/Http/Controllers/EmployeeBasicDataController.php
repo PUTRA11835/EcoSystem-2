@@ -11,6 +11,8 @@ use App\Services\Management\EmployeeMasterData as MD;
 
 class EmployeeBasicDataController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get current user's ECI
      */
@@ -187,6 +189,8 @@ class EmployeeBasicDataController extends Controller
             'since_date.date'     => 'Since Date must be a valid date.',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -324,8 +328,8 @@ class EmployeeBasicDataController extends Controller
             $validator = Validator::make($request->all(), [
                 'title' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'title', null)]),
                 'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
-                'gender' => 'nullable|in:Male,Female',
-                'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+                'gender' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'gender', $basicData->gender ?? null)]),
+                'religion' => array_filter(['nullable', 'string', 'max:50', MD::inRule('basic-data', 'religion', $basicData->religion ?? null)]),   // the saved value stays valid (e.g. old "Confucian")
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
                 'search_term_1' => 'nullable|string|max:255',
@@ -355,6 +359,8 @@ class EmployeeBasicDataController extends Controller
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',
             ]);
+
+            $this->friendly($validator);
 
             if ($validator->fails()) {
                 return response()->json([

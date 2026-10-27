@@ -57,9 +57,9 @@ class EmployeeMasterSettings
                 'title' => 'Employee Basic Data', 'applies' => 'Master → Employee → Basic Data tab',
                 'about' => 'The choices on the Basic Data form and the limits on a name. Position, department and the other organisation lists are master data of their own.',
                 'lists' => [
-                    'title'           => $list('Titles', 'Mr., Mrs., Dr. …', $same(['Mr.', 'Mrs.', 'Ms.', 'Dr.']), ['employee_basic_data', 'title']),
+                    'title'           => $list('Titles', 'Mr., Mrs., Dr. …', $same(['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.']), ['employee_basic_data', 'title']),
                     'gender'          => $list('Gender', 'The choices for gender.', $same(['Male', 'Female']), ['employee_basic_data', 'gender']),
-                    'religion'        => $list('Religion', 'The choices for religion.', $same(['Islam', 'Christian', 'Catholic', 'Hindu', 'Buddhist', 'Confucian']), ['employee_basic_data', 'religion']),
+                    'religion'        => $list('Religion', 'The choices for religion.', $same(['Islam', 'Christian', 'Catholic', 'Hindu', 'Buddhist', 'Konghucu']), ['employee_basic_data', 'religion']),
                     'marital_status'  => $list('Marital status', 'The choices for marital status.', $same(['Single', 'Married', 'Divorced', 'Widow/Widower']), ['employee_basic_data', 'marital_status']),
                     'education_level' => $list('Education level', 'The highest education, as a short code. Saving a level that is not on the list is refused.', $same(['SD', 'SMP', 'SMA/SMK', 'D1', 'D2', 'D3', 'D4', 'S1', 'S2', 'S3']), ['employee_basic_data', 'education_level'], true),
                 ],
@@ -89,7 +89,7 @@ class EmployeeMasterSettings
                 'lists' => [
                     'identification_type' => $list('Identification types', 'ID card, passport, tax ID … Tick “Internal only” for documents an External consultant does not have.', [
                         'KTP' => 'ID Card (KTP)', 'PASSPORT' => 'Passport', 'NPWP' => 'Tax ID (NPWP)', 'DRIVER_LICENSE' => 'Driver License (SIM)',
-                        'BPJS_KESEHATAN' => 'BPJS Kesehatan', 'BPJS_KETENAGAKERJAAN' => 'BPJS Ketenagakerjaan', 'KITAS' => 'KITAS', 'KITAP' => 'KITAP', 'OTHER' => 'Other',
+                        'BPJS_KESEHATAN' => 'BPJS Kesehatan', 'BPJS_KETENAGAKERJAAN' => 'BPJS Ketenagakerjaan', 'KITAS' => 'KITAS (Temporary Stay Permit)', 'KITAP' => 'KITAP (Permanent Stay Permit)', 'OTHER' => 'Other',
                     ], ['employee_identification', 'identification_type'], false, true),
                 ],
                 'rules' => [
@@ -105,9 +105,9 @@ class EmployeeMasterSettings
                         'spouse' => 'Spouse', 'child' => 'Child', 'parent' => 'Parent', 'father' => 'Father', 'mother' => 'Mother',
                         'sibling' => 'Sibling', 'brother' => 'Brother', 'sister' => 'Sister', 'other' => 'Other',
                     ], ['employee_family', 'relation'], true),
-                    'title'    => $list('Titles', 'Mr., Mrs., Dr. …', $same(['Mr.', 'Mrs.', 'Ms.', 'Dr.']), ['employee_family', 'title']),
+                    'title'    => $list('Titles', 'Mr., Mrs., Dr. …', $same(['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.']), ['employee_family', 'title']),
                     'gender'   => $list('Gender', 'The choices for gender.', $same(['Male', 'Female']), ['employee_family', 'gender'], true),
-                    'religion' => $list('Religion', 'The choices for religion.', $same(['Islam', 'Christianity', 'Catholicism', 'Hinduism', 'Buddhism', 'Confucianism', 'Other']), ['employee_family', 'religion']),
+                    'religion' => $list('Religion', 'The choices for religion.', $same(['Islam', 'Christian', 'Catholic', 'Hindu', 'Buddhist', 'Konghucu']), ['employee_family', 'religion']),
                 ],
                 'rules' => [
                     'name_max_length'       => $int('Name — maximum length', 'Characters.', 255, 20, 255),
@@ -182,9 +182,9 @@ class EmployeeMasterSettings
                 'about' => 'The kinds of document that can be uploaded, and what an upload may be.',
                 'lists' => [
                     'document_type' => $list('Document types', 'KTP, diploma, contract …', [
-                        'KTP' => 'KTP / ID Card', 'NPWP' => 'NPWP', 'Paspor' => 'Paspor / Passport', 'BPJS Kesehatan' => 'BPJS Kesehatan', 'BPJS Ketenagakerjaan' => 'BPJS Ketenagakerjaan',
-                        'Ijazah' => 'Ijazah / Diploma', 'Transkrip Nilai' => 'Transkrip Nilai', 'Sertifikat' => 'Sertifikat', 'Kontrak Kerja' => 'Kontrak Kerja', 'SK Pengangkatan' => 'SK Pengangkatan',
-                        'Surat Referensi' => 'Surat Referensi', 'CV' => 'CV / Resume', 'Akta Lahir' => 'Akta Lahir', 'Kartu Keluarga' => 'Kartu Keluarga', 'Foto' => 'Foto', 'Lainnya' => 'Lainnya',
+                        'KTP' => 'KTP / ID Card', 'NPWP' => 'NPWP', 'Paspor' => 'Passport', 'BPJS Kesehatan' => 'BPJS Kesehatan', 'BPJS Ketenagakerjaan' => 'BPJS Ketenagakerjaan',
+                        'Ijazah' => 'Diploma Certificate', 'Transkrip Nilai' => 'Academic Transcript', 'Sertifikat' => 'Certificate', 'Kontrak Kerja' => 'Employment Contract', 'SK Pengangkatan' => 'Appointment Letter',
+                        'Surat Referensi' => 'Reference Letter', 'CV' => 'CV / Resume', 'Akta Lahir' => 'Birth Certificate', 'Kartu Keluarga' => 'Family Card (KK)', 'Foto' => 'Photo', 'Lainnya' => 'Other',
                     ], ['employee_attachment', 'document_type']),
                 ],
                 'rules' => [

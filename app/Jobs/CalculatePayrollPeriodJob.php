@@ -34,6 +34,7 @@ class CalculatePayrollPeriodJob implements ShouldQueue
         DB::table('payroll_periods')->where('id', $this->periodId)->update(['calc_status' => 'done', 'calc_error' => null, 'updated_at' => now()]);
         \App\Services\Payroll\PayrollAudit::record(\App\Services\Payroll\PayrollAudit::CALCULATED, $this->periodId,
             'Calculated ' . ($summary['employees'] ?? 0) . ' employee(s) in the background' . (!empty($summary['skipped']) ? ', ' . $summary['skipped'] . ' skipped' : ''), $this->actorId, (array) $summary);
+        app(\App\Services\Payroll\PayrollPeriodService::class)->autoRelease($this->periodId, $this->actorId);   // saklar "Publish payslips automatically"
     }
 
     public function failed(\Throwable $e): void

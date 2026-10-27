@@ -12,6 +12,8 @@ use Illuminate\Support\Str;
 
 class EmployeeAttachmentController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get all attachments for an employee
      */
@@ -61,6 +63,8 @@ class EmployeeAttachmentController extends Controller
             'file.max'                => "File size must not exceed {$maxMb}MB",
             'file.mimes'              => 'Allowed file types: ' . strtoupper(implode(', ', $extensions)),
         ]);
+
+        $this->friendly($validator);
 
         if ($validator->fails()) {
             return response()->json([

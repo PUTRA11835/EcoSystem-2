@@ -109,6 +109,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/delete', [EmployeeController::class, 'destroy'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-password', [EmployeeController::class, 'changePassword'])->middleware('menu:master.employee.action');
         Route::patch('/{id}/change-role', [EmployeeController::class, 'changeRole'])->middleware('menu:master.employee.action');
+        // Ganti ECI (kode karyawan): wajib konfirmasi kata sandi penggantinya; dibatasi laju agar kata sandi tak bisa ditebak lewat sini.
+        Route::patch('/{id}/change-eci', [EmployeeController::class, 'changeEci'])->middleware(['menu:master.employee.action', 'throttle:10,1']);
     });
 
     // Employee Basic Data endpoints
@@ -278,6 +280,7 @@ Route::middleware(['web'])->group(function () {
     Route::prefix('modules')->group(function () {
         Route::get('/', [ModuleController::class, 'index']);
         Route::post('/', [ModuleController::class, 'store']);
+        Route::get('/overview', [ModuleController::class, 'overview']);   // lead + member semua module sekaligus (didaftarkan SEBELUM /{id})
         Route::get('/{id}', [ModuleController::class, 'show']);
         Route::get('/{id}/members', [ModuleController::class, 'members']);
         Route::put('/{id}', [ModuleController::class, 'update']);

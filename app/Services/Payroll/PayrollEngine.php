@@ -83,6 +83,7 @@ class PayrollEngine
             'internal_notes'              => $r->internal_notes,
             'block_on_pending_inputs'     => (bool) $r->block_on_pending_inputs,
             'calculate_in_background'     => (bool) $r->calculate_in_background,
+            'auto_publish_slips'          => (bool) ($r->auto_publish_slips ?? false),
         ];
     }
 

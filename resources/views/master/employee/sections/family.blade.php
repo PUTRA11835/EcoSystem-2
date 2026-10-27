@@ -461,7 +461,7 @@
                 setCustomDropdownValue('familyTitle', family.title || '');
                 document.getElementById('familyName').value = family.name || '';
                 setCustomDropdownValue('familyGender', family.gender || '');
-                setCustomDropdownValue('familyReligion', family.religion || '');
+                setCustomDropdownValue('familyReligion', ({ Christianity: 'Christian', Catholicism: 'Catholic', Hinduism: 'Hindu', Buddhism: 'Buddhist', Confucian: 'Konghucu', Budha: 'Buddhist' })[family.religion] || family.religion || '');   // nilai lama ditampilkan dengan nama baku (sama dengan Basic Data)
                 document.getElementById('familyCountry').value = family.country || '';
                 document.getElementById('familyBirthPlace').value = family.birth_place || '';
                 document.getElementById('familyBirthDate').value = family.birth_date || '';
@@ -579,7 +579,7 @@
                     loadFamilyToForm(familyId);
                 }
             } else {
-                showNotification('Failed to save family member: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The family member could not be saved. Please try again.') : (data.message || 'The family member could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving family:', error);

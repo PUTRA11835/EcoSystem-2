@@ -135,7 +135,7 @@ class ExternalDocumentController extends Controller
             'location'              => [$assignment ? 'required' : 'nullable', 'string', 'max:255'],
             'period_from'           => [$assignment ? 'required' : 'nullable', 'date'],
             'period_to'             => [$assignment ? 'required' : 'nullable', 'date'],
-            'signatory_employee_id' => ['required', 'integer', Rule::in(\App\Services\Letters\LetterService::signatoryOptions()->pluck('id')->all())],
+            'signatory_employee_id' => ['required', 'integer', Rule::in(\App\Support\External\ExternalSigners::for(\App\Support\External\ExternalSigners::LETTERS)['options']->pluck('id')->all())],
             'signatory_title'       => 'required|string|max:150',
             'language'              => ['required', Rule::in(array_keys(\App\Models\LetterTypeSetting::LANGUAGES))],
             'notes'                 => 'nullable|string|max:2000',

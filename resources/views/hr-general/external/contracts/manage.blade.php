@@ -42,7 +42,8 @@
         'proration'         => $editing ? ($terms->proration ?? 'working_days') : 'working_days',
         'payment_term_days' => $editing ? ($terms->payment_term_days ?? 14) : 14,
         'notes'             => $editing ? $edit->notes : '',
-        'signatory_employee_id' => $editing ? $edit->signatory_employee_id : '',
+        'signatory_employee_id' => $editing ? $edit->signatory_employee_id : ($defaultSigner ?? ''),
+        'assignment'        => $editing ? ($terms->assignment ?? '') : ($c->assignment_role ?? ''),
     ];
     $old = fn (string $key) => old($key, $v[$key] ?? '');
     // A saved rate ("2700000.00") is shown in the Indonesian format; what was typed after a refused save is shown as typed.
@@ -334,6 +335,15 @@
                             <input type="number" min="0" max="365" id="fTerm" name="payment_term_days" value="{{ $old('payment_term_days') }}" class="{{ $input }}"></div>
                         <div class="md:col-span-8"><label class="{{ $label }}" for="fLoc">Work location / model</label>
                             <input id="fLoc" name="work_location" maxlength="255" value="{{ $old('work_location') }}" placeholder="e.g. ONSITE, REMOTE" class="{{ $input }}"></div>
+                        <div class="md:col-span-12">
+                            <label class="{{ $label }}" for="fAssign">Assignment <span class="text-gray-400 normal-case font-normal">(project / scope of work)</span></label>
+                            @if($assignmentSupported ?? true)
+                                <input id="fAssign" name="assignment" maxlength="255" value="{{ $old('assignment') }}" placeholder="e.g. SAP FI implementation — PT Contoh Client" class="{{ $input }}">
+                                <p class="{{ $hint }}">Printed as the assignment (“Penugasan”) of the contract. Left empty, it follows the consultant’s Engagement.</p>
+                            @else
+                                <p class="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"><i class="fas fa-triangle-exclamation mr-1"></i> The assignment field needs a database update first (column <code>external_contract_terms.assignment</code>). Ask the administrator to run the update; until then the contract uses the consultant’s Engagement assignment.</p>
+                            @endif
+                        </div>
                     </div>
                 </fieldset>
 
@@ -344,10 +354,10 @@
                         <div class="md:col-span-6">
                             <label class="{{ $label }}" for="fSign">Company signatory</label>
                             <select id="fSign" name="signatory_employee_id" data-searchable="true" data-search-placeholder="Search signer…" class="{{ $input }}">
-                                <option value="">Template default (if the template sets one)</option>
+                                @if(empty($signerNote))<option value="">Template default (if the template sets one)</option>@endif
                                 @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) $old('signatory_employee_id') === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
                             </select>
-                            <p class="{{ $hint }}">From Letter Templates → Settings → Signers.</p>
+                            <p class="{{ $hint }}">{{ $signerNote ?? 'From Letter Templates → Settings → Signers.' }}</p>
                         </div>
                         <div class="md:col-span-12">
                             <label class="{{ $label }}" for="fNotes">Notes</label>

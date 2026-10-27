@@ -1439,6 +1439,8 @@
             font-size: 0.8125rem;
             margin-top: 0.2rem;
             line-height: 1.4;
+            white-space: pre-line;   /* daftar galat per kolom (baris baru dari server/JS) tampil sebagai baris terpisah */
+            overflow-wrap: anywhere;
         }
 
         .toast-close {

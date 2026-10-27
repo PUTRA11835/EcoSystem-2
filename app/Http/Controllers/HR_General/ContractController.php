@@ -55,6 +55,7 @@ class ContractController extends Controller
         $text = fn (string $key) => trim((string) $request->query($key));
 
         $filters = [
+            'search'     => mb_substr($text('search'), 0, 100),   // kotak pencarian terlihat: nama, ECI, nomor kontrak, jabatan, departemen, KTP
             'employee'   => $text('employee'),
             'number'     => $text('number'),
             'type'       => $text('type'),
@@ -124,6 +125,7 @@ class ContractController extends Controller
             // option code → the built-in type its rules follow (a custom type behaves like its base)
             'typeBase'      => collect($this->typeOptions($history))->keys()->mapWithKeys(fn ($code) => [$code => $this->options->resolve(ContractOption::SCOPE_INTERNAL, $code)['base']])->all(),
             'gate'          => ContractService::gate(),
+            'employeeDefaults' => $this->contracts->employeeDefaults($employeeId),
             'pkwtMaxMonths' => (int) config('hc_contract.pkwt_max_months', 60),
             'salaryDefaults' => $canSalary ? $this->salaryDefaults($employeeId) : null,
         ]);
@@ -386,7 +388,9 @@ class ContractController extends Controller
             'status'                   => ['required', Rule::in(ContractRules::SETTABLE_STATUSES)],
             'contract_number'          => 'nullable|string|max:100',
             'template_id'              => 'nullable|integer',
-            'start_date'               => 'required|date',
+            // Kontrak BARU: tanggal mulai boleh kosong = mengikuti data karyawan (lihat ContractService::fillFromEmployee).
+            'start_date'               => $existing ? 'required|date' : 'nullable|date',
+            'duration_months'          => 'nullable|integer|min:1|max:60',
             'end_date'                 => 'nullable|date',
             'signed_date'              => 'nullable|date',
             'position'                 => 'nullable|string|max:255',

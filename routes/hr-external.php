@@ -37,6 +37,8 @@ Route::prefix('general/external')
         Route::prefix('consultants')->name('consultants.')->middleware('menu:general.external.consultants')->group(function () {
             Route::get('/', [ExternalConsultantController::class, 'index'])->name('index');
             Route::post('/', [ExternalConsultantController::class, 'store'])->name('store')->middleware('menu.can:general.external.consultants,create');
+            // Urutan ECI + cek ketersediaan untuk formulir Add consultant (baca-saja; didaftarkan sebelum rute berparameter).
+            Route::get('/eci-sequence', [ExternalConsultantController::class, 'eciSequence'])->name('eci-sequence')->middleware('menu.can:general.external.consultants,create');
             Route::get('/{employeeId}', [ExternalConsultantController::class, 'show'])->whereNumber('employeeId')->name('show');
             // Edit konsultan di sini (bukan di Master Employee): izin per tab = external.section.*, diatur Admin terpisah dari HR.
             Route::get('/{employeeId}/edit', [\App\Http\Controllers\EmployeeController::class, 'showExternal'])->whereNumber('employeeId')->name('edit');

@@ -2,6 +2,7 @@
 
 namespace App\Services\Contracts;
 
+use App\Models\ContractOption;
 use App\Models\ContractTemplate;
 use App\Models\EmployeeContract;
 use App\Models\Letterhead;
@@ -266,6 +267,10 @@ class ContractService
     {
         $items = config('hc_contract.readiness', []);
 
+        // Butir bertanda `for => internal` tidak disyaratkan bagi konsultan External (kontrak External memakai layanan ini juga).
+        $external = DB::table('employee_basic_data')->where('employee_id', $employeeId)->value('employee_type') === 'External';
+        $items = array_values(array_filter($items, fn ($i) => !($external && ($i['for'] ?? null) === 'internal')));
+
         $address = DB::table('employee_address')->where('employee_id', $employeeId)
             ->whereIn('address_type', ['Home', 'primary'])->get();
         $identification = DB::table('employee_identification')->where('employee_id', $employeeId)->get();
@@ -284,8 +289,9 @@ class ContractService
                 'address'        => $address->contains(fn ($r) => $filled($r->{$arg} ?? null)),
                 'bank'           => $bank->contains(fn ($r) => $filled($r->{$arg} ?? null)),
                 'hr'             => $hr !== null && $filled($hr->{$arg} ?? null),
-                // Dokumen dikenali dari jenis/judul/nama berkas yang memuat kata kuncinya (KTP, KK).
-                'attachment'     => $attachments->contains(fn ($r) => (bool) preg_match('/\b' . preg_quote($arg, '/') . '\b/i',
+                // Dokumen dikenali dari jenis/judul/nama berkas yang memuat kata kuncinya (KTP, KK|Kartu Keluarga, CV|Curriculum Vitae, ...).
+                'attachment'     => $attachments->contains(fn ($r) => (bool) preg_match(
+                    '/\b(?:' . implode('|', array_map(fn ($w) => preg_quote(trim($w), '/'), explode('|', $arg))) . ')\b/i',
                     trim(($r->document_type ?? '') . ' ' . ($r->document_title ?? '') . ' ' . ($r->file_name ?? '')))),
                 default          => false,
             };
@@ -295,6 +301,70 @@ class ContractService
     }
 
     // ── Simpan ────────────────────────────────────────────────────────────
+
+    /**
+     * Isian kontrak baru yang MENGIKUTI data karyawan (tidak diketik manual): tanggal mulai, departemen, jabatan, tipe jabatan.
+     *   mulai  = sehari sesudah kontrak terakhir berakhir; bila belum ada kontrak = Since Date (tanggal bergabung)
+     *   tipe jabatan = tipe jabatan aktif yang namanya terkandung dalam jabatan karyawan (mis. "Consultant"), else tipe bawaan Settings
+     *
+     * @return array{start:?string,since:?string,department:?string,position:?string,position_type:?string}
+     */
+    public function employeeDefaults(int $employeeId): array
+    {
+        $basic = DB::table('employee_basic_data')->where('employee_id', $employeeId)->first(['since_date', 'department', 'position']);
+        $since = $basic && $basic->since_date ? substr((string) $basic->since_date, 0, 10) : null;
+
+        $lastEnd = DB::table('employee_contract')->where('employee_id', $employeeId)->whereNotNull('end_date')->max('end_date');
+        $start = $lastEnd ? Carbon::parse($lastEnd)->addDay()->toDateString() : $since;
+
+        $position = $basic && trim((string) $basic->position) !== '' ? trim((string) $basic->position) : null;
+        $options = app(ContractOptionService::class);
+        $positionType = null;
+        if ($position !== null) {
+            foreach ($options->positionTypes(ContractOption::SCOPE_INTERNAL) as $name) {
+                if ($name !== '' && stripos($position, $name) !== false) {
+                    $positionType = $name;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'start'         => $start,
+            'since'         => $since,
+            'department'    => $basic && trim((string) $basic->department) !== '' ? trim((string) $basic->department) : null,
+            'position'      => $position,
+            'position_type' => $positionType ?? $options->defaultPositionType(ContractOption::SCOPE_INTERNAL),
+        ];
+    }
+
+    /**
+     * Lengkapi isian kosong dari data karyawan (hanya untuk kontrak BARU / pratinjau). Nilai yang dikirim tetap dipakai,
+     * jadi formulir yang masih mengirim departemen/jabatan tidak berubah perilakunya.
+     *
+     * @param  array<string,mixed>  $d
+     * @return array<string,mixed>
+     */
+    public function fillFromEmployee(int $employeeId, array $d): array
+    {
+        $def = $this->employeeDefaults($employeeId);
+        foreach (['department', 'position', 'position_type'] as $key) {
+            if (($d[$key] ?? '') === '' && $def[$key] !== null) {
+                $d[$key] = $def[$key];
+            }
+        }
+        if (($d['start_date'] ?? '') === '' && $def['start'] !== null) {
+            $d['start_date'] = $def['start'];
+        }
+
+        // Akhir kontrak mengikuti lama kontrak (bulan) bila tanggal akhir tidak diisi: mulai + N bulan − 1 hari.
+        $months = (int) ($d['duration_months'] ?? 0);
+        if (($d['end_date'] ?? '') === '' && $months > 0 && ($d['start_date'] ?? '') !== '') {
+            $d['end_date'] = Carbon::parse($d['start_date'])->addMonthsNoOverflow($months)->subDay()->toDateString();
+        }
+
+        return $d;
+    }
 
     /** activate | create | off — lihat config/hc_contract.php. */
     public static function gate(): string
@@ -323,6 +393,11 @@ class ContractService
     {
         if (self::gate() === 'create') {
             $this->assertReady($employeeId, 'create a contract');
+        }
+
+        $d = $this->fillFromEmployee($employeeId, $d);
+        if (($d['start_date'] ?? '') === '') {
+            throw new \DomainException('The start date follows the employee’s Join Date, which is empty. Fill in Since Date in the employee’s Basic Data, or enter the start date.');
         }
 
         return DB::transaction(function () use ($employeeId, $d, $actorId, $canSalary) {
@@ -719,6 +794,7 @@ class ContractService
      */
     public function previewDocument(int $employeeId, array $d, bool $canSalary, ?object $terms = null): array
     {
+        $d = $this->fillFromEmployee($employeeId, $d);   // pratinjau memakai isian yang sama dengan yang akan disimpan
         $type = ContractRules::normalizeType($d['contract_type'] ?? '');
         if ($type === null) {
             throw new \DomainException('Choose a contract type first.');
@@ -861,7 +937,7 @@ class ContractService
                 'vendor'               => $eng->vendor_partner ?? '',
                 'perusahaan_prinsipal' => $eng->client_company ?? '',
                 'spesialisasi'         => $c->position ?: ($eng->assignment_role ?? ''),
-                'penugasan'            => $eng->assignment_role ?? ($c->position ?: ($basic->position ?? '')),
+                'penugasan'            => ($terms->assignment ?? null) ?: ($eng->assignment_role ?? ($c->position ?: ($basic->position ?? ''))),
                 'skema'                => $terms ? ExternalRules::schemeLabel($terms->engagement_scheme) : ($eng->engagement_scheme ?? ''),
                 'tarif'                => $maskSalary ? $masked : $rate,
                 'satuan_tagihan'       => $unit,

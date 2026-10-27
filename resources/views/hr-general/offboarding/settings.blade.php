@@ -16,6 +16,7 @@
         ['auto_deactivate', 'Deactivate access automatically', 'On the effective date the person can no longer log in (roles and history are kept). Off: HR presses “Deactivate access” by hand.'],
         ['include_external', 'Include external consultants', 'External consultants can be offboarded too (checklist only — they have no final settlement).'],
         ['require_tasks_before_deactivate', 'Require the other tasks first', 'Access is only deactivated once every other task of the checklist is done.'],
+        ['allow_force_deactivate', 'Allow force deactivate', 'For urgent cases (e.g. dismissal for cause). HR can then deactivate access before the effective date and without waiting for the other tasks, but must write a reason that is kept in the employee history. Off: access can only be deactivated on or after the effective date.'],
     ];
 @endphp
 
@@ -51,7 +52,7 @@
                 <label class="px-5 py-4 flex items-start justify-between gap-4 {{ $canEdit ? 'cursor-pointer' : '' }}">
                     <span class="min-w-0"><span class="block text-sm font-semibold text-gray-800">{{ $title }}</span><span class="block text-[11px] text-gray-500 mt-0.5 max-w-2xl">{{ $text }}</span>
                         @if($name === 'calculator_enabled' && $missingLegal)<span class="block text-[11px] text-amber-700 mt-1"><i class="fas fa-scale-balanced mr-1"></i> Cannot be switched on yet — not reviewed: {{ implode(', ', $missingLegal) }}.</span>@endif</span>
-                    <span class="relative shrink-0 mt-0.5"><input type="checkbox" name="{{ $name }}" value="1" class="peer sr-only" @checked($settings->$name) @disabled(!$canEdit)>
+                    <span class="relative shrink-0 mt-0.5"><input type="checkbox" name="{{ $name }}" value="1" class="peer sr-only" @checked($settings->$name ?? false) @disabled(!$canEdit)>
                         <span class="block w-11 h-6 rounded-full bg-gray-300 peer-checked:bg-green-500 transition peer-disabled:opacity-60"></span>
                         <span class="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span></span>
                 </label>

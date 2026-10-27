@@ -203,6 +203,10 @@ class PayrollSettingsController extends Controller
             'block_on_pending_inputs' => $request->boolean('block_on_pending_inputs'),
             'calculate_in_background' => $request->boolean('calculate_in_background'),
         ]);
+        // Kolom baru: dilewati bila migrasinya belum dijalankan (mis. server yang baru menerima berkas kode).
+        if (\App\Support\SchemaCache::hasColumn('payroll_settings', 'auto_publish_slips')) {
+            $row->auto_publish_slips = $request->boolean('auto_publish_slips');
+        }
         $row->save();
 
         return redirect()->route('finance.payroll.settings')->with('success', 'Payroll settings saved. They apply the next time a period is calculated; existing payslips do not change.');

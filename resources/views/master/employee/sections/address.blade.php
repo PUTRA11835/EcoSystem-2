@@ -1,3 +1,20 @@
+@php
+    // Pilihan dropdown. Nilai lama yang tidak ada di daftar (mis. "primary", "IDN") tetap tampil dan tetap sah — ditambahkan otomatis saat data dimuat.
+    $addrTypes = \App\Services\Management\EmployeeMasterData::options('address', 'address_type');
+    $addrLanguages = ['IDN' => 'Indonesian', 'ENG' => 'English'];
+    $addrPreferred = ['email' => 'Email', 'cell_phone' => 'Cell phone', 'telephone' => 'Telephone', 'fax' => 'Fax'];
+    $dialCodes = [
+        '+62' => 'Indonesia', '+60' => 'Malaysia', '+65' => 'Singapore', '+66' => 'Thailand', '+63' => 'Philippines', '+84' => 'Vietnam',
+        '+673' => 'Brunei', '+670' => 'Timor-Leste', '+855' => 'Cambodia', '+856' => 'Laos', '+95' => 'Myanmar', '+91' => 'India',
+        '+92' => 'Pakistan', '+880' => 'Bangladesh', '+94' => 'Sri Lanka', '+977' => 'Nepal', '+86' => 'China', '+852' => 'Hong Kong',
+        '+853' => 'Macau', '+886' => 'Taiwan', '+81' => 'Japan', '+82' => 'South Korea', '+61' => 'Australia', '+64' => 'New Zealand',
+        '+44' => 'United Kingdom', '+49' => 'Germany', '+33' => 'France', '+31' => 'Netherlands', '+39' => 'Italy', '+34' => 'Spain',
+        '+41' => 'Switzerland', '+46' => 'Sweden', '+7' => 'Russia', '+90' => 'Turkey', '+971' => 'United Arab Emirates', '+966' => 'Saudi Arabia',
+        '+974' => 'Qatar', '+965' => 'Kuwait', '+968' => 'Oman', '+20' => 'Egypt', '+27' => 'South Africa', '+1' => 'USA / Canada',
+        '+52' => 'Mexico', '+55' => 'Brazil',
+    ];
+    $addrSelectClass = 'addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white';
+@endphp
 <style>
     /* Chevron kustom untuk dropdown alamat cascading (Country → … → Village). */
     .addr-select {
@@ -41,21 +58,10 @@
             <!-- Address Type -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Address Type</label>
-                <div class="relative">
-                    {{-- H3.13: saran tipe seperti ESH (KTP = sesuai KTP, Domicile = tempat tinggal). Kolom tetap teks bebas:
-                         nilai lama (Home, primary, Office) tetap sah dan tidak berubah. --}}
-                    <input type="text" id="addressType" list="addressTypeSuggestions" autocomplete="off" placeholder="e.g. Home, KTP, Domicile" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <datalist id="addressTypeSuggestions">
-                        @foreach(\App\Services\Management\EmployeeMasterData::options('address', 'address_type') as $optValue => $optLabel)
-                            <option value="{{ $optValue }}">{{ $optLabel }}</option>
-                        @endforeach
-                    </datalist>
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="addressType" data-maxlen="255" class="{{ $addrSelectClass }}">
+                        <option value="">-- Select type --</option>
+                        @foreach($addrTypes as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Country (dropdown — fixed Indonesia) -->
@@ -129,53 +135,37 @@
             <!-- Language -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Language</label>
-                <div class="relative">
-                    <input type="text" id="language" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="language" data-maxlen="50" class="{{ $addrSelectClass }}">
+                        <option value="">-- Select language --</option>
+                        @foreach($addrLanguages as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Cell Phone Country -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Cell Phone Country</label>
-                <div class="relative">
-                    <input type="text" id="cellPhoneCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="cellPhoneCountry" data-maxlen="10" data-searchable="true" data-search-placeholder="Search..." class="{{ $addrSelectClass }}">
+                        <option value="">-- Code --</option>
+                        @foreach($dialCodes as $v => $l)<option value="{{ $v }}">{{ $v }} &nbsp;{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Telephone Country -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Telephone Country</label>
-                <div class="relative">
-                    <input type="text" id="telephoneCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="telephoneCountry" data-maxlen="10" data-searchable="true" data-search-placeholder="Search..." class="{{ $addrSelectClass }}">
+                        <option value="">-- Code --</option>
+                        @foreach($dialCodes as $v => $l)<option value="{{ $v }}">{{ $v }} &nbsp;{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Fax Country -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Fax Country</label>
-                <div class="relative">
-                    <input type="text" id="faxCountry" placeholder="+62" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="faxCountry" data-maxlen="10" data-searchable="true" data-search-placeholder="Search..." class="{{ $addrSelectClass }}">
+                        <option value="">-- Code --</option>
+                        @foreach($dialCodes as $v => $l)<option value="{{ $v }}">{{ $v }} &nbsp;{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Email (Work) -->
@@ -193,14 +183,10 @@
             <!-- Preferred Communication (Row 2) -->
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Preferred Communication</label>
-                <div class="relative">
-                    <input type="text" id="preferredCommunication" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
-                    <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                        </svg>
-                    </button>
-                </div>
+                <select id="preferredCommunication" data-maxlen="50" class="{{ $addrSelectClass }}">
+                        <option value="">-- Select --</option>
+                        @foreach($addrPreferred as $v => $l)<option value="{{ $v }}">{{ $l }}</option>@endforeach
+                    </select>
             </div>
 
             <!-- Cell Phone -->
@@ -217,8 +203,8 @@
 
             <!-- Telephone Extension -->
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Extension</label>
-                <input type="text" id="telephoneExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5" title="Extension (ext.): the internal line number you dial after the main telephone number reaches the switchboard, e.g. 123. Leave empty if the telephone has none.">Extension (ext.)</label>
+                <input type="text" id="telephoneExt" placeholder="e.g. 123" maxlength="10" inputmode="numeric" title="Internal extension number of this telephone (maximum 10 characters). Leave empty if none." class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Fax -->
@@ -229,8 +215,8 @@
 
             <!-- Fax Extension -->
             <div class="col-span-1">
-                <label class="block text-xs font-semibold text-gray-600 mb-1.5">Extension</label>
-                <input type="text" id="faxExt" placeholder="Ext" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
+                <label class="block text-xs font-semibold text-gray-600 mb-1.5" title="Extension (ext.): the internal line number of the fax machine behind a shared main number. Leave empty if none.">Extension (ext.)</label>
+                <input type="text" id="faxExt" placeholder="e.g. 123" maxlength="10" inputmode="numeric" title="Internal extension number of this fax (maximum 10 characters). Leave empty if none." class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
 
             <!-- Email (Personal) -->
@@ -599,6 +585,39 @@
         }
     }
 
+
+    /**
+     * Mengisi dropdown dari nilai tersimpan. Nilai lama yang belum ada di daftar (mis. "primary", "IDN") ditambahkan sebagai pilihan
+     * supaya tidak hilang diam-diam; nilai yang terlalu panjang untuk kolomnya (mis. nomor telepon yang salah masuk ke kolom kode negara)
+     * dikosongkan agar tidak membuat penyimpanan berikutnya gagal.
+     */
+    function addrSetSelect(id, value) {
+        const sel = document.getElementById(id);
+        if (!sel) { return; }
+        let v = value == null ? '' : String(value).trim();
+        let opt = [...sel.options].find(o => o.value.toLowerCase() === v.toLowerCase());
+        if (v !== '' && !opt) {
+            if (v.length <= (Number(sel.dataset.maxlen) || 50)) {
+                opt = new Option(v + ' (saved value)', v);
+                sel.add(opt);
+            } else {
+                v = '';
+            }
+        }
+        sel.value = opt ? opt.value : '';
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    /** Susun pesan galat server menjadi daftar per kolom yang mudah dibaca. */
+    function addrErrorText(data) {
+        const lines = [];
+        if (data && data.errors && typeof data.errors === 'object') {
+            Object.values(data.errors).forEach(list => (Array.isArray(list) ? list : [list]).forEach(m => { if (m) { lines.push('• ' + m); } }));
+        }
+        if (lines.length) { return 'Please correct the following:\n' + lines.join('\n'); }
+        return (data && data.message) ? data.message : 'The address could not be saved. Please try again.';
+    }
+
     /**
      * Load address data to form fields above
      */
@@ -620,26 +639,26 @@
                 const address = data.data;
                 
                 document.getElementById('editAddressId').value = address.address_id;
-                document.getElementById('addressType').value = address.address_type || '';
+                addrSetSelect('addressType', address.address_type);
                 document.getElementById('country').value = address.country || 'Indonesia';
                 // Rekonstruksi dropdown cascading Region → City → District → Village.
                 await addrHydrateLocation(address.region, address.city, address.district, address.rural_urban_village);
                 document.getElementById('street').value = address.street || '';
                 document.getElementById('houseNumber').value = address.house_number || '';
                 document.getElementById('postalCode').value = address.postal_code || '';
-                document.getElementById('language').value = address.language || '';
-                document.getElementById('cellPhoneCountry').value = address.cell_phone_country || '';
+                addrSetSelect('language', address.language);
+                addrSetSelect('cellPhoneCountry', address.cell_phone_country);
                 document.getElementById('cellPhone').value = address.cell_phone || '';
-                document.getElementById('telephoneCountry').value = address.telephone_country || '';
+                addrSetSelect('telephoneCountry', address.telephone_country);
                 document.getElementById('telephone').value = address.telephone || '';
                 document.getElementById('telephoneExt').value = address.telephone_extension || '';
-                document.getElementById('faxCountry').value = address.fax_country || '';
+                addrSetSelect('faxCountry', address.fax_country);
                 document.getElementById('fax').value = address.fax || '';
                 document.getElementById('faxExt').value = address.fax_extension || '';
                 document.getElementById('emailWork').value = address.email_work || '';
                 document.getElementById('emailPersonal').value = address.email_personal || '';
                 document.getElementById('website').value = address.website || '';
-                document.getElementById('preferredCommunication').value = address.preferred_communication || '';
+                addrSetSelect('preferredCommunication', address.preferred_communication);
                 document.getElementById('addrValidFrom').value = address.valid_from || '';
                 document.getElementById('addrValidTo').value = address.valid_to || '';
                 document.getElementById('addrIsPrimary').checked = address.is_primary || false;
@@ -722,7 +741,7 @@
                     clearAddressForm();
                 }
             } else {
-                showNotification('Failed to save address: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(addrErrorText(data), 'error');
             }
         } catch (error) {
             console.error(' Error saving address:', error);
@@ -735,7 +754,7 @@
      */
     function clearAddressForm() {
         document.getElementById('editAddressId').value = '';
-        document.getElementById('addressType').value = '';
+        addrSetSelect('addressType', '');
         document.getElementById('country').value = 'Indonesia';
         // Reset cascading: kosongkan Region + dispatch change agar select-enhance
         // menyegarkan label; level di bawahnya dikosongkan manual (innerHTML →
@@ -748,19 +767,19 @@
         document.getElementById('street').value = '';
         document.getElementById('houseNumber').value = '';
         document.getElementById('postalCode').value = '';
-        document.getElementById('language').value = '';
-        document.getElementById('cellPhoneCountry').value = '+62';
+        addrSetSelect('language', '');
+        addrSetSelect('cellPhoneCountry', '+62');
         document.getElementById('cellPhone').value = '';
-        document.getElementById('telephoneCountry').value = '+62';
+        addrSetSelect('telephoneCountry', '+62');
         document.getElementById('telephone').value = '';
         document.getElementById('telephoneExt').value = '';
-        document.getElementById('faxCountry').value = '+62';
+        addrSetSelect('faxCountry', '+62');
         document.getElementById('fax').value = '';
         document.getElementById('faxExt').value = '';
         document.getElementById('emailWork').value = '';
         document.getElementById('emailPersonal').value = '';
         document.getElementById('website').value = '';
-        document.getElementById('preferredCommunication').value = '';
+        addrSetSelect('preferredCommunication', '');
         document.getElementById('addrValidFrom').value = '';
         document.getElementById('addrValidTo').value = '';
         document.getElementById('addrIsPrimary').checked = false;

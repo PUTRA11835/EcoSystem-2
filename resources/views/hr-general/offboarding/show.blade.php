@@ -51,6 +51,13 @@
                 @if($canEdit && !$deactivated)
                     <form method="POST" action="{{ route('general.offboarding.deactivate', $o->id) }}" data-confirm="Deactivate the access of {{ $o->name }}? They can no longer log in. Roles and history are kept." data-confirm-title="Deactivate Access" data-confirm-ok="Deactivate" data-unsaved-ignore>@csrf
                         <button @disabled(!$due) title="{{ $due ? '' : 'Available on the effective date, ' . $effective->format('d M Y') }}" class="px-3 py-2 rounded-lg border border-red-300 text-red-600 text-xs font-semibold hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"><i class="fas fa-user-lock mr-1"></i> Deactivate access</button></form>
+                    @php $openTasks = $o->tasks->where('status', 'pending')->where('task_key', '!=', 'deactivate_access')->count(); @endphp
+                    @if(!empty($settings->allow_force_deactivate) && (!$due || $openTasks > 0))
+                        <form method="POST" action="{{ route('general.offboarding.deactivate', $o->id) }}" class="basis-full flex flex-wrap items-center justify-end gap-2" data-confirm="FORCE deactivate the access of {{ $o->name }} now? They can no longer log in immediately, even though the effective date or the checklist is not finished. The reason is saved in their history." data-confirm-title="Force Deactivate Access" data-confirm-ok="Force deactivate" data-unsaved-ignore>@csrf
+                            <input type="text" name="force_reason" required minlength="5" maxlength="300" placeholder="Reason for forcing (required)" class="w-72 max-w-full border border-red-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-red-200">
+                            <button class="px-3 py-2 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700"><i class="fas fa-bolt mr-1"></i> Force deactivate</button></form>
+                    @endif
+                    @if(!$due)<p class="basis-full text-right text-[11px] text-gray-400">Deactivate access unlocks on {{ $effective->format('d M Y') }} (the effective date).</p>@endif
                 @endif
                 @if($canEdit)
                     <form method="POST" action="{{ route('general.offboarding.complete', $o->id) }}" data-confirm="Complete this offboarding? The running contract is closed as Terminated." data-confirm-title="Complete Offboarding" data-confirm-ok="Complete" data-confirm-variant="primary" data-unsaved-ignore>@csrf
@@ -99,7 +106,7 @@
                                     <option value="pending" @selected($t->status === 'pending')>Pending</option><option value="done" @selected($t->status === 'done')>Done</option></select>
                                 <input name="tasks[{{ $t->id }}][note]" maxlength="500" value="{{ $t->note }}" placeholder="Short note" class="{{ $input }} col-span-2" @disabled(!$canEdit)>
                             </div>
-                            @if($auto && !$deactivated)<p class="text-[10px] text-gray-400 mt-1.5">Completed by the <strong>Deactivate access</strong> action on or after the effective date.</p>@endif
+                            @if($auto && !$deactivated)<p class="text-[10px] text-gray-400 mt-1.5">Completed by the <strong>Deactivate access</strong> action on or after the effective date{{ !$due ? ' (' . $effective->format('d M Y') . ')' : '' }}.</p>@endif
                             @if($t->task_key === 'return_assets')
                                 <div class="mt-2 text-[11px] {{ $o->assets->isEmpty() ? 'text-green-700' : 'text-amber-700' }}"><i class="fas fa-{{ $o->assets->isEmpty() ? 'circle-check' : 'triangle-exclamation' }} mr-1"></i>
                                     @if($o->assets->isEmpty()) No inventory asset is registered to this person.

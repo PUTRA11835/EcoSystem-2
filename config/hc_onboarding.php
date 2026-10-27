@@ -98,7 +98,7 @@ return [
          'field' => '#bankName',
          'source' => 'bank', 'column' => 'bank_name', 'section' => 'bank', 'applies' => $both],
         ['key' => 'bank_account',  'group' => 'payroll', 'label' => 'Bank account number',
-         'hint' => 'Enter your account number (digits only) on the Bank Account tab.',
+         'hint' => 'Enter your account number (digits only, 6–20 digits) on the Bank Account tab.',
          'field' => '#bankAccountNumber',
          'source' => 'bank', 'column' => 'account_number', 'section' => 'bank', 'applies' => $both],
         ['key' => 'bank_holder',   'group' => 'payroll', 'label' => 'Account holder name',
@@ -112,11 +112,11 @@ return [
 
         // ── BPJS ────────────────────────────────────────────────────────────
         ['key' => 'bpjs_health',   'group' => 'bpjs', 'label' => 'BPJS Kesehatan number',
-         'hint' => 'On the Identification tab, select BPJS Kesehatan and enter the number on your card. The type “Other” is not counted.',
+         'hint' => 'On the Identification tab, select BPJS Kesehatan and enter the 13-digit number on your card. The type “Other” is not counted.',
          'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'BPJS_KESEHATAN'],
          'source' => 'identification', 'types' => ['BPJS_KESEHATAN'], 'section' => 'identification', 'applies' => $internal],
         ['key' => 'bpjs_employ',   'group' => 'bpjs', 'label' => 'BPJS Ketenagakerjaan (KPJ) number',
-         'hint' => 'On the Identification tab, select BPJS Ketenagakerjaan and enter your KPJ number. The type “Other” is not counted.',
+         'hint' => 'On the Identification tab, select BPJS Ketenagakerjaan and enter your 11-digit KPJ number. The type “Other” is not counted.',
          'field' => '#identificationNumber', 'prefill' => ['identificationType' => 'BPJS_KETENAGAKERJAAN'],
          'source' => 'identification', 'types' => ['BPJS_KETENAGAKERJAAN'], 'section' => 'identification', 'applies' => $internal],
 
