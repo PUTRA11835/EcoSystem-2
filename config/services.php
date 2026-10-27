@@ -117,6 +117,26 @@ return [
         // longgar; tidak perlu ubah kode, cukup `.env` + `optimize:clear`.
         'attachment_link_days' => (int) env('TEAMS_ATTACHMENT_LINK_DAYS', 0),
 
+        // Lampiran NON-gambar dikirim sebagai kartu berkas asli Teams (dengan
+        // pratinjau), bukan tautan. Caranya: berkas disalin ke OneDrive akun
+        // pengirim, lalu flow 7 memposting pesannya lewat Graph dengan lampiran
+        // bertipe `reference`. Rincian: docs/teams-sync-parity-design.md §6c.
+        //
+        // Default MATI, dan menyalakannya SEBELUM flow 7 diperbarui tetap aman:
+        // payload selalu membawa `message_html` versi tautan, dan flow lama
+        // hanya mengenal itu.
+        'native_files' => (bool) env('TEAMS_SYNC_NATIVE_FILES', false),
+
+        // Berkas melebihi ini tidak disalin ke OneDrive; ia tetap terkirim
+        // sebagai tautan seperti sebelumnya.
+        'native_file_max_mb' => (int) env('TEAMS_SYNC_NATIVE_FILE_MAX_MB', 30),
+
+        // Folder induk di OneDrive akun pengirim. Di bawahnya susunannya meniru
+        // deliverable: {id customer} {NAMA}/TICKETING/{nomor tiket}.
+        // SENGAJA terpisah dari folder tiket deliverable: folder itu
+        // dibagikan ke customer, sedangkan lampiran internal note tidak boleh.
+        'files_path' => env('ONEDRIVE_TEAMS_CHAT_FILES_PATH') ?: 'DELIVERY SUPPORT/TEAMS CHAT FILES',
+
         // Akun pemilik connection Teams di Power Automate. Dua perannya, dan
         // keduanya muncul BERSAMAAN begitu chat dibuat lewat Graph:
         //
@@ -140,6 +160,45 @@ return [
         // cadangannya tidak pernah terpakai.
         'connection_email' => env('POWER_AUTOMATE_TEAMS_CONNECTION_OWNER') ?: env('MS_SENDER_EMAIL'),
 
+        // Consultant eksternal (Gmail, domain vendor) diundang sebagai GUEST
+        // tenant lewat POST /invitations, lalu di-bind ke group chat dengan
+        // object id-nya. Butuh izin aplikasi User.Invite.All. Mati = alamat
+        // di luar internal_domains dibuang dari daftar anggota (perilaku lama
+        // justru lebih buruk: satu alamat asing menggagalkan SELURUH chat).
+        'guest_invite' => (bool) env('TEAMS_SYNC_GUEST_INVITE', false),
+
+        // Guest yang diundang kurang dari sekian MENIT lalu dianggap belum
+        // dikenal Teams: group chat dibuat tanpa dia, lalu ia dimasukkan susulan
+        // oleh teams:add-pending-guests. Guest baru langsung dimasukkan ke
+        // POST /chats ditolak seluruhnya (26 Okt 2026: gagal di detik ke-2,
+        // anggota yang sama berhasil di menit ke-12).
+        'guest_propagation_minutes' => (int) env('TEAMS_SYNC_GUEST_PROPAGATION_MINUTES', 15),
+
+        // Email undangan dikirim EcoSystem lewat mailbox MS_SENDER_EMAIL, bukan
+        // oleh Microsoft. Undangan bawaan Microsoft masuk Spam Gmail (26 Okt
+        // 2026), dan tujuannya hanya Teams web. Email kita membawa tautan
+        // penerimaan undangan PLUS tautan langsung ke group chat tiket, yang
+        // menawarkan "buka di aplikasi Teams". Mati = perilaku lama (Microsoft
+        // yang mengirim, tanpa email dari kita).
+        'guest_custom_invite' => (bool) env('TEAMS_SYNC_GUEST_CUSTOM_INVITE', true),
+
+        // Batas percobaan memasukkan guest susulan sebelum berhenti di 'failed'.
+        // Jedanya merenggang (TeamsPendingGuestMember::BACKOFF_MINUTES); 10
+        // percobaan mencakup ±16 jam.
+        'guest_add_max_attempts' => (int) env('TEAMS_SYNC_GUEST_ADD_MAX_ATTEMPTS', 10),
+
+        // Domain milik tenant (pisah koma). Alamat di luar daftar ini = guest.
+        'internal_domains' => env('TEAMS_INTERNAL_DOMAINS') ?: 'eclectic.co.id',
+
+        // Tujuan setelah guest menerima undangan. WAJIB menyebut tenant: guest
+        // Email OTP (Gmail tanpa akun Microsoft) tidak dikenali halaman login
+        // umum teams.microsoft.com — ia ditolak "We couldn't find an account"
+        // atau "You don't have the required permissions to access this org"
+        // (terbukti 22 Okt 2026). Tautan yang sama juga yang dipakai guest
+        // untuk masuk lagi di kemudian hari.
+        'guest_redirect_url' => env('TEAMS_GUEST_REDIRECT_URL')
+            ?: 'https://teams.microsoft.com/?tenantId=' . (env('MS_TEAMS_TENANT_ID') ?: env('MS_TENANT_ID')),
+
         // Batas ukuran satu gambar Teams yang diunduh ke storage tiket (MB).
         // Gambar melebihi ini tidak diunduh; pesannya tetap masuk dengan penanda
         // bahwa gambarnya ada di Teams. Menjaga disk tiket dari kiriman video/
@@ -155,6 +214,12 @@ return [
         // Antrean keluar.
         'outbox_batch'        => (int) env('TEAMS_SYNC_OUTBOX_BATCH', 25),
         'outbox_max_attempts' => (int) env('TEAMS_SYNC_OUTBOX_MAX_ATTEMPTS', 5),
+
+        // Pesan customer yang ditulis LANGSUNG ke DB oleh JARVIES (tanpa lewat
+        // EcoSystem) diantre oleh sapuan di teams:flush-outbox. Hanya pesan
+        // sebaru ini yang disapu — mencegah banjir pesan lama saat fitur
+        // pertama kali dinyalakan.
+        'customer_sweep_minutes' => (int) env('TEAMS_SYNC_CUSTOMER_SWEEP_MINUTES', 120),
     ],
 
     'jarvies' => [

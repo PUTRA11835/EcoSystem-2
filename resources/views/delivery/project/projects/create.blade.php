@@ -164,10 +164,10 @@ $employees = ($employees ?? collect())->sortBy(fn($e) => strtolower($e->basicDat
                        value="{{ old('io_number') }}"
                        placeholder="e.g. IO-2026-001"
                        required>
-                {{-- Opsi IO existing (khusus Body Hire) diisi oleh refreshIoOptions() sesuai company terpilih. --}}
+                {{-- Opsi IO existing diisi oleh refreshIoOptions() sesuai company terpilih. --}}
                 <datalist id="io_number_options"></datalist>
                 <p id="io_number_hint" class="mt-1 text-xs text-blue-600 hidden">
-                    <i class="fas fa-info-circle mr-1"></i>Body Hire: pilih IO number yang sudah ada milik company terpilih, atau ketik IO number baru.
+                    <i class="fas fa-info-circle mr-1"></i>Pilih IO number yang sudah ada milik company terpilih, atau ketik IO number baru.
                 </p>
                 @error('io_number')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror
             </div>
@@ -1020,31 +1020,28 @@ document.addEventListener('DOMContentLoaded', function() {
         updateRegions();
     @endif
 
-    // Populate IO options for the currently-selected client/type (Body Hire flow).
+    // Populate IO options for the currently-selected client.
     refreshIoOptions();
 });
 
-// ===== Body Hire: pilih IO existing (per company) atau ketik baru =====
-// IO number existing dikelompokkan per client_id. Untuk Body Hire, datalist
-// diisi HANYA dengan IO milik company (client) yang sedang dipilih.
+// ===== Pilih IO existing (per company) atau ketik baru =====
+// IO number existing dikelompokkan per client_id. Datalist diisi HANYA dengan
+// IO milik company (client) yang sedang dipilih — berlaku untuk semua project type.
 window.IOS_BY_CLIENT = @json($iosByClient ?? []);
 window.refreshIoOptions = function () {
-    const type   = document.getElementById('project_type')?.value || '';
     const client = document.getElementById('client_id')?.value || '';
     const dl     = document.getElementById('io_number_options');
     const hint   = document.getElementById('io_number_hint');
     if (!dl) return;
 
-    const isBodyHire = (type === 'Body Hire');
+    const ios = (client && window.IOS_BY_CLIENT[client]) || [];
     dl.innerHTML = '';
-    if (isBodyHire && client && window.IOS_BY_CLIENT[client]) {
-        window.IOS_BY_CLIENT[client].forEach(io => {
-            const opt = document.createElement('option');
-            opt.value = io;
-            dl.appendChild(opt);
-        });
-    }
-    if (hint) hint.classList.toggle('hidden', !isBodyHire);
+    ios.forEach(io => {
+        const opt = document.createElement('option');
+        opt.value = io;
+        dl.appendChild(opt);
+    });
+    if (hint) hint.classList.toggle('hidden', ios.length === 0);
 };
 </script>
 {{-- ===== Sales Financial: Thousand Separator + Auto-Calculation ===== --}}

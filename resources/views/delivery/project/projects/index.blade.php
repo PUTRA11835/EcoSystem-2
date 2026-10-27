@@ -180,14 +180,39 @@
                     All Delivery Projects
                 </h3>
                 <div class="flex items-center gap-2">
-                {{-- Export mengikuti filter/sort yang sedang aktif di tabel:
-                     id baris yang terlihat dikirim sebagai query `ids`. --}}
-                <button type="button" onclick="projExportExcel(this)"
-                        class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition duration-300 text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed">
-                    <i class="fas fa-file-excel text-green-600"></i>
-                    <span class="hidden sm:inline">Export Excel</span>
-                    <span class="sm:hidden">Export</span>
-                </button>
+                {{-- Menu export: daftar project (ikut filter tabel) atau TOP
+                     ber-Invoice No dari seluruh project (global). --}}
+                <div class="relative" id="projExportMenuWrap">
+                    <button type="button" id="projExportBtn" onclick="toggleProjExportMenu()"
+                            class="inline-flex items-center gap-2 border border-gray-300 bg-white text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-50 transition duration-300 text-sm sm:text-base disabled:opacity-60 disabled:cursor-not-allowed">
+                        <i class="fas fa-file-excel text-green-600"></i>
+                        <span class="hidden sm:inline">Export Excel</span>
+                        <span class="sm:hidden">Export</span>
+                        <i class="fas fa-chevron-down text-[10px] text-gray-400"></i>
+                    </button>
+                    <div id="projExportMenu"
+                         class="hidden absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1">
+                        {{-- Export mengikuti filter/sort yang sedang aktif di tabel:
+                             id baris yang terlihat dikirim sebagai query `ids`. --}}
+                        <button type="button" onclick="projExportExcel(document.getElementById('projExportBtn'))"
+                                class="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition">
+                            <span class="block text-sm font-semibold text-gray-800">Project List</span>
+                            <span class="block text-xs text-gray-500">Projects currently shown in the table (follows filters)</span>
+                        </button>
+                        @if($can('delivery-project.delivery-info.view'))
+                        <a href="{{ route('projects.exportRevenue') }}" onclick="closeProjExportMenu()"
+                           class="block px-4 py-2.5 hover:bg-gray-50 transition border-t border-gray-100">
+                            <span class="block text-sm font-semibold text-gray-800">Project Revenue</span>
+                            <span class="block text-xs text-gray-500">All delivery projects — revenue, cost, gross profit &amp; billing status</span>
+                        </a>
+                        <a href="{{ route('projects.paymentTerms.exportInvoiced') }}" onclick="closeProjExportMenu()"
+                           class="block px-4 py-2.5 hover:bg-gray-50 transition border-t border-gray-100">
+                            <span class="block text-sm font-semibold text-gray-800">Invoiced Terms of Payment</span>
+                            <span class="block text-xs text-gray-500">All delivery projects — every payment term that has an Invoice No</span>
+                        </a>
+                        @endif
+                    </div>
+                </div>
                 @if($can('delivery-project.add-new'))
                 <a href="{{ route('projects.create') }}"
                    class="primary-gradient text-white font-bold py-2 px-4 rounded-lg hover:opacity-90 transition duration-300 text-sm sm:text-base">
@@ -725,6 +750,63 @@
         const PROJ_SORT_KEYS    = ['io', 'customer', 'type', 'name', 'ae', 'owner', 'category', 'status', 'updated'];
         const projState = { sortKey: null, sortDir: 'asc', filters: {} };
 
+        // ── Filter tersimpan ─────────────────────────────────────────────────────
+        // Filter kolom, summary tile, dan kotak search mobile disimpan di
+        // localStorage (per user, per browser) dan dipasang lagi saat halaman ini
+        // dibuka kembali; hilang hanya kalau user sendiri yang meng-clear-nya.
+        // Sort sengaja tidak ikut disimpan: tidak ada kontrol untuk melepasnya.
+        const PROJ_FILTER_KEYS  = ['io', 'customer', 'type', 'name', 'ae', 'owner', 'category', 'status', 'deadline'];
+        const PROJ_FILTER_STORE ='deliveryProjects.index.filters.u{{ auth()->id() }}';
+        let projFiltersRestored = false;
+
+        function projSaveFilters() {
+            // Jangan menimpa simpanan dengan state kosong sebelum sempat di-restore.
+            if (!projFiltersRestored) return;
+            const filters = {};
+            for (const key in projState.filters) {
+                if (projState.filters[key]) filters[key] = projState.filters[key];
+            }
+            const input  = document.getElementById('project-search');
+            const search = input ? input.value.trim() : '';
+            try {
+                if (!Object.keys(filters).length && !search) localStorage.removeItem(PROJ_FILTER_STORE);
+                else localStorage.setItem(PROJ_FILTER_STORE, JSON.stringify({ filters, search }));
+            } catch (e) { /* storage diblokir / penuh → filter tetap jalan, hanya tidak tersimpan */ }
+        }
+
+        function projRestoreFilters() {
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem(PROJ_FILTER_STORE) || 'null'); } catch (e) { saved = null; }
+
+            const filters = (saved && typeof saved.filters === 'object' && saved.filters) || {};
+            for (const key in filters) {
+                const val = String(filters[key] || '');
+                if (!val || !PROJ_FILTER_KEYS.includes(key)) continue;
+                const panel   = document.getElementById('proj-panel-' + key);
+                const control = panel ? panel.querySelector('select, input[type="text"]') : null;
+
+                if (control && control.tagName === 'SELECT') {
+                    // Opsi bisa sudah tidak ada (mis. customer/AE-nya tak lagi punya
+                    // project) — filter basi seperti itu dibuang, bukan dipasang
+                    // diam-diam sampai tabel kosong tanpa sebab yang terlihat.
+                    if (!Array.from(control.options).some(o => o.value === val)) continue;
+                    projState.filters[key] = val;
+                    control.value = val;
+                    control.dispatchEvent(new Event('change', { bubbles: false }));
+                } else {
+                    // Input teks, atau filter tanpa panel (tile "Ending <= 30 days").
+                    projState.filters[key] = val;
+                    if (control) control.value = val;
+                }
+            }
+
+            const input = document.getElementById('project-search');
+            if (input && saved && typeof saved.search === 'string') input.value = saved.search;
+
+            projFiltersRestored = true;
+            applyProjectView();
+        }
+
         function applyProjectView() {
             const tbody = document.getElementById('desktop-project-table-body');
             if (!tbody) return;
@@ -795,6 +877,9 @@
 
             const noRes = document.getElementById('mobile-no-results');
             if (noRes) noRes.classList.toggle('hidden', !(visible === 0 && cards.length > 0));
+            // Dijalankan untuk setiap perubahan filter (lewat applyProjectView)
+            // maupun search mobile → satu titik simpan untuk keduanya.
+            projSaveFilters();
         }
 
         // ── Summary tiles ────────────────────────────────────────────────────────
@@ -835,6 +920,7 @@
                 tile.addEventListener('click', () => projStatTileClick(tile));
             });
             updateStatTiles();
+            projRestoreFilters();
         });
 
         function updateProjIcons() {
@@ -873,7 +959,21 @@
         // query `ids`. Filter kolom sudah menyembunyikan baris desktop, sedangkan
         // kotak search mobile hanya menyaring card — jadi term-nya diterapkan lagi
         // di sini supaya hasil di layar kecil juga ikut menyempit.
+        function toggleProjExportMenu() {
+            document.getElementById('projExportMenu')?.classList.toggle('hidden');
+        }
+        function closeProjExportMenu() {
+            document.getElementById('projExportMenu')?.classList.add('hidden');
+        }
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#projExportMenuWrap')) closeProjExportMenu();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeProjExportMenu();
+        });
+
         function projExportExcel(btn) {
+            closeProjExportMenu();
             const rows  = Array.from(document.querySelectorAll('#desktop-project-table-body tr.project-row'));
             const input = document.getElementById('project-search');
             const term  = input ? input.value.toLowerCase().trim() : '';

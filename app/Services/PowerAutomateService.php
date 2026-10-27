@@ -517,14 +517,18 @@ class PowerAutomateService
      * pernah berubah, dan flow bisa memakainya untuk pencocokan awalan.
      *
      * @param  array{employee_id:?int,name:?string,email:?string}  $person
-     * @param  'member'|'pic'  $role
+     * @param  'member'|'pic'|'support'  $role  'support' = tim Delivery Support
+     *                                         tiket (saat tiket dipindah DS)
      * @param  array<string,mixed>  $actor
+     * @param  string|null  $roleLabel  label tampil, mis. "Delivery Owner";
+     *                                  null = "PIC" / "Member" dari $role
      */
-    public function ticketMemberPayload(Ticket $ticket, array $person, string $role, array $actor = []): array
+    public function ticketMemberPayload(Ticket $ticket, array $person, string $role, array $actor = [], ?string $roleLabel = null): array
     {
+        $roleLabel   ??= $role === 'pic' ? 'PIC' : 'Member';
         $ticketPayload = $this->ticketPayload($ticket);
-        $text          = $this->memberAddedText($person, $role, $actor);
-        $afterMention  = $this->memberAddedMentionText($role, $actor);
+        $text          = $this->memberAddedText($person, $roleLabel, $actor);
+        $afterMention  = $this->memberAddedMentionText($role === 'member' ? 'member' : $roleLabel, $actor);
 
         return [
             'ticket'  => $ticketPayload,
@@ -536,9 +540,17 @@ class PowerAutomateService
                 'employee_id' => $person['employee_id'] ?? null,
                 'name'        => $person['name'] ?? null,
                 'email'       => $person['email'] ?? null,
-                // 'member' = baris ticket_member, 'pic' = ticket_lead_id.
+                // 'member' = baris ticket_member, 'pic' = ticket_lead_id,
+                // 'support' = tim Delivery Support tiket.
                 'role'        => $role,
-                'role_label'  => $role === 'pic' ? 'PIC' : 'Member',
+                'role_label'  => $roleLabel,
+                // `teams_id` = rujukan user untuk konektor Teams, dipakai flow 6
+                // di "Add a user to a chat" dan "Get an @mention token": email
+                // untuk internal, object id untuk guest (alamat Gmail ditolak
+                // konektor, object id diterima — terbukti 20 Okt 2026). Guest
+                // sudah dimasukkan EcoSystem lewat Graph lebih dulu.
+                'is_guest'    => false,
+                'teams_id'    => $person['email'] ?? null,
             ],
             'added_by' => [
                 'id'    => $actor['id'] ?? null,
@@ -574,12 +586,11 @@ class PowerAutomateService
      * mengotori percakapan (keputusan meeting 18 Sep 2026).
      *
      * @param  array{employee_id:?int,name:?string,email:?string}  $person
-     * @param  'member'|'pic'  $role
+     * @param  string  $label  "PIC", "Member", "Delivery Owner", dst.
      * @param  array<string,mixed>  $actor
      */
-    private function memberAddedText(array $person, string $role, array $actor): string
+    private function memberAddedText(array $person, string $label, array $actor): string
     {
-        $label = $role === 'pic' ? 'PIC' : 'Member';
         $name  = $person['name'] ?? $person['email'] ?? '-';
 
         $lines = array_filter([
@@ -597,12 +608,11 @@ class PowerAutomateService
      * predikat: hasil akhirnya "Rani Kusuma ditambahkan sebagai PIC di tiket ini
      * oleh Tio Pramudya."
      *
-     * @param  'member'|'pic'  $role
+     * @param  string  $label  "PIC", "member", "Delivery Owner", dst.
      * @param  array<string,mixed>  $actor
      */
-    private function memberAddedMentionText(string $role, array $actor): string
+    private function memberAddedMentionText(string $label, array $actor): string
     {
-        $label = $role === 'pic' ? 'PIC' : 'member';
         $text  = 'ditambahkan sebagai ' . $label . ' di tiket ini';
 
         if (!empty($actor['name'])) {

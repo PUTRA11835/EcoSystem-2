@@ -2364,6 +2364,13 @@ class TicketController extends Controller
             ], 422);
         }
 
+        // Orang yang baru masuk tiket lewat konfirmasi ini, untuk ditarik ke
+        // group chat Teams SETELAH commit — bukan di dalam transaksi, supaya
+        // rollback tidak meninggalkan orang yang terlanjur diundang.
+        $teamsTicket  = null;
+        $teamsPic     = null;
+        $teamsMembers = [];
+
         try {
             DB::beginTransaction();
 
@@ -2382,6 +2389,7 @@ class TicketController extends Controller
             if ($request->action === 'confirm') {
                 // Update ticket
                 $ticket = Ticket::findOrFail($confirmation->ticket_id);
+                $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
                 $ticket->update([
                     'ticket_lead_id' => $confirmation->employee_id,
                     'man_days'       => $confirmation->man_days,
@@ -2395,6 +2403,12 @@ class TicketController extends Controller
                 if ($memberIds) {
                     $ticket->members()->sync($memberIds);
                 }
+
+                $teamsTicket = $ticket;
+                if ((int) $confirmation->employee_id !== $previousLeadId) {
+                    $teamsPic = (int) $confirmation->employee_id;
+                }
+                $teamsMembers = array_diff(array_map('intval', $memberIds ?: []), array_map('intval', $oldMemberIds));
 
                 // Update confirmation
                 DB::table('ticket_confirmation')
@@ -2455,9 +2469,16 @@ class TicketController extends Controller
 
             DB::commit();
 
+            if ($teamsTicket) {
+                if ($teamsPic) {
+                    $this->notifyTeamsTicketPerson($teamsTicket, $teamsPic, 'pic', $sessionUser);
+                }
+                $this->notifyTeamsTicketPeople($teamsTicket, $teamsMembers, $sessionUser, $teamsPic);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => $request->action === 'confirm' 
+                'message' => $request->action === 'confirm'
                     ? 'Assignment confirmed successfully' 
                     : 'Assignment rejected'
             ]);
@@ -2601,9 +2622,18 @@ class TicketController extends Controller
                 $updateData['pic'] = trim($leadName);
             }
 
+            $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
             $ticket->update($updateData);
             $ticket->refreshPlaceholderManDays();
             $ticket->syncDraftResolutionMembers();
+
+            // PIC baru ikut ditarik ke channel Teams tiket ini. Hanya saat
+            // orangnya benar-benar berganti — menyimpan ulang PIC yang sama
+            // tidak perlu memanggil flow.
+            if ($previousLeadId !== (int) $request->ticket_lead_id) {
+                $this->notifyTeamsTicketPerson($ticket, (int) $request->ticket_lead_id, 'pic', $sessionUser);
+            }
 
             return response()->json(['success' => true, 'message' => $isFirstAssign ? 'Ticket Lead assigned successfully' : 'Ticket Lead updated successfully']);
         } catch (\Exception $e) {
@@ -3013,11 +3043,28 @@ class TicketController extends Controller
             }
 
             if (!empty($updateData)) {
+                $previousLeadId = $ticket->ticket_lead_id !== null ? (int) $ticket->ticket_lead_id : null;
+
                 $ticket->update($updateData);
 
                 if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
+                }
+
+                // Priority/scale/type menentukan SLA policy — tanpa ini ticket_slas tetap
+                // menunjuk policy lama (mis. target 24 jam padahal sekarang Medium/Medium = 48).
+                if ($ticket->wasChanged(['ticket_priority', 'scale', 'ticket_type'])) {
+                    app(\App\Services\SlaService::class)->syncPolicy($ticket, null, null, true);
+                }
+
+                // Jalur kedua penetapan PIC (edit tiket / Take This Ticket), sejajar
+                // dengan assignTicketLead().
+                $newLeadId = array_key_exists('ticket_lead_id', $updateData) && $updateData['ticket_lead_id']
+                    ? (int) $updateData['ticket_lead_id']
+                    : null;
+                if ($newLeadId && $newLeadId !== $previousLeadId) {
+                    $this->notifyTeamsTicketPerson($ticket, $newLeadId, 'pic', $sessionUser);
                 }
             }
 
@@ -3432,7 +3479,77 @@ class TicketController extends Controller
      *
      * @param  'member'|'pic'  $role
      */
-    private function notifyTeamsTicketPerson(Ticket $ticket, int $employeeId, string $role, array $sessionUser): void
+    /**
+     * {@see notifyTeamsTicketPerson()} untuk beberapa member sekaligus — jalur
+     * yang menambah member secara massal (updateMembers, konfirmasi Take Ticket,
+     * approval member change request). Internal maupun eksternal ditangani di
+     * notifyTeamsTicketPerson(), jadi tidak ada cabang guest di sini.
+     *
+     * @param  list<int>  $employeeIds  hanya yang BARU masuk tiket
+     * @param  int|null   $skipId       PIC yang sudah diumumkan sebagai PIC
+     */
+    private function notifyTeamsTicketPeople(Ticket $ticket, array $employeeIds, array $sessionUser, ?int $skipId = null): void
+    {
+        foreach (array_unique(array_map('intval', $employeeIds)) as $empId) {
+            if ($empId > 0 && $empId !== $skipId) {
+                $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
+            }
+        }
+    }
+
+    /**
+     * Tarik tim Delivery Support yang baru (Delivery Owner, Support Manager,
+     * CO PM, Support Admin) ke group chat tiket saat tiket dipindah ke DS lain.
+     *
+     * Group chat dibentuk saat validasi dengan tim DS waktu itu; tanpa ini,
+     * pemilik DS baru tidak pernah masuk grup tiket yang kini jadi tanggung
+     * jawabnya. Yang dilewati: tim DS lama (sudah di grup sejak validasi), PIC,
+     * dan member aktif tiket (sudah masuk lewat jalurnya sendiri). Anggota tim
+     * DS lama TIDAK dikeluarkan — riwayat diskusinya tetap relevan, dan Graph
+     * app ini memang tidak dipakai untuk mengeluarkan orang dari chat.
+     *
+     * Internal maupun eksternal ditangani notifyTeamsTicketPerson().
+     */
+    private function notifyTeamsSupportTeam(Ticket $ticket, int $supportId, ?int $previousSupportId, array $sessionUser): void
+    {
+        try {
+            $powerAutomate = app(\App\Services\PowerAutomateService::class);
+
+            // Role penjaga (Delivery Support Head / Helpdesk) selalu ikut sejak
+            // grup dibuat, jadi juga dilewati.
+            $already = array_map('intval', array_merge(
+                array_column($powerAutomate->deliverySupportTeam($previousSupportId), 'employee_id'),
+                array_column($powerAutomate->roleMembers(), 'employee_id')
+            ));
+            if ($ticket->ticket_lead_id) {
+                $already[] = (int) $ticket->ticket_lead_id;
+            }
+            $already = array_merge($already, DB::table('ticket_member')
+                ->where('ticket_id', $ticket->ticket_id)
+                ->where('is_active', true)
+                ->pluck('employee_id')
+                ->map(fn ($id) => (int) $id)
+                ->all());
+
+            foreach ($powerAutomate->deliverySupportTeam($supportId) as $person) {
+                if (!in_array((int) $person['employee_id'], $already, true)) {
+                    $this->notifyTeamsTicketPerson($ticket, (int) $person['employee_id'], 'support', $sessionUser, $person['role_label']);
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('TicketController: gagal menarik tim Delivery Support baru ke Teams (non-fatal)', [
+                'ticket_id'  => $ticket->ticket_id,
+                'support_id' => $supportId,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @param  'member'|'pic'|'support'  $role
+     * @param  string|null  $roleLabel  label tampil di pesan chat (mis. "Delivery Owner")
+     */
+    private function notifyTeamsTicketPerson(Ticket $ticket, int $employeeId, string $role, array $sessionUser, ?string $roleLabel = null): void
     {
         try {
             $powerAutomate = app(\App\Services\PowerAutomateService::class);
@@ -3452,14 +3569,61 @@ class TicketController extends Controller
                 return;
             }
 
-            $powerAutomate->dispatchAfterResponse(
-                \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
-                $powerAutomate->ticketMemberPayload($ticket, $person, $role, [
-                    'id'    => $sessionUser['id'] ?? null,
-                    'name'  => $sessionUser['name'] ?? null,
-                    'email' => $sessionUser['email'] ?? null,
-                ])
-            );
+            $ticketId = (int) $ticket->ticket_id;
+            $email    = (string) $person['email'];
+            $guests   = app(\App\Services\Teams\TeamsGuestService::class);
+            $actor    = [
+                'id'    => $sessionUser['id'] ?? null,
+                'name'  => $sessionUser['name'] ?? null,
+                'email' => $sessionUser['email'] ?? null,
+            ];
+
+            if ($guests->isExternal($email)) {
+                // Consultant eksternal: aksi "Add a user to a chat" di flow 6
+                // mencari orangnya dari email, dan untuk guest itu gagal. Jadi
+                // EcoSystem sendiri yang mengundang + menambahkannya lewat Graph,
+                // LALU flow 6 dipanggil dengan person.teams_id = object id guest.
+                // Konektor Teams menerima object id itu untuk "Add a user to a
+                // chat" maupun "Get an @mention token" (terbukti 20 Okt 2026);
+                // yang ditolaknya hanya alamat Gmail. Satu callback, berurutan:
+                // pesan flow 6 baru berarti kalau orangnya sudah ada di grup.
+                //
+                // Guest yang baru diundang belum dikenal Teams beberapa menit;
+                // addGuestMember() lalu mengantrenya BERSAMA payload flow 6, dan
+                // teams:add-pending-guests yang mengirim flow 6 setelah guest-nya
+                // masuk grup.
+                app()->terminating(static function () use ($powerAutomate, $guests, $ticket, $ticketId, $email, $person, $role, $actor, $roleLabel) {
+                    $teamsId = $guests->resolve($email);
+
+                    if ($teamsId === null) {
+                        return;
+                    }
+
+                    $payload = $powerAutomate->ticketMemberPayload($ticket, $person, $role, $actor, $roleLabel);
+                    $payload['person']['is_guest'] = true;
+                    $payload['person']['teams_id'] = $teamsId;
+
+                    $result = app(\App\Services\Teams\TeamsChatService::class)->addGuestMember($ticketId, $email, $payload);
+
+                    if ($result === \App\Services\Teams\TeamsChatService::GUEST_ADDED) {
+                        $powerAutomate->dispatch(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED, $payload);
+                    }
+                });
+            } else {
+                $powerAutomate->dispatchAfterResponse(
+                    \App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED,
+                    $powerAutomate->ticketMemberPayload($ticket, $person, $role, $actor, $roleLabel)
+                );
+            }
+
+            // Orang yang baru masuk grup juga diberi hak baca folder berkas chat
+            // tiket ini di OneDrive — tanpa itu kartu berkas yang sudah ada di
+            // grup tampil baginya tetapi tidak bisa dibuka. Setelah response,
+            // dan kegagalannya ditelan di dalam grantForTicket().
+
+            app()->terminating(static function () use ($ticketId, $email) {
+                app(\App\Services\Teams\TeamsFileService::class)->grantForTicket($ticketId, [$email]);
+            });
         } catch (\Throwable $e) {
             Log::warning('TicketController: gagal menyiapkan penambahan anggota channel Teams (non-fatal)', [
                 'ticket_id'   => $ticket->ticket_id,
@@ -3578,6 +3742,9 @@ class TicketController extends Controller
             );
 
             $this->sendMemberNotifications($ticket, $actorId, $actorName, $empId, $addedName, $isReactivation ? 'reactivated' : 'added');
+
+            // Ikut tarik orangnya ke channel Teams tiket ini.
+            $this->notifyTeamsTicketPerson($ticket, $empId, 'member', $sessionUser);
 
             return response()->json([
                 'success' => true,
@@ -3756,6 +3923,13 @@ class TicketController extends Controller
                 description: "updated members on Ticket — Ticket #{$ticket->ticket_number}",
                 old: ['member_ids' => $oldMemberIds],
                 new: ['member_ids' => $request->member_ids],
+            );
+
+            // Hanya yang BARU masuk; member lama sudah ada di group chat.
+            $this->notifyTeamsTicketPeople(
+                $ticket,
+                array_diff(array_map('intval', $request->member_ids), array_map('intval', $oldMemberIds)),
+                $sessionUser
             );
 
             return response()->json([
@@ -4002,6 +4176,10 @@ class TicketController extends Controller
             ], 400);
         }
 
+        // Lihat confirmAssignment(): undangan Teams baru dikirim setelah commit.
+        $teamsTicket  = null;
+        $teamsMembers = [];
+
         try {
             DB::beginTransaction();
 
@@ -4058,6 +4236,9 @@ class TicketController extends Controller
                             ['is_active' => true, 'updated_at' => $now]
                         );
                     }
+
+                    $teamsTicket  = $ticket;
+                    $teamsMembers = array_diff(array_map('intval', $memberIds), array_map('intval', $oldActiveMemberIds));
                 } else if ($changeRequest->change_type === 'remove') {
                     // Nonaktifkan member yang diminta dihapus
                     DB::table('ticket_member')
@@ -4106,9 +4287,13 @@ class TicketController extends Controller
 
             DB::commit();
 
+            if ($teamsTicket) {
+                $this->notifyTeamsTicketPeople($teamsTicket, $teamsMembers, $sessionUser);
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => $action === 'approve' 
+                'message' => $action === 'approve'
                     ? 'Member change approved successfully'
                     : 'Member change rejected'
             ]);
@@ -4323,6 +4508,11 @@ class TicketController extends Controller
             $ticket = Ticket::findOrFail($id);
             $supportId = $request->support_id;
 
+            // Dibaca SEBELUM link activity lama dilepas di bawah — dipakai untuk
+            // menentukan siapa dari tim DS baru yang belum ada di group chat.
+            $previousSupportId = app(\App\Services\PowerAutomateService::class)
+                ->deliverySupportIdForTicket((int) $ticket->ticket_id);
+
             // Get delivery support
             $support = DB::table('delivery_support')->where('id', $supportId)->first();
 
@@ -4491,6 +4681,8 @@ class TicketController extends Controller
             // Now that the ticket is linked to a delivery support, apply the SLA policy
             // (policy could not be matched at validation time because DS was not yet assigned)
             app(\App\Services\SlaService::class)->syncPolicy($ticket);
+
+            $this->notifyTeamsSupportTeam($ticket, (int) $supportId, $previousSupportId, $sessionUser);
 
             Log::info('Ticket assigned to delivery support', [
                 'ticket_id' => $ticket->ticket_id,

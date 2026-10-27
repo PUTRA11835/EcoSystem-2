@@ -133,8 +133,8 @@ class ExplainWorkflowTool implements AiTool
             'delivery_project_planning' => <<<'MD'
                 ## Creating a delivery project
                 Menu path: **Delivery → Project**. Creating one requires: client (must be a Business Partner of type
-                Customer), project owner, name, description, project type, contract start/end dates, and a unique IO
-                number (Body Hire-type projects may share an IO number within the same company). Optional but common:
+                Customer), project owner, name, description, project type, contract start/end dates, and an IO
+                number (projects of any type may share an IO number, but only within the same company). Optional but common:
                 role assignments (delivery owner, delivery manager, project manager, co-PM, project admin),
                 financials (revenue, plan cost, gross profit), delivery method, warranty period, total mandays,
                 location, and an inline team-members table. A newly created project starts at status "On Track" with

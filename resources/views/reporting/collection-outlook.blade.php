@@ -24,7 +24,7 @@
                         @endforeach
                     </select>
                     <select id="coFromYear" class="co-select">
-                        @for($y = now()->year - 3; $y <= now()->year + 2; $y++)
+                        @for($y = now()->year - \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_PAST_YEARS; $y <= now()->year + \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_FUTURE_YEARS; $y++)
                             <option value="{{ $y }}" {{ now()->year == $y ? 'selected' : '' }}>{{ $y }}</option>
                         @endfor
                     </select>
@@ -39,7 +39,7 @@
                         @endforeach
                     </select>
                     <select id="coToYear" class="co-select">
-                        @for($y = now()->year - 3; $y <= now()->year + 2; $y++)
+                        @for($y = now()->year - \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_PAST_YEARS; $y <= now()->year + \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_FUTURE_YEARS; $y++)
                             <option value="{{ $y }}" {{ now()->year == $y ? 'selected' : '' }}>{{ $y }}</option>
                         @endfor
                     </select>
@@ -395,7 +395,42 @@ function populateAeFilter(options) {
     sel.dataset.populated = '1';
 }
 
+// Batasan periode — sinkron dengan ReportingController::COLLECTION_OUTLOOK_* (server tetap memvalidasi ulang).
+const CO_PAST_YEARS   = {{ \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_PAST_YEARS }};
+const CO_FUTURE_YEARS = {{ \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_FUTURE_YEARS }};
+const CO_MAX_MONTHS   = {{ \App\Http\Controllers\ReportingController::COLLECTION_OUTLOOK_MAX_MONTHS }};
+const CO_MIN_YEAR     = {{ now()->year }} - CO_PAST_YEARS;
+const CO_MAX_YEAR     = {{ now()->year }} + CO_FUTURE_YEARS;
+
+// Kembalikan pesan error (alasan + saran) bila periode tidak valid, atau null bila valid.
+function coRangeError() {
+    const fm = parseInt(document.getElementById('coFromMonth').value, 10);
+    const fy = parseInt(document.getElementById('coFromYear').value, 10);
+    const tm = parseInt(document.getElementById('coToMonth').value, 10);
+    const ty = parseInt(document.getElementById('coToYear').value, 10);
+    const label = (m, y) => `${CO_MONTHS_EN[m - 1].slice(0, 3)} ${y}`;
+
+    for (const [name, y] of [['From', fy], ['To', ty]]) {
+        if (isNaN(y) || y < CO_MIN_YEAR || y > CO_MAX_YEAR) {
+            return `${name} year "${y}" is outside the allowed range. Choose a year between ${CO_MIN_YEAR} and ${CO_MAX_YEAR} (${CO_PAST_YEARS} years back up to ${CO_FUTURE_YEARS} years ahead).`;
+        }
+    }
+    const months = (ty * 12 + tm) - (fy * 12 + fm) + 1;
+    if (months < 1) {
+        return `From period (${label(fm, fy)}) is after To period (${label(tm, ty)}). Choose a From period that is the same as or earlier than To.`;
+    }
+    if (months > CO_MAX_MONTHS) {
+        return `Selected period ${label(fm, fy)} – ${label(tm, ty)} spans ${months} months, exceeding the maximum of ${CO_MAX_MONTHS} months (${CO_MAX_MONTHS / 12} years). Please narrow the period.`;
+    }
+    return null;
+}
+
 function exportOutlook() {
+    const rangeError = coRangeError();
+    if (rangeError) {
+        showToast(rangeError, 'error', 8000);
+        return;
+    }
     window.location.href = `/reporting/collection-outlook/export?${coParams().toString()}`;
 }
 
@@ -412,6 +447,9 @@ async function loadOutlook() {
     </td></tr>`;
 
     try {
+        const rangeError = coRangeError();
+        if (rangeError) throw new Error(rangeError);
+
         const res = await fetch(`/api/reporting/collection-outlook?${coParams().toString()}`, {
             headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
             credentials: 'same-origin'
@@ -426,6 +464,7 @@ async function loadOutlook() {
         renderUndated(json.undated || []);
     } catch (e) {
         console.error(e);
+        showToast(e.message, 'error', 8000);
         tbody.innerHTML = `<tr><td colspan="99" class="px-4 py-10 text-center text-sm">
             <div class="inline-flex flex-col items-center gap-2 text-red-500">
                 <i class="fas fa-exclamation-circle text-xl"></i>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\DeliveryProjectCostExport;
 use App\Models\DeliveryProject;
 use App\Models\DeliveryProjectCost;
 use App\Models\DeliveryProjectCostItem;
@@ -10,6 +11,7 @@ use App\Services\PlanCostDocumentLink;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
 
 class DeliveryProjectCostController extends Controller
 {
@@ -29,6 +31,35 @@ class DeliveryProjectCostController extends Controller
             'costs'   => $costs->map(fn($c) => $this->formatCost($c)),
             'summary' => $this->buildSummary($costs),
         ]);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // GET /projects/{project}/costs/export
+    // Export Plan Cost ke Excel: sheet rekap + sheet seluruh expense detail
+    // ──────────────────────────────────────────────────────────────
+    public function export(DeliveryProject $project)
+    {
+        $project->load('client.basicData');
+
+        $costs = DeliveryProjectCost::where('delivery_projects_id', $project->id)
+            ->whereNull('parent_id')
+            ->with(['items', 'children.items'])
+            ->orderBy('order_sequence')
+            ->get();
+
+        $filename = 'Plan_Cost_'
+            . trim(preg_replace('/[^A-Za-z0-9-]+/', '_', $project->io_number ?: $project->name), '_')
+            . '_' . now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(
+            new DeliveryProjectCostExport(
+                $project,
+                $costs->map(fn($c) => $this->formatCost($c))->all(),
+                $this->buildSummary($costs),
+                $this->expenseRows($costs)
+            ),
+            $filename
+        );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -193,6 +224,7 @@ class DeliveryProjectCostController extends Controller
         $validated = $request->validate([
             'description' => 'required|string|max:200',
             'amount'      => 'required|numeric|min:0',
+            'period'      => 'required|date_format:Y-m',
             'document'    => 'nullable|file|max:102400',
         ]);
 
@@ -224,6 +256,7 @@ class DeliveryProjectCostController extends Controller
             'delivery_project_cost_id' => $cost->id,
             'description'              => $validated['description'],
             'amount'                   => $validated['amount'],
+            'period'                   => $validated['period'],
             'document_name'            => $docName,
             'document_file_id'         => $docFile,
             'document_url'             => $docUrl,
@@ -260,6 +293,7 @@ class DeliveryProjectCostController extends Controller
         $validated = $request->validate([
             'description'     => 'required|string|max:200',
             'amount'          => 'required|numeric|min:0',
+            'period'          => 'required|date_format:Y-m',
             'document'        => 'nullable|file|max:102400',
             // When true (and no new file), the existing document is cleared.
             'remove_document' => 'nullable|boolean',
@@ -305,6 +339,7 @@ class DeliveryProjectCostController extends Controller
         $item->update([
             'description'      => $validated['description'],
             'amount'           => $validated['amount'],
+            'period'           => $validated['period'],
             'document_name'    => $docName,
             'document_file_id' => $docFile,
             'document_url'     => $docUrl,
@@ -494,10 +529,44 @@ class DeliveryProjectCostController extends Controller
             'id'            => $item->id,
             'description'   => $item->description,
             'amount'        => $item->amount,
+            // "YYYY-MM"; null untuk expense lama yang dibuat sebelum ada period.
+            'period'        => $item->period,
             'document_name' => $item->document_name,
             'document_url'  => $item->document_url,
             'created_at'    => $item->created_at?->format('d M Y'),
         ];
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Helper: seluruh expense detail project, satu baris per expense,
+    // mengikuti urutan cost item di tabel rekap (dipakai export Excel).
+    // ──────────────────────────────────────────────────────────────
+    private function expenseRows($costs): array
+    {
+        $rows = [];
+
+        foreach ($costs as $parent) {
+            // Leaf = sub-item; parent tanpa sub-item bisa punya expense sendiri.
+            $leaves = $parent->children->isNotEmpty() ? $parent->children : collect([$parent]);
+
+            foreach ($leaves as $leaf) {
+                foreach ($leaf->items as $item) {
+                    $rows[] = [
+                        'cost_type'     => $leaf->cost_type,
+                        'cost_code'     => $leaf->code,
+                        'cost_name'     => $leaf->name,
+                        'period'        => $item->period,
+                        'description'   => $item->description,
+                        'amount'        => (float) $item->amount,
+                        'document_name' => $item->document_name,
+                        'document_url'  => $item->document_url,
+                        'created_at'    => $item->created_at,
+                    ];
+                }
+            }
+        }
+
+        return $rows;
     }
 
     // ──────────────────────────────────────────────────────────────

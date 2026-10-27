@@ -984,6 +984,22 @@ class EmailController extends Controller
                         });
                         $linked++;
 
+                        // Teruskan email customer ke group chat Teams tiket. SESUDAH
+                        // transaction: lampiran (termasuk gambar inline) baru lengkap
+                        // setelah commit, dan antrean tidak boleh menunjuk pesan yang
+                        // ternyata di-rollback. Non-fatal — email tetap tersimpan.
+                        if ($savedMessage) {
+                            try {
+                                app(\App\Services\Teams\TeamsOutboxService::class)->queueCustomerMessage($savedMessage);
+                            } catch (\Throwable $e) {
+                                Log::warning('EmailController@processInbox: gagal mengantre email customer ke Teams (non-fatal)', [
+                                    'ticket_id'  => $ticket->ticket_id,
+                                    'message_id' => $savedMessage->id,
+                                    'error'      => $e->getMessage(),
+                                ]);
+                            }
+                        }
+
                         // Trigger SLA event setelah transaction commit (non-fatal)
                         if ($savedMessage && $customer) {
                             try {
