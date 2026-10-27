@@ -651,7 +651,7 @@
                     loadQualificationToForm(qualificationId);
                 }
             } else {
-                showNotification('Failed to save qualification: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The qualification could not be saved. Please try again.') : (data.message || 'The qualification could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving qualification:', error);

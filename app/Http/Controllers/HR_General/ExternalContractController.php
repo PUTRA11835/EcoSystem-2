@@ -13,6 +13,7 @@ use App\Services\External\ExternalConsultantService;
 use App\Services\External\ExternalContractService;
 use App\Services\HrProfile\EngagementRules;
 use App\Services\Letters\LetterService;
+use App\Support\External\ExternalSigners;
 use App\Support\Contracts\ContractRules;
 use App\Support\Contracts\PageSettings;
 use App\Support\External\ExternalRules;
@@ -106,7 +107,11 @@ class ExternalContractController extends Controller
             'activeLocked' => $gate !== 'off' && !$readiness['ready'],
             'canRate'     => $canRate,
             'templates'   => $this->external->templates(),
-            'signatories' => LetterService::signatoryOptions(),
+            // Kontrak External ditandatangani Pak Arbin atau Pak Titus (config/hc_external.php); bawaan Arbin
+            'signatories' => ExternalSigners::for(ExternalSigners::CONTRACT)['options'],
+            'defaultSigner' => ExternalSigners::for(ExternalSigners::CONTRACT)['default'],
+            'signerNote'  => ExternalSigners::for(ExternalSigners::CONTRACT)['restricted'] ? 'Signed by ' . implode(' or ', ExternalSigners::for(ExternalSigners::CONTRACT)['names']) . '.' : null,
+            'assignmentSupported' => \App\Support\SchemaCache::hasColumn('external_contract_terms', 'assignment'),
             'schemes'     => $this->schemeOptions($edit?->contract_kind ?: $edit?->scheme_key),
             'schemeBase'  => collect($this->schemeOptions($edit?->contract_kind ?: $edit?->scheme_key))->keys()
                 ->mapWithKeys(fn ($code) => [$code => $this->options->resolve(ContractOption::SCOPE_EXTERNAL, $code)['base']])->all(),
@@ -294,6 +299,7 @@ class ExternalContractController extends Controller
             'currency'              => 'nullable|string|max:3',
             'billing_unit'          => 'nullable|string|max:30',
             'work_volume'           => 'nullable|string|max:100',
+            'assignment'            => 'nullable|string|max:255',
             'work_location'         => 'nullable|string|max:255',
             'hours_per_manday'      => 'nullable|numeric|min:1|max:24',
             'proration'             => ['nullable', Rule::in(array_keys(ExternalRules::PRORATION))],

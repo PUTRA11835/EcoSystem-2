@@ -12,6 +12,29 @@ use Illuminate\Http\JsonResponse;
 
 class EmployeeFamilyController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
+    /**
+     * Nama agama baku = sama dengan Basic Data. Nama lama/variasi (Christianity, Catholicism, ...) dinormalkan agar data konsisten.
+     */
+    private static function normalizeReligion($value): ?string
+    {
+        $value = is_string($value) ? trim($value) : $value;
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $map = [
+            'christianity' => 'Christian', 'christian' => 'Christian', 'protestant' => 'Christian', 'kristen' => 'Christian',
+            'catholicism' => 'Catholic', 'catholic' => 'Catholic', 'katolik' => 'Catholic',
+            'hinduism' => 'Hindu', 'hindu' => 'Hindu',
+            'buddhism' => 'Buddhist', 'buddhist' => 'Buddhist', 'budha' => 'Buddhist', 'buddha' => 'Buddhist',
+            'confucian' => 'Konghucu', 'confucianism' => 'Konghucu', 'konghucu' => 'Konghucu',
+            'islam' => 'Islam',
+        ];
+
+        return $map[strtolower((string) $value)] ?? $value;
+    }
+
     /**
      * Validation rules for family member
      */
@@ -22,7 +45,7 @@ class EmployeeFamilyController extends Controller
             'title' => 'nullable|string|max:50',
             'relation' => 'required|string|in:spouse,child,parent,father,mother,sibling,brother,sister,other',
             'gender' => 'nullable|string|in:Male,Female',
-            'religion' => 'nullable|string|max:100',
+            'religion' => 'nullable|string|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu',
             'country' => 'nullable|string|max:255',
             'birth_place' => 'nullable|string|max:255',
             'birth_date' => 'nullable|date|before_or_equal:today',
@@ -105,12 +128,15 @@ class EmployeeFamilyController extends Controller
      */
     public function store(Request $request, string $employeeId): JsonResponse
     {
+        $request->merge(['religion' => self::normalizeReligion($request->input('religion'))]);
         $validator = Validator::make($request->all(), $this->validationRules());
+
+        $this->friendly($validator);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -165,12 +191,15 @@ class EmployeeFamilyController extends Controller
      */
     public function update(Request $request, string $employeeId, int $familyId): JsonResponse
     {
+        $request->merge(['religion' => self::normalizeReligion($request->input('religion'))]);
         $validator = Validator::make($request->all(), $this->validationRules());
+
+        $this->friendly($validator);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -335,10 +364,12 @@ class EmployeeFamilyController extends Controller
             'families.*.birth_date' => 'nullable|date|before_or_equal:today',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee family member data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
@@ -356,6 +387,9 @@ class EmployeeFamilyController extends Controller
 
             $families = collect($request->families)->map(function ($familyData) use ($employeeId) {
                 $familyData['employee_id'] = $employeeId;
+                if (array_key_exists('religion', $familyData)) {
+                    $familyData['religion'] = self::normalizeReligion($familyData['religion']);
+                }
                 $familyData['is_alive'] = $familyData['is_alive'] ?? true;
                 $familyData['created_at'] = now();
                 $familyData['updated_at'] = now();

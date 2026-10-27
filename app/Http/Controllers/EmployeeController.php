@@ -66,16 +66,27 @@ class EmployeeController extends Controller
      */
     private function listSummary(): array
     {
-        $base = fn () => DB::table('employee as e')->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
-            ->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'));
+        $hasProfile = \App\Support\SchemaCache::hasTable('employee_hr_profile');
+        $locked = $hasProfile
+            ? "SUM(CASE WHEN EXISTS (SELECT 1 FROM employee_hr_profile hp WHERE hp.employee_id = e.employee_id AND hp.locked_at IS NOT NULL) THEN 1 ELSE 0 END)"
+            : '0';
+
+        // Satu kueri berkondisi (dulu 5 kueri hitung terpisah dengan join yang sama). Semantik tiap angka sama dengan sebelumnya.
+        $row = DB::table('employee as e')->leftJoin('employee_basic_data as eb', 'e.employee_id', '=', 'eb.employee_id')
+            ->where(fn ($q) => $q->whereNull('eb.employee_type')->orWhere('eb.employee_type', '!=', 'External'))
+            ->selectRaw("COUNT(*) AS total,
+                SUM(CASE WHEN eb.block = 0 AND eb.deletion_flag = 0 THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN eb.block = 1 THEN 1 ELSE 0 END) AS blocked,
+                SUM(CASE WHEN eb.employee_group = 'INTERNSHIP' THEN 1 ELSE 0 END) AS internship,
+                {$locked} AS locked")
+            ->first();
 
         return [
-            'total'      => $base()->count(),
-            'active'     => $base()->where('eb.block', false)->where('eb.deletion_flag', false)->count(),
-            'blocked'    => $base()->where('eb.block', true)->count(),
-            'internship' => $base()->where('eb.employee_group', 'INTERNSHIP')->count(),
-            'locked'     => Schema::hasTable('employee_hr_profile')
-                ? $base()->whereExists(fn ($q) => $q->selectRaw('1')->from('employee_hr_profile as hp')->whereColumn('hp.employee_id', 'e.employee_id')->whereNotNull('hp.locked_at'))->count() : 0,
+            'total'      => (int) ($row->total ?? 0),
+            'active'     => (int) ($row->active ?? 0),
+            'blocked'    => (int) ($row->blocked ?? 0),
+            'internship' => (int) ($row->internship ?? 0),
+            'locked'     => (int) ($row->locked ?? 0),
         ];
     }
 
@@ -291,7 +302,7 @@ class EmployeeController extends Controller
 
             // Profil terkunci oleh HR (Onboarding › Verify & Lock). Subquery, bukan join, supaya tidak menggandakan
             // baris; tabel belum ada (rilis sebelum migrasi) → kolom diabaikan.
-            if (Schema::hasTable('employee_hr_profile')) {
+            if (\App\Support\SchemaCache::hasTable('employee_hr_profile')) {
                 $query->selectSub(
                     DB::table('employee_hr_profile as hp')->select('hp.locked_at')->whereColumn('hp.employee_id', 'e.employee_id')->limit(1),
                     'profile_locked_at'
@@ -552,7 +563,7 @@ class EmployeeController extends Controller
         }
 
         // Filter by profile lock state (Onboarding › Verify & Lock): 'locked' | 'unlocked'.
-        if (in_array($request->input('lock'), ['locked', 'unlocked'], true) && Schema::hasTable('employee_hr_profile')) {
+        if (in_array($request->input('lock'), ['locked', 'unlocked'], true) && \App\Support\SchemaCache::hasTable('employee_hr_profile')) {
             $locked = DB::table('employee_hr_profile as hpf')->selectRaw('1')
                 ->whereColumn('hpf.employee_id', 'e.employee_id')->whereNotNull('hpf.locked_at');
             $request->input('lock') === 'locked' ? $query->whereExists($locked) : $query->whereNotExists($locked);
@@ -763,7 +774,7 @@ class EmployeeController extends Controller
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name',
             'role' => 'nullable|integer',
             'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
             'email_work' => 'required|email|unique:auth_users,email|max:255',
             'cell_phone' => 'nullable|string|max:50',
@@ -1057,7 +1068,7 @@ class EmployeeController extends Controller
             'first_name' => 'required|string|max:255',
             'nick_name' => 'required|string|max:100|unique:employee_basic_data,nick_name,' . $basicDataId . ',basic_data_id',
             'gender' => 'nullable|in:Male,Female',
-            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+            'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
             'marital_status' => 'nullable|in:Single,Married,Divorced,Widow/Widower',
         ], [
             'nick_name.required' => 'Nick Name is required.',
@@ -1379,6 +1390,93 @@ public function getRoles()
                 'message' => 'Failed to change password',
             ], 500);
         }
+    }
+
+    /**
+     * Ganti ECI (kode karyawan) — API. Wajib kata sandi AKUN YANG MENGGANTI (bukan kata sandi karyawan itu).
+     *
+     * - ECI harus unik; hanya huruf/angka/titik/garis bawah/strip (sama dengan ECI yang sudah ada: K22005, DEMO-INT01, ECI_ADMIN).
+     * - Bila username login karyawan itu SAMA dengan ECI lamanya, username ikut diganti (login dengan ECI baru tetap jalan; login dengan
+     *   email tidak berubah). Karyawan yang username-nya bukan ECI tidak disentuh — ECI barunya tetap bisa dipakai login (cadangan di AuthController).
+     * - Slip payroll yang sudah terbit menyimpan salinan ECI lama (`payroll_slips.employee_eci`) dan sengaja tidak diubah (dokumen historis).
+     * - Tercatat di riwayat karyawan dan log.
+     */
+    public function changeEci(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'eci'      => ['required', 'string', 'min:2', 'max:50', 'regex:/^[A-Za-z0-9][A-Za-z0-9._\-]*$/'],
+            'password' => ['required', 'string'],
+        ], [
+            'eci.required'      => 'New ECI is required',
+            'eci.regex'         => 'ECI may only contain letters, numbers, dot, underscore and hyphen, and must start with a letter or number',
+            'eci.min'           => 'ECI must be at least 2 characters',
+            'eci.max'           => 'ECI must be at most 50 characters',
+            'password.required' => 'Enter your password to confirm',
+        ]);
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => $validator->errors()->first(), 'errors' => $validator->errors()], 422);
+        }
+
+        $employee = DB::table('employee')->where('employee_id', $id)->first();
+        if (!$employee) {
+            return response()->json(['success' => false, 'message' => 'Employee not found'], 404);
+        }
+
+        $actorId  = (int) (session('user.id') ?? 0);
+        $actorHash = $actorId ? DB::table('auth_users')->where('employee_id', $actorId)->value('password') : null;
+        if (!$actorHash || !Hash::check((string) $request->password, $actorHash)) {
+            return response()->json(['success' => false, 'message' => 'Your password is incorrect', 'errors' => ['password' => ['Your password is incorrect']]], 422);
+        }
+
+        $old = (string) $employee->eci;
+        $new = trim((string) $request->eci);
+        if ($new === $old) {
+            return response()->json(['success' => false, 'message' => 'The new ECI is the same as the current one'], 422);
+        }
+        if (DB::table('employee')->where('eci', $new)->where('employee_id', '!=', $id)->exists()) {
+            return response()->json(['success' => false, 'message' => 'This ECI is already used by another employee', 'errors' => ['eci' => ['This ECI is already used by another employee']]], 422);
+        }
+
+        try {
+            $usernameChanged = false;
+            DB::transaction(function () use ($id, $old, $new, $actorId, &$usernameChanged) {
+                DB::table('employee')->where('employee_id', $id)->update(['eci' => $new, 'updated_at' => now()]);
+
+                $auth = DB::table('auth_users')->where('employee_id', $id)->first();
+                if ($auth && strcasecmp((string) $auth->username, $old) === 0) {
+                    if (DB::table('auth_users')->where('username', $new)->where('id', '!=', $auth->id)->exists()) {
+                        throw new \DomainException('This ECI is already used as a login username by another account');
+                    }
+                    DB::table('auth_users')->where('id', $auth->id)->update(['username' => $new, 'updated_at' => now()]);
+                    $usernameChanged = true;
+                }
+
+                \App\Models\EmployeeHistory::create([
+                    'employee_id'  => $id,
+                    'action'       => 'ECI changed',
+                    'description'  => "ECI changed from {$old} to {$new}" . ($usernameChanged ? ' (login username updated too)' : ''),
+                    'performed_by' => $actorId,
+                    'performed_at' => now(),
+                ]);
+            });
+        } catch (\DomainException $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'errors' => ['eci' => [$e->getMessage()]]], 422);
+        } catch (\Throwable $e) {
+            Log::error('=== API: ERROR CHANGING ECI ===', ['employee_id' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Failed to change ECI'], 500);
+        }
+
+        if ((int) $id === $actorId) {
+            session()->put('user.eci', $new);   // yang diganti akun yang sedang login: sesi ikut diperbarui
+        }
+        Log::info('=== API: EMPLOYEE ECI CHANGED ===', ['employee_id' => $id, 'from' => $old, 'to' => $new, 'by' => $actorId, 'username_updated' => $usernameChanged]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'ECI changed successfully',
+            'data'    => ['eci' => $new, 'username_updated' => $usernameChanged],
+        ]);
     }
 
     /**

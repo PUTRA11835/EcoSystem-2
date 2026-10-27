@@ -92,6 +92,23 @@
             <input type="hidden" name="sort" value="{{ $filters['sort'] }}">
         </form>
 
+        {{-- Pencarian yang selalu terlihat. Tanpa atribut name: nilainya diteruskan ke input "search" di header kolom Employee (satu sumber
+             kebenaran untuk server & corong filter), lalu hasil diperbarui lewat hfLive() tanpa memuat ulang halaman. --}}
+        <div class="px-5 pb-4" role="search">
+            <div class="relative max-w-2xl">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input type="search" id="onboardingSearchBox" value="{{ $filters['search'] }}" autocomplete="off" spellcheck="false" maxlength="100"
+                    placeholder="Search by name, employee ID (ECI), position or department…" aria-label="Search employees"
+                    class="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-800 placeholder-gray-400 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent transition-all">
+                <button type="button" id="onboardingSearchClear" class="{{ $filters['search'] === '' ? 'hidden' : '' }} absolute right-2.5 top-1/2 -translate-y-1/2 w-6 h-6 inline-flex items-center justify-center rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors" aria-label="Clear search" title="Clear search">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <p class="hidden md:block text-[11px] text-gray-400 mt-1.5">Press <kbd class="px-1.5 py-0.5 rounded border border-gray-200 bg-gray-50 text-gray-500 font-mono text-[10px]">/</kbd> to search · use the column funnels for status, type and missing items</p>
+        </div>
+
         {{-- HC-D64 — alat join date untuk HR (opsional): hanya saat filter "Missing: Join date" aktif & ada izinnya --}}
         @if(($filters['missing'] ?? '') === 'join_date' && $can('general.onboarding.join-date'))
             @include('hr-general.onboarding.components.join-date-tools')
@@ -184,6 +201,39 @@
         </div>
     </div>
 </div>
+<script>
+    // Pencarian terlihat ↔ input "search" di header kolom Employee (form onboarding-filter).
+    (function () {
+        const box = document.getElementById('onboardingSearchBox'), clear = document.getElementById('onboardingSearchClear');
+        if (!box) return;
+        const headerInput = () => document.querySelector('input[name="search"][form="{{ $filterForm }}"]');
+        const push = value => {
+            const input = headerInput();
+            if (!input) return;
+            input.value = value;
+            hfLive(input, value === '' ? 0 : 350);
+        };
+        const sync = () => clear?.classList.toggle('hidden', box.value === '');
+        box.addEventListener('input', () => { sync(); push(box.value); });
+        box.addEventListener('keydown', e => {
+            if (e.key === 'Enter') { e.preventDefault(); push(box.value); }
+            if (e.key === 'Escape' && box.value !== '') { e.stopPropagation(); box.value = ''; sync(); push(''); }
+        });
+        clear?.addEventListener('click', () => { box.value = ''; sync(); push(''); box.focus(); });
+        // Pengetikan di popover header ikut tampil di kotak ini (kecuali kotak ini sedang dipakai).
+        document.addEventListener('input', e => {
+            const t = e.target;
+            if (t && t.matches && t.matches('input[name="search"][form="{{ $filterForm }}"]') && document.activeElement !== box) { box.value = t.value; sync(); }
+        });
+        document.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-hf-clear]') && document.activeElement !== box) setTimeout(() => { const i = headerInput(); if (i) { box.value = i.value; sync(); } }, 0); });
+        document.addEventListener('keydown', e => {
+            if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+            const t = e.target;
+            if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+            e.preventDefault(); box.focus(); box.select();
+        });
+    })();
+</script>
 @if($can('general.onboarding.lock'))
 <script>
     // Kunci massal: hanya yang "Ready to lock" pada filter yang sedang tampil; konfirmasi dulu, lalu muat ulang.

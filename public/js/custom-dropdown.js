@@ -275,8 +275,20 @@ function _positionFixed(btn, panel) {
 // 1. Hardcoded — jika di HTML panel sudah ada `<input class="custom-dd-search">`
 //    (mis. dibuat manual di Blade), fungsi ini cukup wire up event filter.
 // 2. Auto-inject — jika belum ada, fungsi ini buat sticky search bar di atas panel.
+// Panel dengan kotak cari: tanpa padding atas supaya kepala cari yang lengket menutup penuh dan item yang digulir tak tampak
+// "menembus" di atas kotak cari (padding py-1.5 pada panel menyisakan celah 6 px di atasnya).
+(function () {
+    if (document.getElementById('custom-dd-search-fix')) return;
+    const s = document.createElement('style');
+    s.id = 'custom-dd-search-fix';
+    s.textContent = '.custom-dd-panel.has-search{padding-top:0!important;scroll-padding-top:3.25rem}'
+        + '.custom-dd-panel.has-search>.custom-dd-search-wrap{z-index:3!important;box-shadow:0 6px 8px -8px rgba(15,23,42,.35);border-radius:.75rem .75rem 0 0}';
+    (document.head || document.documentElement).appendChild(s);
+})();
+
 function _injectSearch(dd, panel) {
     if (panel._ddSearch) return; // already wired
+    panel.classList.add('has-search');
 
     // Cek apakah search input sudah di-hardcode di HTML
     let input = panel.querySelector('.custom-dd-search');

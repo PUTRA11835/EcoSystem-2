@@ -47,10 +47,25 @@
             </div>
 
             @if($can('general.overtime.export'))
-            <a href="{{ route('general.overtime.export', request()->query()) }}"
-               class="w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
-                <i class="fas fa-file-excel text-xs"></i> Export Excel
-            </a>
+            @php
+                $weekNow = now()->format('o-\WW');
+                $exportItem = 'flex items-center justify-between gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50';
+            @endphp
+            <div class="relative w-full sm:w-auto shrink-0" id="otExportWrap">
+                <button type="button" id="otExportBtn" aria-haspopup="true" aria-expanded="false"
+                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap">
+                    <i class="fas fa-file-excel text-xs text-green-600"></i> Export Excel <i class="fas fa-chevron-down text-[10px] text-gray-400"></i>
+                </button>
+                <div id="otExportMenu" class="hidden absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-30 py-1.5" role="menu">
+                    <p class="px-4 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">Quick periods · all statuses</p>
+                    <a role="menuitem" class="{{ $exportItem }}" href="{{ route('general.overtime.export', ['period' => 'week', 'value' => $weekNow]) }}">This week <span class="text-xs text-gray-400">{{ now()->startOfWeek()->format('d M') }} – {{ now()->endOfWeek()->format('d M') }}</span></a>
+                    <a role="menuitem" class="{{ $exportItem }}" href="{{ route('general.overtime.export', ['period' => 'month', 'value' => now()->format('Y-m')]) }}">This month <span class="text-xs text-gray-400">{{ now()->format('F Y') }}</span></a>
+                    <a role="menuitem" class="{{ $exportItem }}" href="{{ route('general.overtime.export', ['period' => 'year', 'value' => now()->format('Y')]) }}">This year <span class="text-xs text-gray-400">{{ now()->format('Y') }}</span></a>
+                    <div class="my-1 border-t border-gray-100"></div>
+                    <button type="button" role="menuitem" onclick="openOtExport()" class="{{ $exportItem }} w-full text-left"><span>Choose a period…</span><i class="fas fa-sliders text-xs text-gray-400"></i></button>
+                    <a role="menuitem" class="{{ $exportItem }}" href="{{ route('general.overtime.export', request()->query()) }}"><span>What is on screen now</span><span class="text-xs text-gray-400">current filters</span></a>
+                </div>
+            </div>
             @endif
         </div>
 
@@ -67,8 +82,8 @@
                     <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Status</label>
                     <select name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
                         @foreach([
-                            'open' => 'Open', 'approved' => 'Approved', 'rejected' => 'Rejected',
-                            'cancelled' => 'Cancelled', 'all' => 'All',
+                            'all' => 'All', 'open' => 'Pending', 'approved' => 'Approved', 'rejected' => 'Rejected',
+                            'cancelled' => 'Cancelled',
                         ] as $value => $label)
                             <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
                         @endforeach
@@ -252,7 +267,7 @@
                                 @endif
 
                                 <textarea name="notes" rows="2"
-                                          placeholder="Note (required when rejecting)..."
+                                          maxlength="255" placeholder="Note (required when rejecting)..."
                                           class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-red-800"></textarea>
 
                                 <div class="flex gap-2">
@@ -267,8 +282,10 @@
                                 </div>
                             </form>
                             @elseif($request->isOpen())
-                                <span class="text-xs text-gray-400">
-                                    Waiting for {{ $request->currentApproval()?->step_name ?? 'another step' }}
+                                @php $waiting = $request->currentApproval(); @endphp
+                                <span class="text-xs text-gray-500" title="Only the approver named on this step can decide it.">
+                                    Waiting for <strong class="font-semibold">{{ $waiting?->step_name ?? 'another step' }}</strong>
+                                    @if($waiting)<span class="block text-[11px] text-gray-400">Approver: {{ $waiting->approverLabel() }} — not you</span>@endif
                                 </span>
                             @else
                                 <span class="text-xs text-gray-300">—</span>
@@ -290,10 +307,72 @@
         @include('hr-general.recruitment.components.pagination', ['paginator' => $requests, 'form' => 'listFilters', 'perPage' => $requests->perPage(), 'perPageOptions' => [10, 15, 25, 50]])
     </div>
 </div>
+@if($can('general.overtime.export'))
+<div id="otExportModal" class="hidden fixed inset-0 bg-black bg-opacity-40 z-50 items-center justify-center p-4" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="otExportTitle">
+    <form method="GET" action="{{ route('general.overtime.export') }}" id="otExportForm" class="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div><h3 id="otExportTitle" class="text-sm font-bold text-gray-800">Export overtime</h3><p class="text-[11px] text-gray-400">Choose the period and status of the Excel file.</p></div>
+            <button type="button" onclick="closeOtExport()" class="text-gray-400 hover:text-gray-600" aria-label="Close"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="px-5 py-4 space-y-3">
+            <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otPeriod">Period</label>
+                <select id="otPeriod" name="period" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white" data-no-enhance>
+                    <option value="month">Per month</option><option value="week">Per week</option><option value="year">Per year</option><option value="range">Date range</option>
+                </select>
+            </div>
+            <div data-ot-field="month"><label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otMonth">Month</label>
+                <input type="month" id="otMonth" name="value" value="{{ now()->format('Y-m') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"></div>
+            <div data-ot-field="week" class="hidden"><label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otWeek">Week (Monday – Sunday)</label>
+                <input type="week" id="otWeek" name="value" value="{{ now()->format('o-\WW') }}" placeholder="2026-W43" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled></div>
+            <div data-ot-field="year" class="hidden"><label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otYear">Year</label>
+                <input type="number" id="otYear" name="value" min="2000" max="2100" value="{{ now()->format('Y') }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled></div>
+            <div data-ot-field="range" class="hidden grid grid-cols-2 gap-3">
+                <div><label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otFrom">From</label><input type="date" id="otFrom" name="from" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled></div>
+                <div><label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otTo">To</label><input type="date" id="otTo" name="to" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" disabled></div>
+            </div>
+            <div>
+                <label class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1" for="otStatus">Status</label>
+                <select id="otStatus" name="status" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white" data-no-enhance>
+                    <option value="all">All statuses</option><option value="approved">Approved only</option><option value="open">Pending only</option><option value="rejected">Rejected only</option><option value="cancelled">Cancelled only</option>
+                </select>
+            </div>
+        </div>
+        <div class="px-5 py-3 border-t border-gray-100 flex justify-end gap-2">
+            <button type="button" onclick="closeOtExport()" class="px-4 py-2 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+            <button type="submit" class="px-5 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90"><i class="fas fa-download mr-1"></i> Download</button>
+        </div>
+    </form>
+</div>
+@endif
+
 @endsection
 
 @push('scripts')
 <script>
+    // ── Menu & dialog Export ──
+    (function () {
+        const btn = document.getElementById('otExportBtn'), menu = document.getElementById('otExportMenu'), modal = document.getElementById('otExportModal');
+        if (!btn || !menu) return;
+        const close = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+        btn.addEventListener('click', e => { e.stopPropagation(); const open = menu.classList.toggle('hidden') === false; btn.setAttribute('aria-expanded', open ? 'true' : 'false'); });
+        document.addEventListener('click', e => { if (!e.target.closest('#otExportWrap')) close(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') { close(); closeOtExport(); } });
+
+        const select = document.getElementById('otPeriod');
+        const sync = () => {
+            document.querySelectorAll('[data-ot-field]').forEach(box => {
+                const on = box.dataset.otField === select.value;
+                box.classList.toggle('hidden', !on);
+                box.querySelectorAll('input').forEach(i => { i.disabled = !on; i.required = on; });
+            });
+        };
+        select?.addEventListener('change', sync);
+        window.openOtExport = () => { close(); sync(); modal.style.display = 'flex'; modal.classList.remove('hidden'); };
+        window.closeOtExport = () => { if (modal) { modal.style.display = 'none'; modal.classList.add('hidden'); } };
+        modal?.addEventListener('click', e => { if (e.target === modal) closeOtExport(); });
+    })();
+
     // Tombol Approve dan Reject berbagi satu form. Tujuan kirimnya ditentukan
     // saat diklik, bukan lewat dua form terpisah — supaya catatan dan jam yang
     // sudah diisi tidak hilang saat penyetuju berganti pikiran.

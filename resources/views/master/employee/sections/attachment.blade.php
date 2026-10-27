@@ -27,20 +27,20 @@
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KTP">KTP / ID Card</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="NPWP">NPWP</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Paspor">Paspor / Passport</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Paspor">Passport</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Kesehatan">BPJS Kesehatan</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Ketenagakerjaan">BPJS Ketenagakerjaan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ijazah">Ijazah / Diploma</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transkrip Nilai">Transkrip Nilai</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sertifikat">Sertifikat</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kontrak Kerja">Kontrak Kerja</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SK Pengangkatan">SK Pengangkatan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surat Referensi">Surat Referensi</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ijazah">Diploma Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transkrip Nilai">Academic Transcript</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sertifikat">Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kontrak Kerja">Employment Contract</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SK Pengangkatan">Appointment Letter</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surat Referensi">Reference Letter</button>
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="CV">CV / Resume</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Akta Lahir">Akta Lahir</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kartu Keluarga">Kartu Keluarga</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Foto">Foto</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Lainnya">Lainnya</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Akta Lahir">Birth Certificate</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kartu Keluarga">Family Card (KK)</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Foto">Photo</button>
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Lainnya">Other</button>
                     </div>
                 </div>
             </div>
@@ -92,7 +92,7 @@
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Size</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Uploaded By</th>
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                        <th class="w-16 px-4 py-3"></th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="attachmentTableBody" class="bg-white divide-y divide-gray-100">
@@ -132,6 +132,13 @@
 </div>
 
 <script>
+    // Nilai tersimpan (Indonesia/lama) -> teks tampilan Inggris yang sama dengan dropdown
+    const ATTACH_TYPE_LABELS = {
+        'KTP': 'KTP / ID Card', 'Paspor': 'Passport', 'Ijazah': 'Diploma Certificate', 'Transkrip Nilai': 'Academic Transcript',
+        'Sertifikat': 'Certificate', 'Kontrak Kerja': 'Employment Contract', 'SK Pengangkatan': 'Appointment Letter',
+        'Surat Referensi': 'Reference Letter', 'CV': 'CV / Resume', 'Akta Lahir': 'Birth Certificate',
+        'Kartu Keluarga': 'Family Card (KK)', 'Foto': 'Photo', 'Lainnya': 'Other'
+    };
     let attachmentsData = [];
     let selectedAttachmentId = null;
     let deleteAttachmentId = null;
@@ -172,6 +179,7 @@
     function renderAttachmentTable(attachments) {
         const tbody = document.getElementById('attachmentTableBody');
         tbody.innerHTML = attachments.map(att => {
+            const typeLabel = ATTACH_TYPE_LABELS[att.document_type] || att.document_type || '-';
             const size   = att.file_size ? formatFileSize(att.file_size) : '-';
             const date   = att.created_at ? new Date(att.created_at).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
             const fileUrl = `/storage/${att.file_path}`;
@@ -191,7 +199,7 @@
                     </td>
                     <td class="px-4 py-3 text-sm">
                         <span class="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            ${att.document_type || '-'}
+                            ${typeLabel}
                         </span>
                     </td>
                     <td class="px-4 py-3 text-sm text-gray-600">${size}</td>
@@ -199,15 +207,151 @@
                     <td class="px-4 py-3 text-sm text-gray-600">${date}</td>
                     <td class="px-4 py-3">
                         ${att.file_path ? `
-                        <a href="${fileUrl}" download="${downloadName}" class="text-red-800 hover:text-red-900" title="Download">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                            </svg>
-                        </a>` : ''}
+                        <div class="flex items-center justify-end gap-2">
+                            <button type="button" title="Preview this document" aria-label="View ${downloadName}"
+                                onclick="event.stopPropagation(); previewAttachment(${att.attachment_id})"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                </svg>
+                                View
+                            </button>
+                            <a href="${fileUrl}" download title="Download this document" aria-label="Download ${downloadName}"
+                                onclick="return downloadAttachment(event, ${att.attachment_id})"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-800 border border-transparent rounded-lg shadow-sm hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-300 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                </svg>
+                                Download
+                            </a>
+                        </div>` : ''}
                     </td>
                 </tr>
             `;
         }).join('');
+    }
+
+    /**
+     * Nama berkas unduhan = Document Title yang diisi saat unggah + ekstensi berkas asli
+     * (nama tersimpan di server berupa UUID, jadi tanpa ini peramban menyimpan dengan nama acak).
+     */
+    function attachmentDownloadName(att) {
+        const original = String(att.file_name || att.file_path || '');
+        const ext  = original.includes('.') ? original.split('.').pop().toLowerCase() : '';
+        const base = String(att.document_title || '')
+            .replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, 120);
+        if (!base) return original || 'document';
+        return ext && !base.toLowerCase().endsWith('.' + ext) ? `${base}.${ext}` : base;
+    }
+
+    /**
+     * Unduh dengan nama dari Document Title. Berkas diambil lewat fetch lalu disimpan sebagai blob bernama;
+     * bila gagal (mis. jaringan), kembali ke tautan langsung biasa.
+     */
+    async function downloadAttachment(event, id) {
+        if (event) { event.stopPropagation(); }
+        const att = attachmentsData.find(a => a.attachment_id === id);
+        if (!att || !att.file_path) return true;
+        if (event) { event.preventDefault(); }
+        const url = `/storage/${att.file_path}`;
+        try {
+            const res = await fetch(url, { credentials: 'same-origin' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const blobUrl = URL.createObjectURL(await res.blob());
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = attachmentDownloadName(att);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+        } catch (err) {
+            console.error('Download fallback:', err);
+            window.location.href = url;
+        }
+        return false;
+    }
+
+    /**
+     * Pratinjau dokumen dalam modal di halaman yang sama (gambar & PDF); jenis lain hanya menawarkan Download.
+     * Modal dipindahkan ke <body> karena leluhur ber-transform membuat position:fixed meleset.
+     */
+    function previewAttachment(id) {
+        const att = attachmentsData.find(a => a.attachment_id === id);
+        if (!att || !att.file_path) return;
+        const url  = `/storage/${att.file_path}`;
+        const ext  = String(att.file_name || att.file_path).split('.').pop().toLowerCase();
+        let modal  = document.getElementById('attachmentPreviewModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'attachmentPreviewModal';
+            modal.className = 'hidden fixed inset-0 bg-black bg-opacity-60 z-[60] items-center justify-center p-4';
+            modal.innerHTML = `
+                <div class="bg-white rounded-xl w-full max-w-4xl shadow-2xl flex flex-col" style="max-height:92vh;">
+                    <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-200">
+                        <div class="min-w-0">
+                            <h3 id="attPreviewTitle" class="text-base font-semibold text-gray-900 truncate"></h3>
+                            <p id="attPreviewName" class="text-xs text-gray-500 truncate"></p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <a id="attPreviewDownload" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-red-800 text-white text-xs font-semibold rounded-lg shadow-sm hover:bg-red-900 focus:outline-none focus:ring-2 focus:ring-red-300 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                Download
+                            </a>
+                            <button type="button" id="attPreviewClose" class="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300 transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                    <div id="attPreviewBody" class="flex-1 overflow-auto bg-gray-50 flex items-center justify-center" style="min-height:300px;"></div>
+                </div>`;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', e => { if (e.target === modal) closeAttachmentPreview(); });
+            document.getElementById('attPreviewClose').addEventListener('click', closeAttachmentPreview);
+            document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAttachmentPreview(); });
+        }
+        document.getElementById('attPreviewTitle').textContent = att.document_title || att.file_name || 'Document';
+        document.getElementById('attPreviewName').textContent = att.file_name || '';
+        const dl = document.getElementById('attPreviewDownload');
+        dl.href = url;
+        dl.setAttribute('download', '');
+        dl.onclick = e => downloadAttachment(e, att.attachment_id);
+
+        const body = document.getElementById('attPreviewBody');
+        body.innerHTML = '';
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = att.document_title || '';
+            img.style.cssText = 'max-width:100%;max-height:76vh;object-fit:contain;';
+            body.appendChild(img);
+        } else if (ext === 'pdf') {
+            const frame = document.createElement('iframe');
+            frame.src = url;
+            frame.title = att.document_title || 'PDF';
+            frame.style.cssText = 'width:100%;height:76vh;border:0;';
+            body.appendChild(frame);
+        } else {
+            const msg = document.createElement('p');
+            msg.className = 'text-sm text-gray-600 p-10 text-center';
+            msg.textContent = 'This file type cannot be previewed in the browser. Use Download to open it.';
+            body.appendChild(msg);
+        }
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeAttachmentPreview() {
+        const modal = document.getElementById('attachmentPreviewModal');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.getElementById('attPreviewBody').innerHTML = '';
     }
 
     function renderEmptyAttachmentTable() {
@@ -236,7 +380,7 @@
     }
 
     function selectAttachmentRow(id, event) {
-        if (event.target.tagName === 'INPUT' || event.target.tagName === 'A' || event.target.closest('a')) return;
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'A' || event.target.closest('a') || event.target.closest('button')) return;
         const radio = document.querySelector(`input[name="selectedAttachment"][value="${id}"]`);
         if (radio) { radio.checked = true; selectAttachment(id); }
     }

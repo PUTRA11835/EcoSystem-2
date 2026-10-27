@@ -660,6 +660,13 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
             Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
             Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
+            // Data satu seksi untuk halaman di atas: SATU permintaan (join + pagination + pencarian di server), bukan satu per karyawan.
+            foreach (['address', 'identification', 'family', 'education', 'bank', 'payment', 'attachment'] as $recordSection) {
+                Route::get("/{$recordSection}/data", [\App\Http\Controllers\ManagementEmployeeRecordsController::class, 'data'])
+                    ->defaults('section', $recordSection)
+                    ->middleware("menu:management.employee.{$recordSection}")
+                    ->name("{$recordSection}.data");
+            }
         });
     });
 

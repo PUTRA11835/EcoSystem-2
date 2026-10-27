@@ -67,7 +67,7 @@
                 <!-- Account Number -->
                 <div class="col-span-2">
                     <label class="block text-xs font-semibold text-gray-600 mb-1.5">Account Number <span class="text-red-600">*</span></label>
-                    <input type="text" id="bankAccountNumber" placeholder="1234567890" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
+                    <input type="text" id="bankAccountNumber" placeholder="1234567890" inputmode="numeric" autocomplete="off" required class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 bg-white">
                 </div>
 
                 <!-- Account Holder -->
@@ -467,6 +467,17 @@
             showNotification('Bank name and account number are required', 'error');
             return;
         }
+        const acctDigits = String(accountNumber).replace(/[\s.\-]/g, '');
+        if (!/^\d+$/.test(acctDigits)) {
+            showNotification('Account Number must contain digits only (spaces and hyphens are ignored).', 'error');
+            document.getElementById('bankAccountNumber').focus();
+            return;
+        }
+        if (acctDigits.length < 6 || acctDigits.length > 20) {
+            showNotification('Account Number must be 6\u201320 digits \u2014 you entered ' + acctDigits.length + '.', 'error');
+            document.getElementById('bankAccountNumber').focus();
+            return;
+        }
 
         const bankId = document.getElementById('editBankId').value;
         const isUpdate = bankId !== '';
@@ -518,7 +529,7 @@
                     loadBankToForm(bankId);
                 }
             } else {
-                showNotification('Failed to save bank account: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The bank account could not be saved. Please try again.') : (data.message || 'The bank account could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving bank:', error);

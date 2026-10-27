@@ -176,7 +176,7 @@
                 <i class="fas fa-circle-check mt-0.5 text-emerald-500"></i>
                 <div>
                     Today's attendance is complete. Check-in and check-out are recorded once per day —
-                    if any time needs fixing, submit an <strong class="text-gray-700">Attendance Correction</strong> below.
+                    if any time needs fixing, use <strong class="text-gray-700">Request correction</strong> below.
                 </div>
             </div>
             @endif
@@ -190,6 +190,19 @@
                         class="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40">
                     <i class="fas fa-right-from-bracket"></i> Check-out
                 </button>
+            </div>
+
+            {{-- Koreksi: aksi sekunder yang SELALU terlihat (dulu bagian lipat "Need to fix a time?" di bawah halaman, hampir tak terlihat). --}}
+            <div class="mt-3 flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-xs text-gray-600"><span class="font-semibold text-gray-800">Forgot to punch or a time is wrong?</span> Send a correction and HR will review it.</p>
+                @if($settings->allow_self_correction)
+                    <button type="button" data-open-correction id="btnRequestCorrection"
+                            class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-800">
+                        <i class="fas fa-pen-to-square text-xs"></i> Request correction
+                    </button>
+                @else
+                    <span class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-400" title="Self-service corrections are disabled. Contact HR directly."><i class="fas fa-lock text-xs"></i> Corrections are off</span>
+                @endif
             </div>
 
             {{-- Alat diagnosa lokasi.
@@ -311,68 +324,6 @@
             </div>
         </div>
 
-        {{-- Jarang dipakai -> dilipat agar halaman fokus ke aksi harian. Terbuka otomatis bila ada galat validasi / isian lama. --}}
-        <details id="correctionDetails" class="group overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" @if($errors->any() || old('reason')) open @endif>
-            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 sm:px-6">
-                <span>
-                    <span class="block text-sm font-semibold text-gray-900">Need to fix a time?</span>
-                    <span class="block text-xs text-gray-500">Submit an attendance correction &mdash; HR will review it.</span>
-                </span>
-                <i class="fas fa-chevron-down text-xs text-gray-400 transition-transform group-open:rotate-180"></i>
-            </summary>
-            <div class="border-t border-gray-100 p-5 sm:p-6">
-            <p class="mb-5 text-xs text-gray-500">
-                Check-in and check-out are recorded once per day. Submit a correction if a time
-                needs adjusting.
-            </p>
-
-            @if(!$settings->allow_self_correction)
-            <div class="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                Self-service corrections are currently disabled. Please contact HR directly.
-            </div>
-            @else
-            <form method="POST" action="{{ route('general.my-attendance.correction.store') }}" id="correctionForm" class="space-y-4">
-                @csrf
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date <span class="text-red-500">*</span></label>
-                    <input type="date" name="attendance_date" required
-                           value="{{ old('attendance_date', $today->toDateString()) }}"
-                           min="{{ $today->copy()->subDays($settings->correction_max_days)->toDateString() }}"
-                           max="{{ $today->toDateString() }}"
-                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    <p class="text-xs text-gray-400 mt-1">Up to {{ $settings->correction_max_days }} days back.</p>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-in Time</label>
-                        <input type="time" name="requested_check_in" value="{{ old('requested_check_in') }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">New Check-out Time</label>
-                        <input type="time" name="requested_check_out" value="{{ old('requested_check_out') }}"
-                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-                    </div>
-                </div>
-                <p class="text-xs text-gray-400 -mt-2">Fill in at least one of the two.</p>
-
-                <div>
-                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Reason <span class="text-red-500">*</span></label>
-                    <textarea name="reason" rows="3" required minlength="10" maxlength="1000"
-                              placeholder="Explain what happened, e.g. forgot to check out after a client visit"
-                              class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">{{ old('reason') }}</textarea>
-                </div>
-
-                <button type="submit"
-                        class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">
-                    <i class="fas fa-paper-plane"></i> Submit Correction
-                </button>
-            </form>
-            @endif
-            </div>
-        </details>
         </div>
 
         <div class="space-y-6">
@@ -394,6 +345,7 @@
                                 <th class="px-3 py-2.5">Method</th>
                                 <th class="px-3 py-2.5">Location</th>
                                 <th class="px-3 py-2.5">Status</th>
+                                @if($settings->allow_self_correction)<th class="px-3 py-2.5 text-right">Fix</th>@endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-100">
@@ -442,10 +394,21 @@
                                         {{ ucfirst($row->day_status) }}
                                     </span>
                                 </td>
+                                @if($settings->allow_self_correction)
+                                <td class="px-3 py-2.5 text-right">
+                                    @if($row->attendance_date->gte($today->copy()->subDays($settings->correction_max_days)))
+                                    <button type="button" data-open-correction data-date="{{ $row->attendance_date->toDateString() }}"
+                                            class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-gray-700 transition hover:border-gray-400 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-800"
+                                            title="Request a correction for {{ $row->attendance_date->format('d M Y') }}">Correct</button>
+                                    @else
+                                    <span class="text-xs text-gray-300" title="Older than {{ $settings->correction_max_days }} days">—</span>
+                                    @endif
+                                </td>
+                                @endif
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="8" class="px-3 py-6 text-center text-gray-400">
+                                <td colspan="9" class="px-3 py-6 text-center text-gray-400">
                                     <i class="fas fa-calendar-xmark text-2xl mb-2 block"></i>
                                     <span class="text-sm font-medium">No attendance data yet.</span>
                                 </td>
@@ -537,12 +500,83 @@
 
 @include('hr-general.attendance.components.punch-map')
 
+@if($settings->allow_self_correction)
+@php
+    // Jam tercatat per tanggal, supaya modal menunjukkan "tercatat: masuk … keluar …" untuk tanggal yang dipilih.
+    $recorded = collect($history)->mapWithKeys(fn ($r) => [$r->attendance_date->toDateString() => [
+        'in' => $r->check_in_at?->format('H:i'), 'out' => $r->check_out_at?->format('H:i'),
+    ]]);
+    if ($record) {
+        $recorded[$today->toDateString()] = ['in' => $record->check_in_at?->format('H:i'), 'out' => $record->check_out_at?->format('H:i')];
+    }
+    $correctionOpen = $errors->any() || old('reason');
+@endphp
+<div id="correctionModal" class="hidden fixed inset-0 z-50 items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="correctionTitle">
+    <form method="POST" action="{{ route('general.my-attendance.correction.store') }}" id="correctionForm"
+          class="flex max-h-[92vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-2xl">
+        @csrf
+        <div class="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
+            <div>
+                <h3 id="correctionTitle" class="text-base font-bold text-gray-900">Request attendance correction</h3>
+                <p class="mt-0.5 text-xs text-gray-500">HR reviews it before your attendance is updated. Fill in the time(s) that should be recorded.</p>
+            </div>
+            <button type="button" data-close-correction class="text-xl leading-none text-gray-400 hover:text-gray-700" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="space-y-4 overflow-y-auto px-5 py-4">
+            @if($errors->any())
+                <div class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{{ $errors->first() }}</div>
+            @endif
+
+            <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500" for="corrDate">Date <span class="text-red-500">*</span></label>
+                <input type="date" id="corrDate" name="attendance_date" required
+                       value="{{ old('attendance_date', $today->toDateString()) }}"
+                       min="{{ $today->copy()->subDays($settings->correction_max_days)->toDateString() }}"
+                       max="{{ $today->toDateString() }}"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
+                <p id="corrRecorded" class="mt-1.5 text-xs text-gray-500" aria-live="polite"></p>
+                <p class="mt-0.5 text-[11px] text-gray-400">Up to {{ $settings->correction_max_days }} days back.</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">New check-in time</label>
+                    <input type="text" name="requested_check_in" value="{{ old('requested_check_in') }}" data-time-field data-label="New check-in time" data-presets="08:00,08:30,09:00">
+                </div>
+                <div>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500">New check-out time</label>
+                    <input type="text" name="requested_check_out" value="{{ old('requested_check_out') }}" data-time-field data-label="New check-out time" data-presets="17:00,17:30,18:00">
+                </div>
+            </div>
+            <p class="-mt-1 text-[11px] text-gray-400">Fill in at least one. Type the time (for example <span class="font-mono">0830</span> → 08:30), use ↑ ↓, or tap a quick time.</p>
+
+            <div>
+                <label class="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500" for="corrReason">Reason <span class="text-red-500">*</span></label>
+                <textarea id="corrReason" name="reason" rows="3" required minlength="10" maxlength="1000"
+                          placeholder="Explain what happened, e.g. forgot to check out after a client visit"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-800">{{ old('reason') }}</textarea>
+                <p class="mt-1 text-right text-[11px] text-gray-400"><span id="corrReasonCount">0</span>/1000 · at least 10 characters</p>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-2 rounded-b-xl border-t border-gray-100 bg-gray-50 px-5 py-3">
+            <button type="button" data-close-correction class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white primary-gradient hover:opacity-90">
+                <i class="fas fa-paper-plane text-xs"></i> Submit correction
+            </button>
+        </div>
+    </form>
+</div>
+@endif
+
 <form id="cancelCorrectionForm" method="POST" class="hidden">
     @csrf
 </form>
 @endsection
 
 @push('scripts')
+<script src="/js/time-field.js?v={{ @filemtime(public_path('js/time-field.js')) }}"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
@@ -827,9 +861,58 @@
     btnIn.dataset.done  = @js($hasCheckIn ? '1' : '0');
     btnOut.dataset.done = @js($hasCheckOut ? '1' : '0');
 
-    // ── Konfirmasi pengajuan koreksi ─────────────────────────────────────────
+    // ── Modal koreksi ────────────────────────────────────────────────────────
+    const correctionModal = document.getElementById('correctionModal');
     const correctionForm = document.getElementById('correctionForm');
     let correctionConfirmed = false;
+
+    if (correctionModal) {
+        document.body.appendChild(correctionModal);   // leluhur ber-transform membuat position:fixed meleset; modal dipindah ke <body>
+        const RECORDED = @js($recorded ?? []);
+        const dateInput = document.getElementById('corrDate');
+        const recordedNote = document.getElementById('corrRecorded');
+        const reason = document.getElementById('corrReason');
+        const counter = document.getElementById('corrReasonCount');
+        let lastFocus = null;
+
+        const showRecorded = () => {
+            const r = RECORDED[dateInput.value];
+            recordedNote.textContent = r
+                ? `Recorded for this day: check-in ${r.in || '— (none)'} · check-out ${r.out || '— (none)'}`
+                : (dateInput.value ? 'No attendance is recorded for this day.' : '');
+        };
+        const count = () => { counter.textContent = reason.value.length; };
+
+        window.openCorrection = function (opts) {
+            opts = opts || {};
+            lastFocus = opts.trigger || document.activeElement;
+            if (opts.date) {
+                dateInput.value = opts.date;
+                // jam pada tanggal baris diisi kosong (pengguna mengetik jam yang benar), catatan "tercatat" menunjukkan jam sekarang
+                window.setTimeField(correctionForm.querySelector('[name="requested_check_in"]'), '');
+                window.setTimeField(correctionForm.querySelector('[name="requested_check_out"]'), '');
+            }
+            showRecorded(); count();
+            correctionModal.classList.remove('hidden'); correctionModal.classList.add('flex');
+            document.documentElement.classList.add('overflow-hidden');
+            setTimeout(() => (correctionForm.querySelector('[data-seg="h"]') || dateInput).focus(), 40);
+        };
+        window.closeCorrection = function () {
+            correctionModal.classList.add('hidden'); correctionModal.classList.remove('flex');
+            document.documentElement.classList.remove('overflow-hidden');
+            if (lastFocus && lastFocus.focus) lastFocus.focus();
+        };
+
+        document.querySelectorAll('[data-open-correction]').forEach(b => b.addEventListener('click', () => window.openCorrection({ date: b.dataset.date || null, trigger: b })));
+        correctionModal.querySelectorAll('[data-close-correction]').forEach(b => b.addEventListener('click', window.closeCorrection));
+        correctionModal.addEventListener('mousedown', e => { if (e.target === correctionModal) window.closeCorrection(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !correctionModal.classList.contains('hidden')) window.closeCorrection(); });
+        dateInput.addEventListener('change', showRecorded);
+        reason.addEventListener('input', count);
+        @if($correctionOpen ?? false)
+        window.openCorrection();   // galat validasi / isian lama: buka lagi dengan isian utuh
+        @endif
+    }
 
     correctionForm?.addEventListener('submit', async function (event) {
         if (correctionConfirmed) return;

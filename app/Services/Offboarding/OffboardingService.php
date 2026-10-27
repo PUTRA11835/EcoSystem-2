@@ -34,7 +34,7 @@ class OffboardingService
     {
         return DB::table('offboarding_settings')->orderBy('id')->first() ?? (object) [
             'module_enabled' => 0, 'calculator_enabled' => 0, 'auto_deactivate' => 0, 'include_external' => 1,
-            'require_tasks_before_deactivate' => 1, 'reminder_days' => 3, 'leave_divisor' => 21,
+            'require_tasks_before_deactivate' => 1, 'allow_force_deactivate' => 0, 'reminder_days' => 3, 'leave_divisor' => 21,
         ];
     }
 
@@ -63,6 +63,12 @@ class OffboardingService
             'include_external' => (bool) $d['include_external'], 'require_tasks_before_deactivate' => (bool) $d['require_tasks_before_deactivate'],
             'reminder_days' => max(0, min(30, (int) $d['reminder_days'])), 'leave_divisor' => max(1, min(31, (float) $d['leave_divisor'])), 'updated_at' => now(),
         ];
+        // Kolom baru: dilewati bila migrasinya belum dijalankan (mis. server yang baru menerima berkas kode).
+        if (Schema::hasColumn('offboarding_settings', 'allow_force_deactivate')) {
+            $row['allow_force_deactivate'] = (bool) ($d['allow_force_deactivate'] ?? false);
+        } elseif (!empty($d['allow_force_deactivate'])) {
+            $warnings[] = 'Force deactivate could not be saved: the database column allow_force_deactivate does not exist yet. Ask the administrator to add it (see the deployment notes).';
+        }
         $id = DB::table('offboarding_settings')->orderBy('id')->value('id');
         $id ? DB::table('offboarding_settings')->where('id', $id)->update($row) : DB::table('offboarding_settings')->insert($row + ['created_at' => now()]);
 
@@ -400,10 +406,12 @@ class OffboardingService
 
     /**
      * Nonaktifkan akses: hanya pada/ sesudah tanggal efektif. Mengikuti "wajib semua tugas lain selesai" bila saklarnya menyala.
+     * Pengecualian (saklar "Allow force deactivate" menyala): dengan alasan tertulis (>= 5 karakter) HR boleh memaksa SEBELUM tanggal
+     * efektif dan tanpa menunggu tugas lain; alasan dicatat di tugas dan riwayat karyawan. Penonaktifan otomatis tidak pernah memaksa.
      *
      * @throws \DomainException
      */
-    public function deactivateAccess(int $id, int $actorId, bool $automatic = false): void
+    public function deactivateAccess(int $id, int $actorId, bool $automatic = false, ?string $forceReason = null): void
     {
         $o = DB::table('offboardings')->where('id', $id)->first();
         if (!$o || $o->status !== 'in_progress') {
@@ -412,17 +420,28 @@ class OffboardingService
         if ($o->access_deactivated_at !== null) {
             throw new \DomainException('Access is already deactivated.');
         }
-        if ($o->effective_date > now()->toDateString()) {
+        $forceReason = trim((string) $forceReason);
+        $force = false;
+        if (!$automatic && $forceReason !== '') {
+            if (empty($this->settings()->allow_force_deactivate)) {
+                throw new \DomainException('Force deactivate is switched off. Turn it on in Offboarding Settings first.');
+            }
+            if (mb_strlen($forceReason) < 5) {
+                throw new \DomainException('Give a reason of at least 5 characters to force deactivate.');
+            }
+            $force = true;
+        }
+        if (!$force && $o->effective_date > now()->toDateString()) {
             throw new \DomainException('Access can only be deactivated on or after the effective date (' . date('d M Y', strtotime($o->effective_date)) . ').');
         }
-        if ($this->settings()->require_tasks_before_deactivate) {
+        if (!$force && $this->settings()->require_tasks_before_deactivate) {
             $open = DB::table('offboarding_tasks')->where('offboarding_id', $id)->where('status', 'pending')->where('task_key', '!=', self::TASK_ACCESS)->count();
             if ($open > 0) {
                 throw new \DomainException("{$open} other task(s) are still pending. Finish them first (or switch the rule off in Offboarding Settings).");
             }
         }
 
-        DB::transaction(function () use ($o, $id, $actorId, $automatic) {
+        DB::transaction(function () use ($o, $id, $actorId, $automatic, $force, $forceReason) {
             DB::table('employee')->where('employee_id', $o->employee_id)->update(['is_active' => 0, 'updated_at' => now()]);
             DB::table('auth_users')->where('employee_id', $o->employee_id)->update(['is_active' => 0, 'remember_token' => null, 'cp_token' => null, 'updated_at' => now()]);
             if (Schema::hasTable('push_subscriptions')) {
@@ -430,9 +449,9 @@ class OffboardingService
             }
             DB::table('offboardings')->where('id', $id)->update(['access_deactivated_at' => now(), 'updated_at' => now()]);
             DB::table('offboarding_tasks')->where('offboarding_id', $id)->where('task_key', self::TASK_ACCESS)->update([
-                'status' => 'done', 'completed_at' => now(), 'completed_by' => $automatic ? null : $actorId, 'note' => $automatic ? 'Deactivated automatically on the effective date.' : null, 'updated_at' => now(),
+                'status' => 'done', 'completed_at' => now(), 'completed_by' => $automatic ? null : $actorId, 'note' => $automatic ? 'Deactivated automatically on the effective date.' : ($force ? mb_substr('FORCED: ' . $forceReason, 0, 500) : null), 'updated_at' => now(),
             ]);
-            $this->history((int) $o->employee_id, 'Access deactivated', 'Offboarding #' . $id . ($automatic ? ' (automatic)' : ''), $actorId);
+            $this->history((int) $o->employee_id, $force ? 'Access deactivated (forced)' : 'Access deactivated', 'Offboarding #' . $id . ($automatic ? ' (automatic)' : '') . ($force ? ' — forced before the effective date/checklist: ' . $forceReason : ''), $actorId);
         });
     }
 

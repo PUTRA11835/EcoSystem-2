@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Log;
 
 class EmployeeBankController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get all employee bank records
      */
@@ -171,6 +173,26 @@ class EmployeeBankController extends Controller
             'verify_link.url' => 'Verify link must be a valid URL',
         ]);
 
+        // Nomor rekening: hanya angka, 6–20 digit (spasi dan tanda hubung diabaikan).
+        $validator->after(function ($v) use ($request) {
+            if (!$v->errors()->has('account_number')) {
+                $error = \App\Support\Validation\FieldFormats::bankAccountError((string) $request->account_number);
+                if ($error) {
+                    $v->errors()->add('account_number', $error);
+                } else {
+                    $dup = \Illuminate\Support\Facades\DB::table('employee_bank')->where('account_number', \App\Support\Validation\FieldFormats::bankAccountNormalize((string) $request->account_number));
+                    if ($request->route('bankId')) {
+                        $dup->where('bank_id', '!=', $request->route('bankId'));
+                    }
+                    if ($dup->exists()) {
+                        $v->errors()->add('account_number', 'This Account Number is already in use. Enter a different one.');
+                    }
+                }
+            }
+        });
+
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for bank record', [
                 'employee_id' => $employeeId,
@@ -179,10 +201,12 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Bank account data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
+
+        $request->merge(['account_number' => \App\Support\Validation\FieldFormats::bankAccountNormalize((string) $request->account_number)]);
 
         try {
             DB::beginTransaction();
@@ -281,6 +305,26 @@ class EmployeeBankController extends Controller
             'verify_link.url' => 'Verify link must be a valid URL',
         ]);
 
+        // Nomor rekening: hanya angka, 6–20 digit (spasi dan tanda hubung diabaikan).
+        $validator->after(function ($v) use ($request) {
+            if (!$v->errors()->has('account_number')) {
+                $error = \App\Support\Validation\FieldFormats::bankAccountError((string) $request->account_number);
+                if ($error) {
+                    $v->errors()->add('account_number', $error);
+                } else {
+                    $dup = \Illuminate\Support\Facades\DB::table('employee_bank')->where('account_number', \App\Support\Validation\FieldFormats::bankAccountNormalize((string) $request->account_number));
+                    if ($request->route('bankId')) {
+                        $dup->where('bank_id', '!=', $request->route('bankId'));
+                    }
+                    if ($dup->exists()) {
+                        $v->errors()->add('account_number', 'This Account Number is already in use. Enter a different one.');
+                    }
+                }
+            }
+        });
+
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             Log::warning('Validation failed for bank record update', [
                 'employee_id' => $employeeId,
@@ -290,10 +334,12 @@ class EmployeeBankController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Bank account data is invalid.',
+                'message' => $validator->errors()->first(),
                 'errors' => $validator->errors()
             ], 422);
         }
+
+        $request->merge(['account_number' => \App\Support\Validation\FieldFormats::bankAccountNormalize((string) $request->account_number)]);
 
         try {
             DB::beginTransaction();

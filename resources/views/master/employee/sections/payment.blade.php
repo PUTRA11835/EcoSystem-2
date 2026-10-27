@@ -531,7 +531,7 @@
                     loadPaymentToForm(paymentId);
                 }
             } else {
-                showNotification('Failed to save payment: ' + (data.message || 'Unknown error'), 'error');
+                showNotification(window.apiErrorText ? window.apiErrorText(data, 'The payment could not be saved. Please try again.') : (data.message || 'The payment could not be saved. Please try again.'), 'error');
             }
         } catch (error) {
             console.error(' Error saving payment:', error);

@@ -42,6 +42,39 @@ class ModuleController extends Controller
         ]);
     }
 
+    /**
+     * Lead DAN member SEMUA module dalam dua kueri (halaman Management → Employee → Qualification dulu memanggil
+     * /modules/{id}/leads dan /modules/{id}/members satu per module: ±60 permintaan). Bentuk isinya sama dengan kedua endpoint itu.
+     *
+     * @return \Illuminate\Http\JsonResponse {success, data: {leads: {moduleId: [...]}, members: {moduleId: [{id,name}]}}}
+     */
+    public function overview()
+    {
+        $leads = \App\Models\ModuleLead::query()->with('employee.basicData')->get()->groupBy('module_id')->map(
+            fn ($group) => $group->map(function ($lead) {
+                $basic = $lead->employee?->basicData;
+                $name = $basic ? trim(($basic->first_name ?? '') . ' ' . ($basic->last_name ?? '')) : null;
+
+                return [
+                    'module_id'   => $lead->module_id,
+                    'employee_id' => $lead->employee_id,
+                    'name'        => $name ?: ('Employee #' . $lead->employee_id),
+                    'created_at'  => $lead->created_at?->format('Y-m-d'),
+                ];
+            })->values()
+        );
+
+        $members = DB::table('employee as e')
+            ->join('employee_qualification as eq', 'eq.employee_id', '=', 'e.employee_id')
+            ->leftJoin('employee_basic_data as bd', 'e.employee_id', '=', 'bd.employee_id')
+            ->where('e.is_active', true)->whereNotNull('eq.module_id')
+            ->select('eq.module_id', 'e.employee_id as id', DB::raw("TRIM(CONCAT(COALESCE(bd.first_name,''), ' ', COALESCE(bd.last_name,''))) as name"))
+            ->distinct()->orderBy('name')->get()
+            ->groupBy('module_id')->map(fn ($g) => $g->map(fn ($r) => ['id' => $r->id, 'name' => $r->name])->values());
+
+        return response()->json(['success' => true, 'data' => ['leads' => $leads, 'members' => $members]]);
+    }
+
     public function index(Request $request)
     {
         $query = Module::query()->with('groups:id,name');

@@ -101,7 +101,30 @@ class PayrollPeriodService
         PayrollAudit::record(PayrollAudit::CALCULATED, $periodId,
             'Calculated ' . ($summary['employees'] ?? 0) . ' employee(s)' . (!empty($summary['skipped']) ? ', ' . $summary['skipped'] . ' skipped' : ''), $actorId, (array) $summary);
 
-        return [];
+        return $this->autoRelease($periodId, $actorId);
+    }
+
+    /**
+     * Saklar "Publish payslips automatically" (bawaan mati): selesai menghitung → beri nomor slip (Generate) lalu publikasikan, sehingga
+     * slip langsung tampil di ESS → Paystub. Dipanggil juga oleh pekerjaan latar belakang. Bila gagal, perhitungan TETAP berhasil
+     * dan galatnya dikembalikan agar terlihat (Finance bisa menekan Generate / Publish sendiri).
+     *
+     * @return string[]
+     */
+    public function autoRelease(int $periodId, ?int $actorId): array
+    {
+        if (empty($this->engine->settings()['auto_publish_slips'])) {
+            return [];
+        }
+        $errors = [];
+        foreach ([fn () => $this->generateSlips($periodId, $actorId), fn () => $this->publish($periodId, $actorId)] as $step) {
+            if ($e = $step()) {
+                $errors = array_merge($errors, $e);
+                break;
+            }
+        }
+
+        return $errors ? ['The payroll was calculated, but the payslips could not be published automatically: ' . implode(' ', $errors)] : [];
     }
 
     /** Kunci periode (open → locked). Periode terkunci tidak bisa dihitung ulang, dikoreksi, atau dihapus. @return string[] */

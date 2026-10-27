@@ -169,11 +169,33 @@
             if (data.success) {
                 allModules = data.data;
                 renderTable(allModules);
-                loadAllLeads();
-                loadAllMembers();
+                loadModuleDetails();
             }
         } catch (e) {
             console.error(e);
+        }
+    }
+
+    /**
+     * Lead dan member SEMUA module dalam SATU permintaan (/api/modules/overview). Dulu satu permintaan per module untuk leads dan satu
+     * lagi untuk members (±60 permintaan, ~10 detik). loadAllLeads/loadAllMembers di bawah dipertahankan untuk muat ulang satu jenis
+     * setelah lead ditambah/dihapus.
+     */
+    async function loadModuleDetails() {
+        try {
+            const res = await fetch('/api/modules/overview', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            if (!data.success) throw new Error('overview failed');
+            leadsByModule = {}; membersByModule = {};
+            allModules.forEach(m => {
+                leadsByModule[m.id] = (data.data.leads || {})[m.id] || [];
+                membersByModule[m.id] = (data.data.members || {})[m.id] || [];
+            });
+            filterModules();
+        } catch (e) {
+            console.error('Failed to load module details; falling back to per-module requests', e);
+            loadAllLeads();
+            loadAllMembers();
         }
     }
 

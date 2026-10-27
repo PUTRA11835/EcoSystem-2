@@ -35,7 +35,7 @@ class OffboardingSettingsController extends Controller
         $warnings = $this->offboarding->saveSettings([
             'module_enabled' => $request->boolean('module_enabled'), 'calculator_enabled' => $request->boolean('calculator_enabled'),
             'auto_deactivate' => $request->boolean('auto_deactivate'), 'include_external' => $request->boolean('include_external'),
-            'require_tasks_before_deactivate' => $request->boolean('require_tasks_before_deactivate'),
+            'require_tasks_before_deactivate' => $request->boolean('require_tasks_before_deactivate'), 'allow_force_deactivate' => $request->boolean('allow_force_deactivate'),
             'reminder_days' => (int) $d['reminder_days'], 'leave_divisor' => (float) $d['leave_divisor'],
         ]);
 

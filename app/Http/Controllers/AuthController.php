@@ -624,7 +624,7 @@ class AuthController extends Controller
                 'search_email' => $email
             ]);
 
-            // Cek auth_users: email, username (ECI / customer_code), atau phone
+            // Cek auth_users: email, username (ECI / customer_code), atau phone; lalu cadangan: kode karyawan (ECI)
             $authUser = DB::table('auth_users')
                 ->where(function($query) use ($email) {
                     $query->where('email', $email)
@@ -633,6 +633,15 @@ class AuthController extends Controller
                 })
                 ->where('is_active', true)
                 ->first();
+
+            // Cadangan: kode karyawan (ECI) — akun yang username-nya BUKAN ECI (mis. akun uji ess.female) tetap bisa masuk dengan ECI-nya.
+            // Hanya dicoba bila email/username/phone tidak cocok, jadi tidak pernah mengalahkan pencocokan yang sudah ada.
+            if (!$authUser) {
+                $authUser = DB::table('auth_users')
+                    ->whereIn('employee_id', fn ($q) => $q->select('employee_id')->from('employee')->where('eci', $email))
+                    ->where('is_active', true)
+                    ->first();
+            }
 
             Log::channel('daily')->info('Auth user query executed', [
                 'request_id' => $requestId,

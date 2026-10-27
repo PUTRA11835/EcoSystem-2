@@ -36,7 +36,7 @@ class OnboardingProgressService
 
         // H3.9: status kepegawaian dari profil HR. Dijaga bila tabelnya belum ada (kode dirilis sebelum
         // migrasi) agar halaman Onboarding tidak ikut rusak — kolom Status saja yang kosong.
-        $hasProfile = Schema::hasTable('employee_hr_profile');
+        $hasProfile = \App\Support\SchemaCache::hasTable('employee_hr_profile');
 
         $base = DB::table('employee as e')
             ->join('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')

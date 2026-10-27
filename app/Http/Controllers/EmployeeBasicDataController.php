@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class EmployeeBasicDataController extends Controller
 {
+    use \App\Http\Controllers\Concerns\FriendlyValidation;
+
     /**
      * Get current user's ECI
      */
@@ -186,6 +188,8 @@ class EmployeeBasicDataController extends Controller
             'since_date.date'     => 'Since Date must be a valid date.',
         ]);
 
+        $this->friendly($validator);
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -324,7 +328,7 @@ class EmployeeBasicDataController extends Controller
                 'title' => 'nullable|string|max:10',
                 'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
                 'gender' => 'nullable|in:Male,Female',
-                'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Confucian',
+                'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
                 'search_term_1' => 'nullable|string|max:255',
@@ -354,6 +358,8 @@ class EmployeeBasicDataController extends Controller
                 'birth_date.date'   => 'Birth Date must be a valid date.',
                 'since_date.date'   => 'Since Date must be a valid date.',
             ]);
+
+            $this->friendly($validator);
 
             if ($validator->fails()) {
                 return response()->json([
