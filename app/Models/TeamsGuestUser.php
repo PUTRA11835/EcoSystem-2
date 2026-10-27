@@ -16,10 +16,13 @@ class TeamsGuestUser extends Model
         'email',
         'aad_object_id',
         'invite_status',
+        'redeem_url',
         'invited_at',
+        'onboarded_at',
     ];
 
     protected $casts = [
-        'invited_at' => 'datetime',
+        'invited_at'   => 'datetime',
+        'onboarded_at' => 'datetime',
     ];
 }

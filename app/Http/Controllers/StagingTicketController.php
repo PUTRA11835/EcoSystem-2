@@ -600,6 +600,11 @@ class StagingTicketController extends Controller
             // try/catch sendiri, terpisah dari dispatch di bawah: Teams yang
             // bermasalah tidak boleh ikut membatalkan notifikasi Power Automate
             // yang selama ini sudah jalan.
+            // Guest yang ditunda karena belum dikenal Teams (lihat
+            // TeamsChatService::createForTicket). Mereka belum anggota grup saat
+            // flow 5 memposting kartu, jadi tidak ikut di-@mention.
+            $pendingGuests = [];
+
             try {
                 $teamsChat = app(\App\Services\Teams\TeamsChatService::class)->createForTicket(
                     (int) $ticket->ticket_id,
@@ -614,6 +619,9 @@ class StagingTicketController extends Controller
                     // Tanpa Condition atas flag ini di sisi Power Automate, satu
                     // tiket akan punya DUA grup — satu dari sini, satu dari flow.
                     $chatPayload['created_by_ecosystem'] = true;
+
+                    $pendingGuests = app(\App\Services\Teams\TeamsChatService::class)
+                        ->pendingGuestEmails((int) $ticket->ticket_id);
 
                     // Email/permintaan pertama customer ikut diteruskan ke grup.
                     // Hanya bisa di sini: sebelum titik ini tiket belum punya
@@ -648,10 +656,15 @@ class StagingTicketController extends Controller
                     // email untuk lead internal, object id untuk lead guest.
                     // Konektor menolak alamat Gmail guest tetapi menerima object
                     // id-nya (terbukti 20 Okt 2026). Guest yang tidak bisa
-                    // di-resolve dibuang supaya loop mention tidak berhenti.
+                    // di-resolve dibuang supaya loop mention tidak berhenti;
+                    // begitu juga guest yang masih ditunda — mereka belum
+                    // anggota grup saat kartu ini diposting.
                     'lead_teams_ids' => array_values(array_filter(array_map(
                         static fn ($email) => app(\App\Services\Teams\TeamsGuestService::class)->teamsUserRef((string) $email),
-                        $leadEmails
+                        array_filter(
+                            $leadEmails,
+                            static fn ($email) => !in_array(mb_strtolower(trim((string) $email)), $pendingGuests, true)
+                        )
                     ))),
                     // Bahan group chat tiket (aksi Teams "Create a chat"):
                     // `chat.topic` jadi nama grup sekaligus kunci yang dipakai

@@ -3559,16 +3559,27 @@ class TicketController extends Controller
                 // chat" maupun "Get an @mention token" (terbukti 20 Okt 2026);
                 // yang ditolaknya hanya alamat Gmail. Satu callback, berurutan:
                 // pesan flow 6 baru berarti kalau orangnya sudah ada di grup.
+                //
+                // Guest yang baru diundang belum dikenal Teams beberapa menit;
+                // addGuestMember() lalu mengantrenya BERSAMA payload flow 6, dan
+                // teams:add-pending-guests yang mengirim flow 6 setelah guest-nya
+                // masuk grup.
                 app()->terminating(static function () use ($powerAutomate, $guests, $ticket, $ticketId, $email, $person, $role, $actor, $roleLabel) {
-                    if (!app(\App\Services\Teams\TeamsChatService::class)->addGuestMember($ticketId, $email)) {
+                    $teamsId = $guests->resolve($email);
+
+                    if ($teamsId === null) {
                         return;
                     }
 
                     $payload = $powerAutomate->ticketMemberPayload($ticket, $person, $role, $actor, $roleLabel);
                     $payload['person']['is_guest'] = true;
-                    $payload['person']['teams_id'] = $guests->resolve($email);
+                    $payload['person']['teams_id'] = $teamsId;
 
-                    $powerAutomate->dispatch(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED, $payload);
+                    $result = app(\App\Services\Teams\TeamsChatService::class)->addGuestMember($ticketId, $email, $payload);
+
+                    if ($result === \App\Services\Teams\TeamsChatService::GUEST_ADDED) {
+                        $powerAutomate->dispatch(\App\Services\PowerAutomateService::FLOW_TICKET_MEMBER_ADDED, $payload);
+                    }
                 });
             } else {
                 $powerAutomate->dispatchAfterResponse(

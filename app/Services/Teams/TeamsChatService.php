@@ -2,6 +2,7 @@
 
 namespace App\Services\Teams;
 
+use App\Models\TeamsPendingGuestMember;
 use App\Models\TicketTeamsChat;
 use Illuminate\Support\Facades\Log;
 
@@ -24,6 +25,11 @@ use Illuminate\Support\Facades\Log;
  */
 class TeamsChatService
 {
+    /** Hasil addGuestMember(). */
+    public const GUEST_ADDED    = 'added';
+    public const GUEST_DEFERRED = 'deferred';
+    public const GUEST_FAILED   = 'failed';
+
     public function __construct(
         private readonly TeamsGraphClient $graph,
         private readonly TeamsGuestService $guests,
@@ -58,6 +64,11 @@ class TeamsChatService
      * adalah langkah tambahan di akhir approve tiket, dan tiket yang sudah
      * tervalidasi tidak boleh gagal gara-gara Teams.
      *
+     * Guest yang belum dikenal Teams tidak ikut di POST /chats — satu anggota
+     * yang ditolak membuat SELURUH chat ditolak (Graph memakai
+     * DisablePartialSuccess). Mereka diantre ke teams_pending_guest_member dan
+     * dimasukkan susulan; pendingGuestEmails() menyebut siapa saja.
+     *
      * @param  list<string>  $memberEmails  sudah tersaring & terpotong oleh
      *                                      PowerAutomateService::ticketChatPayload()
      */
@@ -71,36 +82,41 @@ class TeamsChatService
             return $existing;
         }
 
-        $members = $this->buildMembers($this->withConnectionOwner($memberEmails));
-
-        if ($members === []) {
-            Log::warning('TeamsChat: chat tidak dibuat, tidak ada anggota yang valid', [
-                'ticket_id' => $ticketId,
-                'topic'     => $topic,
-            ]);
-
-            return null;
-        }
+        [$members, $deferred] = $this->planMembers($this->withConnectionOwner($memberEmails));
 
         try {
-            $chat = $this->graph->post('chats', [
-                'chatType' => 'group',
-                'topic'    => $topic,
-                'members'  => $members,
-            ]);
+            $chat = $this->postChat($ticketId, $topic, $members);
         } catch (TeamsGraphException $e) {
-            // Body error Graph dibawa utuh: satu alamat yang bukan mailbox M365
-            // membuat SELURUH permintaan ditolak, dan hanya body itu yang
-            // menyebut alamat mana yang bermasalah.
-            Log::warning('TeamsChat: Graph menolak pembuatan chat', [
+            $guests = array_keys(array_filter($members, static fn ($m) => $m['guest']));
+
+            if (!self::isRosterRejection($e) || $guests === []) {
+                $this->logChatRejected($ticketId, $topic, $e, $memberEmails);
+
+                return null;
+            }
+
+            // Ada guest yang tidak dikenal Teams walau sudah lewat masa
+            // propagasi (atau tercatat lama tetapi baru dibuat ulang di Entra).
+            // Graph tidak menyebut siapa, jadi SEMUA guest ditunda dan chat
+            // dicoba sekali lagi dengan anggota internal saja.
+            Log::info('TeamsChat: roster ditolak, chat dicoba ulang tanpa guest', [
                 'ticket_id' => $ticketId,
-                'topic'     => $topic,
-                'status'    => $e->status,
-                'code'      => $e->graphCode,
-                'body'      => mb_substr((string) $e->body, 0, 1000),
-                'members'   => $memberEmails,
+                'guests'    => $guests,
             ]);
 
+            $deferred = array_values(array_unique(array_merge($deferred, $guests)));
+            $members  = array_filter($members, static fn ($m) => !$m['guest']);
+
+            try {
+                $chat = $this->postChat($ticketId, $topic, $members);
+            } catch (TeamsGraphException $e) {
+                $this->logChatRejected($ticketId, $topic, $e, $memberEmails);
+
+                return null;
+            }
+        }
+
+        if ($chat === null) {
             return null;
         }
 
@@ -127,14 +143,80 @@ class TeamsChatService
             'last_message_at' => now(),
         ]);
 
+        foreach ($deferred as $email) {
+            $this->deferGuest($ticketId, $email);
+        }
+
+        // Guest yang sudah masuk diberi tahu sekarang; yang ditunda nanti,
+        // saat postGuestMember() berhasil memasukkannya.
+        foreach ($members as $email => $m) {
+            if ($m['guest']) {
+                $this->guests->sendChatInvite($email, $chatId, $topic);
+            }
+        }
+
         Log::info('TeamsChat: group chat dibuat lewat Graph', [
             'ticket_id' => $ticketId,
             'chat_id'   => $chatId,
             'topic'     => $topic,
             'members'   => count($members),
+            'deferred'  => $deferred,
         ]);
 
         return $row;
+    }
+
+    /**
+     * POST /chats. Null = anggotanya kosong (sudah dicatat); kegagalan Graph
+     * dilempar supaya pemanggil bisa memutuskan mencoba ulang tanpa guest.
+     *
+     * @param  array<string,array{guest:bool,member:array}>  $members
+     */
+    private function postChat(int $ticketId, string $topic, array $members): ?array
+    {
+        if ($members === []) {
+            Log::warning('TeamsChat: chat tidak dibuat, tidak ada anggota yang valid', [
+                'ticket_id' => $ticketId,
+                'topic'     => $topic,
+            ]);
+
+            return null;
+        }
+
+        return $this->graph->post('chats', [
+            'chatType' => 'group',
+            'topic'    => $topic,
+            'members'  => array_values(array_column($members, 'member')),
+        ]);
+    }
+
+    private function logChatRejected(int $ticketId, string $topic, TeamsGraphException $e, array $memberEmails): void
+    {
+        // Body error Graph dibawa utuh: satu alamat yang bukan mailbox M365
+        // membuat SELURUH permintaan ditolak, dan hanya body itu yang
+        // menyebut alamat mana yang bermasalah.
+        Log::warning('TeamsChat: Graph menolak pembuatan chat', [
+            'ticket_id' => $ticketId,
+            'topic'     => $topic,
+            'status'    => $e->status,
+            'code'      => $e->graphCode,
+            'body'      => mb_substr((string) $e->body, 0, 1000),
+            'members'   => $memberEmails,
+        ]);
+    }
+
+    /**
+     * Penolakan karena ada anggota yang tidak bisa dimasukkan ke roster —
+     * bentuk yang dikembalikan Graph untuk guest yang belum dikenal Teams:
+     * 403 dengan innerError "DisablePartialSuccess-Create Thread: One or more
+     * members cannot be added to the thread roster".
+     */
+    public static function isRosterRejection(TeamsGraphException $e): bool
+    {
+        $body = (string) $e->body;
+
+        return $e->status === 403
+            && (stripos($body, 'thread roster') !== false || stripos($body, 'DisablePartialSuccess') !== false);
     }
 
     /**
@@ -182,23 +264,6 @@ class TeamsChatService
     }
 
     /**
-     * Ubah daftar email jadi anggota Graph.
-     *
-     * Anggota internal di-bind dengan UPN langsung, bukan AAD object id: spike
-     * membuktikan Graph menerimanya, dan resolusi ke object id lewat
-     * GET /users/{id} justru TIDAK tersedia untuk app ini (403, tanpa
-     * User.Read.All). Jadi kolom email di `employee` sudah cukup.
-     *
-     * Consultant eksternal (di luar TEAMS_INTERNAL_DOMAINS) TIDAK bisa begitu —
-     * UPN guest bukan alamat emailnya. Mereka di-bind dengan object id dari
-     * TeamsGuestService (diundang dulu kalau belum pernah). Yang tidak bisa
-     * di-resolve DIBUANG: satu alamat asing membuat Graph menolak seluruh chat.
-     *
-     * Semua anggota diberi peran `owner` supaya siapa pun di grup bisa menamai
-     * ulang grup dan menambah orang — chat tiket adalah ruang kerja bersama,
-     * bukan milik satu orang.
-     */
-    /**
      * Pastikan akun pemilik connection Power Automate ikut jadi anggota.
      *
      * Ini BUKAN sekadar kehati-hatian. Alamat itu sengaja ada di
@@ -238,14 +303,38 @@ class TeamsChatService
         return $emails;
     }
 
-    private function buildMembers(array $emails): array
+    /**
+     * Ubah daftar email jadi anggota Graph, dan pisahkan guest yang harus
+     * menunggu.
+     *
+     * Anggota internal di-bind dengan UPN langsung, bukan AAD object id: spike
+     * membuktikan Graph menerimanya, dan resolusi ke object id lewat
+     * GET /users/{id} justru TIDAK tersedia untuk app ini (403, tanpa
+     * User.Read.All). Jadi kolom email di `employee` sudah cukup.
+     *
+     * Consultant eksternal (di luar TEAMS_INTERNAL_DOMAINS) TIDAK bisa begitu —
+     * UPN guest bukan alamat emailnya. Mereka di-bind dengan object id dari
+     * TeamsGuestService (diundang dulu kalau belum pernah). Yang tidak bisa
+     * di-resolve DIBUANG; yang baru diundang DITUNDA (isPropagating) — dua-duanya
+     * karena satu anggota yang ditolak membuat Graph menolak seluruh chat.
+     *
+     * Semua anggota diberi peran `owner` supaya siapa pun di grup bisa menamai
+     * ulang grup dan menambah orang — chat tiket adalah ruang kerja bersama,
+     * bukan milik satu orang.
+     *
+     * @param  list<string>  $emails
+     * @return array{0: array<string,array{guest:bool,member:array}>, 1: list<string>}
+     *         [anggota per email huruf kecil, email guest yang ditunda]
+     */
+    private function planMembers(array $emails): array
     {
-        $members = [];
+        $members  = [];
+        $deferred = [];
 
         foreach ($emails as $email) {
-            $email = trim((string) $email);
+            $email = mb_strtolower(trim((string) $email));
 
-            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || isset($members[$email])) {
                 continue;
             }
 
@@ -259,10 +348,18 @@ class TeamsChatService
                 continue;
             }
 
-            $members[] = $this->member($ref);
+            $guest = $this->guests->isExternal($email);
+
+            if ($guest && $this->guests->isPropagating($email)) {
+                $deferred[] = $email;
+
+                continue;
+            }
+
+            $members[$email] = ['guest' => $guest, 'member' => $this->member($ref)];
         }
 
-        return $members;
+        return [$members, array_values(array_unique($deferred))];
     }
 
     /**
@@ -274,44 +371,154 @@ class TeamsChatService
      * object id guest, jadi Graph bisa langsung dipanggil (terbukti di spike
      * 20 Okt 2026: POST /chats/{id}/members dengan role owner).
      *
-     * Riwayat chat dibuka penuh: consultant yang masuk belakangan perlu membaca
-     * konteks tiketnya dari awal.
+     * Guest yang baru diundang, atau yang ditolak Graph, DITUNDA ke antrean
+     * teams:add-pending-guests alih-alih dibuang. $flowPayload (flow 6) ikut
+     * disimpan dan baru dikirim begitu guest-nya benar-benar masuk grup.
+     *
+     * @return string  GUEST_ADDED = sudah masuk; pemanggil boleh langsung
+     *                 mengirim flow 6. GUEST_DEFERRED = jangan kirim — command
+     *                 yang akan mengirimnya. GUEST_FAILED = tidak ada yang
+     *                 bisa dilakukan.
      */
-    public function addGuestMember(int $ticketId, string $email): bool
+    public function addGuestMember(int $ticketId, string $email, ?array $flowPayload = null): string
     {
-        if (!$this->isEnabled() || !$this->guests->isExternal($email)) {
-            return false;
-        }
-
-        $chat = $this->chatForTicket($ticketId);
-
-        if (!$chat) {
-            return false;
+        if (!$this->isEnabled() || !$this->guests->isExternal($email) || !$this->chatForTicket($ticketId)) {
+            return self::GUEST_FAILED;
         }
 
         $guestId = $this->guests->resolve($email);
 
         if ($guestId === null) {
-            return false;
+            return self::GUEST_FAILED;
+        }
+
+        if ($this->guests->isPropagating($email)) {
+            $this->deferGuest($ticketId, $email, $flowPayload);
+
+            return self::GUEST_DEFERRED;
         }
 
         try {
-            $this->graph->post(
-                TeamsGraphClient::chatPath($chat->chat_id, 'members'),
-                $this->member($guestId) + ['visibleHistoryStartDateTime' => '0001-01-01T00:00:00Z']
-            );
+            $this->postGuestMember($ticketId, $guestId, $email);
         } catch (TeamsGraphException $e) {
-            Log::warning('TeamsChat: gagal menambahkan guest ke group chat', [
+            Log::warning('TeamsChat: gagal menambahkan guest ke group chat, diantre ulang', [
                 'ticket_id' => $ticketId,
-                'chat_id'   => $chat->chat_id,
                 'email'     => $email,
                 'status'    => $e->status,
                 'code'      => $e->graphCode,
                 'body'      => mb_substr((string) $e->body, 0, 1000),
             ]);
 
+            $this->deferGuest($ticketId, $email, $flowPayload);
+
+            return self::GUEST_DEFERRED;
+        }
+
+        return self::GUEST_ADDED;
+    }
+
+    /**
+     * Satu percobaan untuk satu baris antrean. True = guest sudah masuk grup;
+     * kalau baris membawa flow_payload, pemanggil yang mengirim flow 6.
+     */
+    public function addPendingGuest(TeamsPendingGuestMember $row): bool
+    {
+        $max = max(1, (int) config('services.teams_sync.guest_add_max_attempts', 10));
+
+        if (!$this->chatForTicket((int) $row->ticket_id)) {
+            // Tidak akan pulih dengan menunggu — langsung berhenti.
+            $row->markAttemptFailed('Tiket tidak punya group chat Teams.', 1);
+
             return false;
         }
+
+        $guestId = $this->guests->resolve($row->email);
+
+        if ($guestId === null) {
+            $row->markAttemptFailed('Object id guest tidak bisa di-resolve (lihat log TeamsGuest).', $max);
+
+            return false;
+        }
+
+        try {
+            $this->postGuestMember((int) $row->ticket_id, $guestId, $row->email);
+        } catch (TeamsGraphException $e) {
+            $row->markAttemptFailed($e->getMessage(), $max);
+
+            if ($row->status === TeamsPendingGuestMember::STATUS_FAILED) {
+                Log::warning('TeamsChat: guest tetap gagal dimasukkan ke group chat, berhenti mencoba', [
+                    'ticket_id' => $row->ticket_id,
+                    'email'     => $row->email,
+                    'attempts'  => $row->attempts,
+                    'status'    => $e->status,
+                    'body'      => mb_substr((string) $e->body, 0, 1000),
+                ]);
+            }
+
+            return false;
+        }
+
+        $row->markAdded();
+
+        return true;
+    }
+
+    /**
+     * Guest tiket ini yang masih menunggu dimasukkan ke grup.
+     *
+     * @return list<string>
+     */
+    public function pendingGuestEmails(int $ticketId): array
+    {
+        return TeamsPendingGuestMember::where('ticket_id', $ticketId)
+            ->where('status', TeamsPendingGuestMember::STATUS_PENDING)
+            ->pluck('email')
+            ->all();
+    }
+
+    /**
+     * Antre (atau antre ulang) satu guest. Baris yang sudah ada dimulai lagi
+     * dari awal: penundaan baru berarti ada alasan baru untuk mencoba.
+     */
+    private function deferGuest(int $ticketId, string $email, ?array $flowPayload = null): void
+    {
+        $email = mb_strtolower(trim($email));
+
+        TeamsPendingGuestMember::updateOrCreate(
+            ['ticket_id' => $ticketId, 'email' => $email],
+            [
+                'status'          => TeamsPendingGuestMember::STATUS_PENDING,
+                'attempts'        => 0,
+                'next_attempt_at' => now()->addMinutes(TeamsPendingGuestMember::backoffMinutes(0)),
+                'last_error'      => null,
+                'added_at'        => null,
+                'flow_payload'    => $flowPayload,
+            ]
+        );
+
+        Log::info('TeamsChat: guest diantre untuk dimasukkan susulan', [
+            'ticket_id' => $ticketId,
+            'email'     => $email,
+        ]);
+    }
+
+    /**
+     * Riwayat chat dibuka penuh: consultant yang masuk belakangan perlu membaca
+     * konteks tiketnya dari awal — termasuk kartu flow 5 yang terkirim sebelum
+     * guest yang ditunda sempat masuk.
+     *
+     * Setelah berhasil, guest-nya diberi tahu lewat email berisi tautan chat.
+     *
+     * @throws TeamsGraphException
+     */
+    private function postGuestMember(int $ticketId, string $guestId, string $email): void
+    {
+        $chat = $this->chatForTicket($ticketId);
+
+        $this->graph->post(
+            TeamsGraphClient::chatPath($chat->chat_id, 'members'),
+            $this->member($guestId) + ['visibleHistoryStartDateTime' => '0001-01-01T00:00:00Z']
+        );
 
         Log::info('TeamsChat: guest ditambahkan ke group chat', [
             'ticket_id' => $ticketId,
@@ -319,7 +526,7 @@ class TeamsChatService
             'email'     => $email,
         ]);
 
-        return true;
+        $this->guests->sendChatInvite($email, $chat->chat_id, (string) $chat->topic);
     }
 
     /** @param  string  $userRef  UPN (internal) atau object id (guest) */

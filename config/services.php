@@ -167,6 +167,26 @@ return [
         // justru lebih buruk: satu alamat asing menggagalkan SELURUH chat).
         'guest_invite' => (bool) env('TEAMS_SYNC_GUEST_INVITE', false),
 
+        // Guest yang diundang kurang dari sekian MENIT lalu dianggap belum
+        // dikenal Teams: group chat dibuat tanpa dia, lalu ia dimasukkan susulan
+        // oleh teams:add-pending-guests. Guest baru langsung dimasukkan ke
+        // POST /chats ditolak seluruhnya (26 Okt 2026: gagal di detik ke-2,
+        // anggota yang sama berhasil di menit ke-12).
+        'guest_propagation_minutes' => (int) env('TEAMS_SYNC_GUEST_PROPAGATION_MINUTES', 15),
+
+        // Email undangan dikirim EcoSystem lewat mailbox MS_SENDER_EMAIL, bukan
+        // oleh Microsoft. Undangan bawaan Microsoft masuk Spam Gmail (26 Okt
+        // 2026), dan tujuannya hanya Teams web. Email kita membawa tautan
+        // penerimaan undangan PLUS tautan langsung ke group chat tiket, yang
+        // menawarkan "buka di aplikasi Teams". Mati = perilaku lama (Microsoft
+        // yang mengirim, tanpa email dari kita).
+        'guest_custom_invite' => (bool) env('TEAMS_SYNC_GUEST_CUSTOM_INVITE', true),
+
+        // Batas percobaan memasukkan guest susulan sebelum berhenti di 'failed'.
+        // Jedanya merenggang (TeamsPendingGuestMember::BACKOFF_MINUTES); 10
+        // percobaan mencakup ±16 jam.
+        'guest_add_max_attempts' => (int) env('TEAMS_SYNC_GUEST_ADD_MAX_ATTEMPTS', 10),
+
         // Domain milik tenant (pisah koma). Alamat di luar daftar ini = guest.
         'internal_domains' => env('TEAMS_INTERNAL_DOMAINS') ?: 'eclectic.co.id',
 
