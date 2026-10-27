@@ -129,6 +129,12 @@ class ExternalConsultantController extends Controller
         return response()->json($out);
     }
 
+    /** Token CSRF segar (JSON) — formulir Add consultant memintanya sekali bila token di halaman ditolak (419). */
+    public function csrf(Request $request)
+    {
+        return response()->json(['token' => csrf_token()])->header('Cache-Control', 'no-store');
+    }
+
     /**
      * Tambah konsultan baru (tombol "Add Consultant"): memakai logika pembuatan karyawan yang sama dengan Master Employee,
      * tetapi Employee Group dikunci EXTERNAL dan izinnya = Create pada `general.external.consultants` (diatur Admin).

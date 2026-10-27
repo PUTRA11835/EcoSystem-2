@@ -245,7 +245,9 @@
         // HC-D54: fragmen data HR yang diletakkan di tab lain (golongan darah/ibu kandung di Basic Data, kontak darurat di Family).
         // Hanya untuk yang punya izin seksi hr_profile dan karyawan Internal (form konsultan ESH tidak memilikinya).
         $hrShow = !($hidden['hr_profile'] ?? true) && ((($employee->employee_type ?? null) ?: 'Internal') !== 'External');
-        $hrFrag = ['hrPersonal' => $hrShow, 'hrEmergency' => $hrShow, 'hrRo' => (bool) ($ro['hr_profile'] ?? false)];
+        // Konsultan External: tab Family tidak ada, tetapi kontak darurat (opsional) tampil di Basic Data bila punya izin seksi hr_profile.
+        $hrExtEmergency = !($hidden['hr_profile'] ?? true) && ((($employee->employee_type ?? null) ?: 'Internal') === 'External');
+        $hrFrag = ['hrPersonal' => $hrShow, 'hrEmergency' => $hrShow, 'hrEmergencyBasic' => $hrExtEmergency, 'hrRo' => (bool) ($ro['hr_profile'] ?? false)];
         $firstKey = array_key_first($visibleSections);
     @endphp
 

@@ -244,12 +244,7 @@ class EmployeeBasicDataController extends Controller
             if ($basicData && !array_key_exists('employee_group', $basicDataInput)) {
                 unset($basicDataInput['employee_type']);
             }
-            // Field khusus Internal tidak berlaku bagi External: nilai yang tersimpan dibiarkan (tidak ditimpa).
-            if ($basicData && ($basicDataInput['employee_type'] ?? $basicData->employee_type) === 'External') {
-                foreach (['gender', 'religion', 'marital_status', 'birth_date', 'birth_place', 'since_date'] as $internalOnly) {
-                    unset($basicDataInput[$internalOnly]);
-                }
-            }
+            // 27 Okt 2026: Gender, Religion, Marital Status, Birth Date/Place, dan Since Date kini juga berlaku bagi konsultan External (sama dengan Internal).
 
             if ($basicData) {
                 // Update existing data
@@ -396,11 +391,6 @@ class EmployeeBasicDataController extends Controller
             // (nilainya tetap tersimpan; hanya disembunyikan di form).
             if (array_key_exists('employee_group', $updateData)) {
                 $updateData['employee_type'] = EmployeeBasicData::typeForGroup($updateData['employee_group']);
-            }
-            if (($updateData['employee_type'] ?? $basicData->employee_type) === 'External') {
-                foreach (['gender', 'religion', 'marital_status', 'birth_date', 'birth_place', 'since_date'] as $internalOnly) {
-                    unset($updateData[$internalOnly]);
-                }
             }
 
             // Set last changed info dengan ECI

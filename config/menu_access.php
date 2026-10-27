@@ -51,6 +51,7 @@ return [
         'general.onboarding.lock', 'general.onboarding.unlock', 'general.onboarding.join-date',
         'general.contracts.salary',
         'general.external.timesheet.amount',   // rates, gross amounts and invoice amounts of external timesheets
+        'general.external.contracts.rate',    // see and set the rate of an external contract (consultant rates only; internal salary stays under general.contracts.salary)
         'general.offboarding.settlement',       // final settlement amounts (severance, compensation, tax, net)
         'general.contracts.signing',   // send / forward / release a contract for signature — Legal and RPMO
     ],

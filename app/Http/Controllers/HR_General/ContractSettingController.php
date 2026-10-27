@@ -40,6 +40,9 @@ class ContractSettingController extends Controller
             'external'      => $scope === ContractOption::SCOPE_EXTERNAL,
             'contractTypes' => $contractTypes,
             'positionTypes' => $this->options->rows($scope, ContractOption::KIND_POSITION_TYPE),
+            // Penempatan kerja: hanya menu External. Daftar tambahan + cabang aktif dari Management → Branches (baca-saja di sini).
+            'placements'    => $scope === ContractOption::SCOPE_EXTERNAL ? $this->options->rows($scope, ContractOption::KIND_WORK_PLACEMENT) : collect(),
+            'branchNames'   => $scope === ContractOption::SCOPE_EXTERNAL ? $this->options->branchNames() : [],
             'usage'         => $this->options->usage($scope),
             // What a custom type can be an alias of: the built-in types of this menu.
             'baseChoices'   => $contractTypes->where('is_system', true)->pluck('label', 'code')->all(),
@@ -53,12 +56,13 @@ class ContractSettingController extends Controller
     public function store(Request $request, string $scope)
     {
         $this->assertScope($scope);
-        $kind = $request->validate(['kind' => ['required', Rule::in(['position_type', 'position_bulk', 'contract_type'])]])['kind'];
+        $kind = $request->validate(['kind' => ['required', Rule::in(array_merge(['position_type', 'position_bulk', 'contract_type'], $scope === ContractOption::SCOPE_EXTERNAL ? ['work_placement'] : []))]])['kind'];
 
         try {
             $message = match ($kind) {
                 'contract_type' => $this->addContractType($request, $scope),
                 'position_bulk' => $this->addSeveral($request, $scope),
+                'work_placement' => $this->addPlacement($request, $scope),
                 default         => $this->addPositionType($request, $scope),
             };
         } catch (\DomainException $e) {
@@ -68,8 +72,11 @@ class ContractSettingController extends Controller
         return redirect()->route($this->routes($scope)['index'])->with('success', $message);
     }
 
-    public function update(Request $request, string $scope, int $optionId)
+    public function update(Request $request)
     {
+        // Parameter rute dibaca LANGSUNG dari rute: Laravel meneruskan argumen controller menurut URUTAN (optionId lebih dulu, lalu scope bawaan),
+        // sehingga tanda tangan (scope, optionId) memicu TypeError 500 pada ubah / pindah / hapus.
+        [$scope, $optionId] = [(string) $request->route('scope'), (int) $request->route('optionId')];
         $this->assertScope($scope);
         $option = $this->ownOption($scope, $optionId);
         $data = $request->validate([
@@ -89,8 +96,11 @@ class ContractSettingController extends Controller
     }
 
     /** Earlier or later in the form's dropdown. */
-    public function move(Request $request, string $scope, int $optionId)
+    public function move(Request $request)
     {
+        // Parameter rute dibaca LANGSUNG dari rute: Laravel meneruskan argumen controller menurut URUTAN (optionId lebih dulu, lalu scope bawaan),
+        // sehingga tanda tangan (scope, optionId) memicu TypeError 500 pada ubah / pindah / hapus.
+        [$scope, $optionId] = [(string) $request->route('scope'), (int) $request->route('optionId')];
         $this->assertScope($scope);
         $option = $this->ownOption($scope, $optionId);
         $direction = $request->validate(['direction' => ['required', Rule::in(['up', 'down'])]])['direction'];
@@ -100,8 +110,11 @@ class ContractSettingController extends Controller
         return redirect()->route($this->routes($scope)['index']);
     }
 
-    public function destroy(string $scope, int $optionId)
+    public function destroy(Request $request)
     {
+        // Parameter rute dibaca LANGSUNG dari rute: Laravel meneruskan argumen controller menurut URUTAN (optionId lebih dulu, lalu scope bawaan),
+        // sehingga tanda tangan (scope, optionId) memicu TypeError 500 pada ubah / pindah / hapus.
+        [$scope, $optionId] = [(string) $request->route('scope'), (int) $request->route('optionId')];
         $this->assertScope($scope);
         $option = $this->ownOption($scope, $optionId);
 
@@ -122,6 +135,14 @@ class ContractSettingController extends Controller
         $row = $this->options->addPositionType($scope, $data['name'], $data['description'] ?? null);
 
         return "Position type “{$row->label}” added.";
+    }
+
+    private function addPlacement(Request $request, string $scope): string
+    {
+        $data = $request->validate(['name' => 'required|string|max:100', 'description' => 'nullable|string|max:255']);
+        $row = $this->options->addPlacement($scope, $data['name'], $data['description'] ?? null);
+
+        return "Work placement “{$row->label}” added.";
     }
 
     private function addSeveral(Request $request, string $scope): string

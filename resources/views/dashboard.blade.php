@@ -1955,6 +1955,8 @@
                 $selectEnhanceVer = file_exists($selectEnhancePath) ? filemtime($selectEnhancePath) : time();
             @endphp
             <script src="/js/select-enhance.js?v={{ $selectEnhanceVer }}"></script>
+            {{-- Pemilih bulan untuk peramban tanpa <input type="month"> (Firefox desktop); tidak aktif di Chrome/Edge/Safari. --}}
+            <script src="/js/month-field.js?v={{ @filemtime(public_path('js/month-field.js')) }}"></script>
 
             <!-- ==================== NOTIFICATION BELL JS ==================== -->
             <script>

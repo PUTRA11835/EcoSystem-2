@@ -31,6 +31,7 @@
 @section('content')
 <div class="w-full space-y-6 px-1 lg:px-2">
     @include('hr-general.contracts.components.tabs')
+    @include('hr-general.contracts.components.issues-panel', ['issuesCanOpen' => $canDo('master.employee')])
     @include('hr-general.recruitment.components.form-errors')
 
     <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">

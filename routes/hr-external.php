@@ -38,6 +38,8 @@ Route::prefix('general/external')
             Route::get('/', [ExternalConsultantController::class, 'index'])->name('index');
             Route::post('/', [ExternalConsultantController::class, 'store'])->name('store')->middleware('menu.can:general.external.consultants,create');
             // Urutan ECI + cek ketersediaan untuk formulir Add consultant (baca-saja; didaftarkan sebelum rute berparameter).
+            // Token CSRF segar untuk formulir Add consultant (dipanggil sekali bila token lama ditolak, 419).
+            Route::get('/csrf', [ExternalConsultantController::class, 'csrf'])->name('csrf')->middleware('menu.can:general.external.consultants,create');
             Route::get('/eci-sequence', [ExternalConsultantController::class, 'eciSequence'])->name('eci-sequence')->middleware('menu.can:general.external.consultants,create');
             Route::get('/{employeeId}', [ExternalConsultantController::class, 'show'])->whereNumber('employeeId')->name('show');
             // Edit konsultan di sini (bukan di Master Employee): izin per tab = external.section.*, diatur Admin terpisah dari HR.

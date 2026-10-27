@@ -2,6 +2,7 @@
 
 namespace App\Services\Contracts;
 
+use App\Exceptions\ContractDataException;
 use App\Models\ContractOption;
 use App\Models\ContractTemplate;
 use App\Models\EmployeeContract;
@@ -10,6 +11,7 @@ use App\Services\Letters\LetterService;
 use App\Support\Contracts\ContractHtmlSanitizer;
 use App\Support\Contracts\ContractPlaceholders;
 use App\Support\Contracts\ContractRules;
+use App\Support\Contracts\DataIssues;
 use App\Support\Contracts\PageSettings;
 use App\Support\Contracts\SigningRules;
 use App\Support\External\ExternalRules;
@@ -374,12 +376,41 @@ class ContractService
         return in_array($gate, ['activate', 'create', 'off'], true) ? $gate : 'activate';
     }
 
-    /** @throws \DomainException bila data karyawan belum lengkap */
+    /**
+     * Halaman tempat data orang ini dilengkapi: konsultan External → External → Consultants (edit), selain itu Master Employee.
+     * Tab dibuka lewat `?section=<tab>` (DataIssues).
+     */
+    public function profileUrl(int $employeeId): string
+    {
+        $external = DB::table('employee_basic_data')->where('employee_id', $employeeId)->value('employee_type') === 'External';
+
+        return $external ? route('general.external.consultants.edit', $employeeId) : route('master.employee.detail', $employeeId);
+    }
+
+    /**
+     * Isian yang membuat teks kontrak kosong (alamat, KTP, NPWP, tempat/tanggal lahir) — peringatan untuk layar Generate, tidak menghalangi.
+     *
+     * @param  array<string,mixed>  $values  keluaran values()
+     * @return array<int,array<string,mixed>>
+     */
+    public function documentGaps(int $employeeId, array $values): array
+    {
+        return DataIssues::documentGaps($values, $this->profileUrl($employeeId));
+    }
+
+    /** @throws ContractDataException bila data karyawan belum lengkap (membawa daftar butir + tautan tab) */
     private function assertReady(int $employeeId, string $action): void
     {
         $readiness = $this->readiness($employeeId);
         if (!$readiness['ready']) {
-            throw new \DomainException("Complete the employee data before you {$action}: " . implode(', ', array_column($readiness['missing'], 'label')) . '.');
+            $issues = DataIssues::fromMissing($readiness['missing'], $this->profileUrl($employeeId));
+            $list = implode('; ', array_map(fn ($i) => $i['label'] . ' (' . $i['tab_label'] . ' tab)', $issues));
+            $n = count($issues);
+
+            throw new ContractDataException(
+                "You cannot {$action} yet: {$n} required item" . ($n === 1 ? ' is' : 's are') . " missing from the person's data — {$list}. Complete them, then try again.",
+                $issues
+            );
         }
     }
 
@@ -854,6 +885,7 @@ class ContractService
             'use_letterhead' => (bool) $template->use_letterhead,
             'page'           => self::templatePage($template),
             'warnings'       => ContractRules::unknownPlaceholders($source, ContractPlaceholders::keysFor($type)),
+            'gaps'           => $type === ContractRules::TYPE_EXTERNAL ? $this->documentGaps($employeeId, $values) : [],
         ];
     }
 
@@ -870,6 +902,8 @@ class ContractService
         $ident = DB::table('employee_identification')->where('employee_id', $id)->get();
         $address = DB::table('employee_address')->where('employee_id', $id)->whereIn('address_type', ['Home', 'primary'])
             ->orderByRaw("address_type = 'Home' desc")->first();
+        // Tanpa alamat Home/primary (mis. alamat konsultan diketik dengan jenis lain), pakai alamat lain yang bukan kantor.
+        $address ??= DB::table('employee_address')->where('employee_id', $id)->where('address_type', '!=', 'Office')->orderBy('address_id')->first();
         $settings = DB::table('letter_settings')->first();
 
         $nik = $ident->first(fn ($r) => strtoupper((string) $r->identification_type) === 'KTP')?->identification_number;

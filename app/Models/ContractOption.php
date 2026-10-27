@@ -25,4 +25,6 @@ class ContractOption extends Model
     public const SCOPE_EXTERNAL = 'external';
     public const KIND_CONTRACT_TYPE = 'contract_type';
     public const KIND_POSITION_TYPE = 'position_type';
+    /** Penempatan kerja (hanya scope external): daftar tambahan di samping cabang dari menu Branches. */
+    public const KIND_WORK_PLACEMENT = 'work_placement';
 }

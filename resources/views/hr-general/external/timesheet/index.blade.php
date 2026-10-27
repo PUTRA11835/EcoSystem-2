@@ -49,7 +49,7 @@
         <form id="{{ $filterForm }}" method="GET" action="{{ $invoiceView ? route('general.external.timesheet.invoices') : route('general.external.timesheet.index') }}" data-unsaved-ignore
               class="px-5 py-4 border-b border-gray-100 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
             <input type="hidden" name="per_page" value="{{ $perPage }}">
-            <div class="md:col-span-5 relative">
+            <div class="md:col-span-4 relative">
                 <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs pointer-events-none"></i>
                 <input type="search" name="search" id="extSearch" value="{{ $filters['search'] }}" autocomplete="off" placeholder="Search consultant, ID, timesheet, contract or invoice number" class="{{ $input }} pl-9" aria-label="Search">
             </div>
@@ -61,7 +61,10 @@
                     <select name="status" class="{{ $input }}" aria-label="Status"><option value="">All statuses</option>@foreach(R::STATUS_LABELS as $k => $v)<option value="{{ $k }}" @selected($filters['status'] === $k)>{{ $v }}</option>@endforeach</select>
                 @endif
             </div>
-            <div class="md:col-span-1 flex justify-end"><button type="button" id="extRefresh" class="w-full md:w-auto px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90" title="Refresh the list"><i class="fas fa-rotate" id="extRefreshIcon"></i></button></div>
+            <div class="md:col-span-2 flex justify-end gap-2">
+                <button type="button" id="extClear" class="hidden flex-1 md:flex-none px-3 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50" title="Clear the search and filters"><i class="fas fa-xmark mr-1"></i> Clear</button>
+                <button type="button" id="extRefresh" class="flex-1 md:flex-none px-3 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90" title="Refresh the list"><i class="fas fa-rotate" id="extRefreshIcon"></i></button>
+            </div>
         </form>
         <div id="extList" class="transition-opacity" aria-live="polite">@include('hr-general.external.timesheet.components.list-table')</div>
     </div>
@@ -100,10 +103,15 @@
         list.classList.add('opacity-50'); icon.classList.add('fa-spin');
         const url = form.action + (qs ? '?' + qs : '');
         try { const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: controller.signal, credentials: 'same-origin' }); if (!res.ok) throw new Error(res.status); list.innerHTML = await res.text(); if (push) history.pushState({ qs }, '', url); }
-        catch (e) { if (e.name !== 'AbortError') window.showNotification('The list could not be refreshed. Please try again.', 'error'); }
+        catch (e) { if (e.name !== 'AbortError') window.showNotification(({ 419: 'Your session has expired. Reload the page.', 403: 'You do not have permission to view this list.', 500: 'The server hit an error while filtering (code 500). Try again; if it repeats, tell the administrator.' })[e.message] || 'The list could not be refreshed (' + (e.message || 'network problem') + '). Check your connection and try again.', 'error'); }
         finally { list.classList.remove('opacity-50'); icon.classList.remove('fa-spin'); }
     }
-    const reload = () => load(query({ page: '' }));
+    const clearBtn = document.getElementById('extClear');
+    const filtered = () => [...form.querySelectorAll('input[name=search], input[name=month], select')].some(el => String(el.value || '') !== '');
+    const syncClear = () => clearBtn.classList.toggle('hidden', !filtered());
+    const reload = () => { syncClear(); return load(query({ page: '' })); };
+    clearBtn.addEventListener('click', () => { form.querySelectorAll('input[name=search], input[name=month]').forEach(el => { el.value = ''; }); form.querySelectorAll('select').forEach(el => { el.value = ''; el.dispatchEvent(new Event('change', { bubbles: false })); }); reload(); });
+    syncClear();
     document.getElementById('extSearch').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(reload, 300); });
     form.addEventListener('change', e => { if (e.target.matches('select, input[type=month]')) reload(); });
     form.addEventListener('submit', e => { e.preventDefault(); reload(); });
