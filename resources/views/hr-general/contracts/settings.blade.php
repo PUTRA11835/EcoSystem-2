@@ -75,7 +75,7 @@
             </div>
         </div>
     </details>
-    <div class="flex xl:flex-row flex-col gap-3 mt-6 px-1 lg:px-2">
+    <div class="flex xl:flex-row flex-col gap-3 mt-6 px-1 lg:px-2 min-w-0">
     @include('hr-general.contracts.components.settings-options', [
         'listId' => 'ctList', 'kind' => 'contract_type', 'rows' => $contractTypes, 'usage' => $usage, 'routes' => $routes,
         'baseLabels' => $baseLabels, 'canCreate' => $canCreate, 'canEdit' => $canEdit, 'canDelete' => $canDelete,
@@ -92,6 +92,40 @@
         'addModal' => 'addPositionModal', 'addLabel' => 'Add position type', 'bulkModal' => 'addSeveralModal',
     ])
     </div>
+
+    @if($external)
+    {{-- Work placement: cabang dari Management → Branches (otomatis) + daftar tambahan di bawah ini. Tersimpan di kontrak sebagai teks nama. --}}
+    <div class="flex xl:flex-row flex-col gap-3 mt-3 px-1 lg:px-2 min-w-0">
+        <section class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden min-w-0 w-full xl:w-1/3 shrink-0" aria-labelledby="branchTitle">
+            <header class="px-5 pt-4 pb-2">
+                <div class="flex items-center gap-2">
+                    <h3 id="branchTitle" class="text-base font-bold text-gray-900">Branches</h3>
+                    <span class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold">{{ count($branchNames) }} offered</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Every active branch from <strong>Management → Branches</strong> is offered automatically as a work placement on the external contract form. To add, rename or switch a branch off, change it there.</p>
+            </header>
+            <ul class="px-5 pb-4 pt-1 space-y-1.5 text-sm text-gray-800">
+                @forelse($branchNames as $b)
+                    <li class="flex items-center gap-2"><i class="fas fa-location-dot text-gray-400 text-xs"></i> {{ $b }}</li>
+                @empty
+                    <li class="text-xs text-gray-500">No active branch yet.</li>
+                @endforelse
+            </ul>
+            @if(Route::has('management.branches.index'))
+                <div class="px-5 pb-4"><a href="{{ route('management.branches.index') }}" class="text-xs font-semibold text-red-800 hover:underline">Open Management → Branches <i class="fas fa-arrow-up-right-from-square text-[10px]"></i></a></div>
+            @endif
+        </section>
+        <div class="flex-1 min-w-0">
+            @include('hr-general.contracts.components.settings-options', [
+                'listId' => 'wpList', 'kind' => 'work_placement', 'rows' => $placements, 'usage' => $usage, 'routes' => $routes,
+                'baseLabels' => $baseLabels, 'canCreate' => $canCreate, 'canEdit' => $canEdit, 'canDelete' => $canDelete,
+                'title' => 'Other work placements',
+                'hint' => 'Places that are not a branch (for example Client site or Remote). They are offered next to the branches. The star preselects a placement on a new contract.',
+                'addModal' => 'addPlacementModal', 'addLabel' => 'Add work placement',
+            ])
+        </div>
+    </div>
+    @endif
 
     @unless($canEdit)
         <p class="text-xs text-gray-500"><i class="fas fa-lock mr-1"></i> You can view these lists. Changing them needs the Edit permission of this tab.</p>
@@ -126,6 +160,32 @@
             </div>
         </form>
     </div>
+
+    @if($external)
+    {{-- Add a work placement (external menu only) --}}
+    <div id="addPlacementModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4" style="display:none" role="dialog" aria-modal="true" aria-labelledby="addPlacementTitle">
+        <form method="POST" action="{{ route($routes['store']) }}" class="bg-white rounded-xl shadow-xl w-full max-w-md" data-unsaved-ignore>@csrf
+            <input type="hidden" name="kind" value="work_placement">
+            <div class="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+                <div>
+                    <h3 id="addPlacementTitle" class="text-sm font-bold text-gray-900">Add a work placement</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">For a place that is not a branch. Branches are added in Management → Branches.</p>
+                </div>
+                <button type="button" data-close class="text-gray-400 hover:text-gray-600 shrink-0" aria-label="Close"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="px-5 py-4 space-y-4">
+                <div><label class="{{ $label }}" for="wpName">Name <span class="text-red-500">*</span></label>
+                    <input id="wpName" name="name" maxlength="100" required value="{{ $reopen === 'work_placement' ? old('name') : '' }}" class="{{ $input }}" placeholder="e.g. Client site"></div>
+                <div><label class="{{ $label }}" for="wpDesc">Description</label>
+                    <input id="wpDesc" name="description" maxlength="255" value="{{ $reopen === 'work_placement' ? old('description') : '' }}" class="{{ $input }}" placeholder="Optional hint"></div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end gap-2">
+                <button type="button" data-close class="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" class="px-5 py-2 text-xs font-semibold text-white primary-gradient rounded-lg hover:opacity-90">Add work placement</button>
+            </div>
+        </form>
+    </div>
+    @endif
 
     {{-- Add a position type --}}
     <div id="addPositionModal" class="hidden fixed inset-0 bg-black/40 z-50 items-center justify-center p-4" style="display:none" role="dialog" aria-modal="true" aria-labelledby="addPositionTitle">
@@ -197,7 +257,7 @@
 
     // A refused add reopens its dialog with what was typed.
     @if($reopen)
-        const reopen = { contract_type: 'addTypeModal', position_type: 'addPositionModal', position_bulk: 'addSeveralModal' }[@json($reopen)];
+        const reopen = { contract_type: 'addTypeModal', position_type: 'addPositionModal', position_bulk: 'addSeveralModal', work_placement: 'addPlacementModal' }[@json($reopen)];
         const reopenModal = reopen && document.getElementById(reopen);
         if (reopenModal) show(reopenModal);
     @endif

@@ -28,7 +28,7 @@
         <div class="flex flex-wrap gap-2">
             @if($canDo('general.external.timesheet'))<a href="{{ route('general.external.timesheet.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50"><i class="fas fa-clock mr-1"></i> Timesheet &amp; Payment</a>@endif
             @if($canDo('general.external.contracts'))<a href="{{ route('general.external.contracts.index') }}" class="px-3 py-1.5 rounded-full border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50"><i class="fas fa-file-contract mr-1"></i> External Contract</a>@endif
-            @if($canDo('general.external.consultants', 'create'))<button type="button" id="addConsultantBtn" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus mr-1"></i> Add Consultant</button>@endif
+            @if($canDo('general.external.consultants', 'create'))<button type="button" id="addConsultantBtn" class="px-4 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm"><i class="fas fa-plus mr-1"></i> Add Consultant</button>@else<button type="button" disabled aria-disabled="true" title="Needs the Create permission on External Consultants. Ask an administrator (Control Center → Menu Access)." class="px-4 py-2 bg-gray-100 text-gray-400 text-xs font-semibold rounded-lg border border-gray-200 cursor-not-allowed"><i class="fas fa-lock mr-1"></i> Add Consultant</button>@endif
         </div>
     </div>
 
@@ -171,7 +171,14 @@
             <div><label class="{{ $lbl }}" for="acFirst">First name *</label><input id="acFirst" name="first_name" required maxlength="255" class="{{ $input }}"></div>
             <div><label class="{{ $lbl }}" for="acLast">Last name</label><input id="acLast" name="last_name" maxlength="255" class="{{ $input }}"></div>
             <div><label class="{{ $lbl }}" for="acNick">Nick name *</label><input id="acNick" name="nick_name" required maxlength="100" class="{{ $input }}"><p id="acNickStatus" class="text-[11px] mt-1 min-h-[16px]" aria-live="polite"></p></div>
-            <div class="sm:col-span-2"><label class="{{ $lbl }}" for="acPhone">Mobile phone</label><input id="acPhone" name="cell_phone" maxlength="50" class="{{ $input }} sm:w-1/2"></div>
+            <div><label class="{{ $lbl }}" for="acPhone">Mobile phone</label><input id="acPhone" name="cell_phone" maxlength="50" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}" for="acTitle2">Title</label><select id="acTitle2" name="title" class="{{ $input }}"><option value="">Select title</option><option value="Mr.">Mr.</option><option value="Mrs.">Mrs.</option><option value="Ms.">Ms.</option><option value="Dr.">Dr.</option><option value="Prof.">Prof.</option></select></div>
+            <div><label class="{{ $lbl }}" for="acGender">Gender</label><select id="acGender" name="gender" class="{{ $input }}"><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option></select></div>
+            <div><label class="{{ $lbl }}" for="acReligion">Religion</label><select id="acReligion" name="religion" class="{{ $input }}"><option value="">Select religion</option><option value="Islam">Islam</option><option value="Christian">Christian</option><option value="Catholic">Catholic</option><option value="Hindu">Hindu</option><option value="Buddhist">Buddhist</option><option value="Konghucu">Konghucu</option></select></div>
+            <div><label class="{{ $lbl }}" for="acMarital">Marital status</label><select id="acMarital" name="marital_status" class="{{ $input }}"><option value="">Select marital status</option><option value="Single">Single</option><option value="Married">Married</option><option value="Divorced">Divorced</option><option value="Widow/Widower">Widow/Widower</option></select></div>
+            <div><label class="{{ $lbl }}" for="acBirthDate">Birth date</label><input id="acBirthDate" name="birth_date" type="date" max="{{ now()->toDateString() }}" class="{{ $input }}"></div>
+            <div><label class="{{ $lbl }}" for="acBirthPlace">Birth place</label><input id="acBirthPlace" name="birth_place" maxlength="100" class="{{ $input }}"></div>
+            <p class="sm:col-span-2 text-[11px] text-gray-400 -mt-2">These fields are the same as for internal employees. They are optional here; you can also fill them in on the next page.</p>
 
             <div>
                 <label class="{{ $lbl }}" for="acPass">Password *</label>
@@ -291,12 +298,27 @@
         if (problems.length) { fail(problems); return; }
 
         btn.disabled = true;
-        fetch(@json(route('general.external.consultants.store')), {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest',
-                       'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '' },
-            body: JSON.stringify(Object.fromEntries(new FormData(form).entries()))
-        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        // Rute web memeriksa token CSRF. Token dikirim di header DAN di badan (_token) — salah satunya cukup; header saja bisa hilang di
+        // proksi/peladen tertentu. Bila tetap ditolak (419), ambil token segar dan coba SEKALI lagi sebelum menyerah dengan pesan yang jelas.
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        var send = function (token) {
+            var payload = Object.fromEntries(new FormData(form).entries()); payload._token = token;
+            return fetch(@json(route('general.external.consultants.store')), {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': token },
+                body: JSON.stringify(payload)
+            });
+        };
+        send((meta && meta.getAttribute('content')) || '').then(function (r) {
+            if (r.status !== 419) return r;
+            return fetch(@json(route('general.external.consultants.csrf')), { credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (t) { return t.ok ? t.json() : Promise.reject(); })
+                .then(function (t) { if (meta) meta.setAttribute('content', t.token); return send(t.token); });
+        }).then(function (r) {
+            if (r.status === 419) { return { ok: false, j: { message: 'Your session has expired. Reload the page and sign in again if asked; what you typed is not saved.' } }; }
+            if (r.status === 403) { return { ok: false, j: { message: 'You do not have permission to add consultants (Create on External Consultants).' } }; }
+            return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: false, j: { message: 'The server answered with an unexpected page (code ' + r.status + '). Reload and try again; if it repeats, tell the administrator.' } }; });
+        })
           .then(function (res) {
               if (res.ok && res.j.success) {
                   if (window.showNotification) showNotification('Consultant created. Complete the profile on the next page.', 'success');
@@ -307,7 +329,7 @@
                   if (res.j.errors) Object.keys(res.j.errors).forEach(function (k) { (res.j.errors[k] || []).forEach(function (m) { lines.push(m); }); });
                   fail(lines.length ? lines : [res.j.message || 'Could not create the consultant.']);
               }
-          }).catch(function () { fail(['Network error. Please try again.']); });
+          }).catch(function () { fail(['Could not reach the server (network problem). Check your connection and try again.']); });
     });
 })();
 </script>

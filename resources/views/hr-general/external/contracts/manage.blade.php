@@ -37,7 +37,7 @@
         'currency'          => $editing ? ($terms->currency ?? 'IDR') : ($canEngRate ? ($engagement->currency ?? 'IDR') : 'IDR'),
         'billing_unit'      => $editing ? ($terms->billing_unit ?? '') : '',
         'work_volume'       => $editing ? $edit->work_volume : '',
-        'work_location'     => $editing ? $edit->work_location : '',
+        'work_location'     => $editing ? $edit->work_location : ($defaultPlacement ?? ''),
         'hours_per_manday'  => $editing ? ($terms->hours_per_manday ?? 8) : 8,
         'proration'         => $editing ? ($terms->proration ?? 'working_days') : 'working_days',
         'payment_term_days' => $editing ? ($terms->payment_term_days ?? 14) : 14,
@@ -54,6 +54,8 @@
     $pctTone = $pct >= 100 ? 'bg-green-500' : ($pct >= 50 ? 'bg-amber-500' : 'bg-red-500');
     $pctText = $pct >= 100 ? 'text-green-700' : ($pct >= 50 ? 'text-amber-700' : 'text-red-700');
     $employeeUrl = route('general.external.consultants.edit', $c->employee_id);
+    // Active terkunci: sebutkan APA yang kurang (butir pertama saja di sini; daftar lengkap ada di kartu "Contract readiness").
+    $lockedIssues = $lockActive ? \App\Support\Contracts\DataIssues::fromMissing($readiness['missing'], $employeeUrl) : [];
     $summary = [
         ['Contract type', $c->scheme_label ?: '—'],
         ['Default rate', $canEngRate ? (!empty($c->rate_text) ? $c->rate_text . ' ' . ($c->rate_unit ?? '') : '—') : '•••••'],
@@ -66,6 +68,8 @@
 <div class="w-full space-y-5 px-1 lg:px-2">
     @include('hr-general.external.contracts.components.tabs')
     @include('partials.accent-remap')
+    <style>#extContractForm .grid > *, #extContractForm fieldset { min-width: 0; } #extContractForm .se-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }</style>
+    @include('hr-general.contracts.components.issues-panel', ['issuesCanOpen' => $canProfile])
     @include('hr-general.recruitment.components.form-errors')
     @include('hr-general.contracts.components.confirm-forms')
 
@@ -127,11 +131,12 @@
                         <p class="mt-3 text-xs text-green-700"><i class="fas fa-circle-check mr-1"></i> The consultant's data is complete.</p>
                     @else
                         <p class="mt-3 text-xs font-semibold text-gray-700">Still missing</p>
+                        @php $pillLinks = collect(\App\Support\Contracts\DataIssues::fromMissing($readiness['missing'], $employeeUrl))->keyBy('key'); @endphp
                         <ul class="mt-1.5 flex flex-wrap gap-1.5">
                             @foreach($readiness['missing'] as $item)
                                 <li>
                                     @if($canProfile)
-                                        <a href="{{ $employeeUrl }}?section={{ $item['section'] ?? '' }}" class="inline-block px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] hover:bg-amber-100">{{ $item['label'] }}</a>
+                                        <a href="{{ $pillLinks[$item['key']]['url'] ?? $employeeUrl }}" title="Open the {{ $pillLinks[$item['key']]['tab_label'] ?? '' }} tab" class="inline-block px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px] hover:bg-amber-100">{{ $item['label'] }} <span class="text-amber-700/70">· {{ $pillLinks[$item['key']]['tab_label'] ?? '' }}</span></a>
                                     @else
                                         <span class="inline-block px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-[11px]">{{ $item['label'] }}</span>
                                     @endif
@@ -174,7 +179,7 @@
                             </td>
                             <td class="px-3 py-3 whitespace-nowrap">{{ $dt($h->start_date) }}<span class="block text-[11px] text-gray-400">until {{ $dt($h->end_date) }}</span></td>
                             <td class="px-3 py-3 whitespace-nowrap">
-                                @if(!$canRate)<span class="text-gray-300" title="Needs the “View Salary” permission">•••••</span>
+                                @if(!$canRate)<span class="text-gray-300" title="Needs the permission “External Contract rate” (Menu Access)">•••••</span>
                                 @elseif($h->rate_text)<span class="font-semibold text-gray-900">{{ $h->rate_text }}</span><span class="block text-[11px] text-gray-400">/ {{ $h->terms->billing_unit ?? '' }}</span>
                                 @else<span class="text-gray-300">—</span>@endif
                             </td>
@@ -274,6 +279,12 @@
                                     <option value="{{ $s }}" @selected($old('status') === $s) @disabled($s === 'active' && $lockActive)>{{ $statuses[$s] }}{{ $s === 'active' && $lockActive ? ' (needs complete consultant data)' : '' }}</option>
                                 @endforeach
                             </select>
+                            @if($lockedIssues)
+                                <p class="text-[11px] text-amber-800 mt-1.5 leading-snug"><i class="fas fa-lock mr-1"></i>Active is locked: {{ count($lockedIssues) }} item{{ count($lockedIssues) === 1 ? '' : 's' }} missing —
+                                    @foreach(array_slice($lockedIssues, 0, 3) as $li)@if($canProfile)<a href="{{ $li['url'] }}" target="_blank" rel="noopener" class="font-semibold underline decoration-dotted">{{ $li['label'] }}</a>@else<strong>{{ $li['label'] }}</strong>@endif{{ $loop->last ? '' : ', ' }}@endforeach
+                                    @if(count($lockedIssues) > 3) and {{ count($lockedIssues) - 3 }} more @endif.
+                                    <a href="#readyTitle" class="font-semibold underline">See the full list</a>. A Draft can still be saved.</p>
+                            @endif
                         </div>
 
                         <div class="md:col-span-4">
@@ -317,7 +328,7 @@
                                 <select id="fCur" name="currency" data-searchable="true" data-search-placeholder="Search currency…" class="{{ $input }}">@foreach($currencies as $cur)<option value="{{ $cur }}" @selected($old('currency') === $cur)>{{ $cur }}</option>@endforeach</select></div>
                         @else
                             <div class="md:col-span-8 self-end">
-                                <p class="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"><i class="fas fa-lock mt-0.5 text-gray-400"></i><span>The rate is hidden: it needs the “View Salary” permission. Saving here never changes it.</span></p>
+                                <p class="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5"><i class="fas fa-lock mt-0.5 text-gray-400"></i><span>The rate is hidden: it needs the permission “External Contract rate” (an administrator adds it in Control Center → Menu Access). Saving here never changes it.</span></p>
                             </div>
                         @endif
                         <div class="md:col-span-4"><label class="{{ $label }}" for="fUnit">Billing unit</label>
@@ -333,8 +344,23 @@
 
                         <div class="md:col-span-4"><label class="{{ $label }}" for="fTerm">Payment term (days)</label>
                             <input type="number" min="0" max="365" id="fTerm" name="payment_term_days" value="{{ $old('payment_term_days') }}" class="{{ $input }}"></div>
-                        <div class="md:col-span-8"><label class="{{ $label }}" for="fLoc">Work location / model</label>
-                            <input id="fLoc" name="work_location" maxlength="255" value="{{ $old('work_location') }}" placeholder="e.g. ONSITE, REMOTE" class="{{ $input }}"></div>
+                        @php
+                            $locNow = (string) $old('work_location');
+                            $locKnown = in_array($locNow, $placements['branches'], true) || in_array($locNow, $placements['custom'], true);
+                        @endphp
+                        <div class="md:col-span-8"><label class="{{ $label }}" for="fLocSel">Work placement</label>
+                            <select id="fLocSel" class="{{ $input }}" aria-describedby="fLocHint">
+                                <option value="">— Not specified —</option>
+                                @if($placements['branches'])
+                                    <optgroup label="Branches (Management → Branches)">@foreach($placements['branches'] as $b)<option value="{{ $b }}" @selected($locNow === $b)>{{ $b }}</option>@endforeach</optgroup>
+                                @endif
+                                @if($placements['custom'])
+                                    <optgroup label="Other placements">@foreach($placements['custom'] as $b)<option value="{{ $b }}" @selected($locNow === $b)>{{ $b }}</option>@endforeach</optgroup>
+                                @endif
+                                <option value="__other" @selected($locNow !== '' && !$locKnown)>Other (type it)…</option>
+                            </select>
+                            <input id="fLoc" name="work_location" maxlength="255" value="{{ $locNow }}" placeholder="Type the placement" class="{{ $input }} mt-2 {{ $locNow !== '' && !$locKnown ? '' : 'hidden' }}" aria-label="Work placement (typed)">
+                            <p id="fLocHint" class="{{ $hint }}">Printed in the contract as the work location. Branches come from Management → Branches; HR adds other places in this menu’s Settings.</p></div>
                         <div class="md:col-span-12">
                             <label class="{{ $label }}" for="fAssign">Assignment <span class="text-gray-400 normal-case font-normal">(project / scope of work)</span></label>
                             @if($assignmentSupported ?? true)
@@ -358,6 +384,7 @@
                                 @foreach($signatories as $p)<option value="{{ $p['id'] }}" @selected((string) $old('signatory_employee_id') === (string) $p['id'])>{{ $p['name'] }}@if(!empty($p['position'])) — {{ $p['position'] }}@endif</option>@endforeach
                             </select>
                             <p class="{{ $hint }}">{{ $signerNote ?? 'From Letter Templates → Settings → Signers.' }}</p>
+                            @include('hr-general.external.components.signer-warning', ['signerScope' => 'contract'])
                         </div>
                         <div class="md:col-span-12">
                             <label class="{{ $label }}" for="fNotes">Notes</label>
@@ -408,6 +435,19 @@
     }
     scheme.addEventListener('change', schemeRules);
     schemeRules();
+
+    // Work placement: a pick from the list fills the typed field the form posts; "Other" reveals it for free text.
+    (function () {
+        const sel = $('fLocSel'), typed = $('fLoc');
+        if (!sel || !typed) return;
+        sel.addEventListener('change', function () {
+            const other = sel.value === '__other';
+            typed.classList.toggle('hidden', !other);
+            typed.value = other ? '' : sel.value;
+            if (other) typed.focus();
+            typed.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+    })();
 
     @if($canTemplates)
     const preview = $('tplPreview'), tpl = $('fTpl'), base = @json(url('general/contracts/templates'));

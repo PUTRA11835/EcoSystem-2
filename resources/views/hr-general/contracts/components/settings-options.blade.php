@@ -23,7 +23,7 @@
     $heading = $listId . 'Title';
 @endphp
 
-<section id="{{ $listId }}" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" aria-labelledby="{{ $heading }}">
+<section id="{{ $listId }}" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden min-w-0 w-full max-w-full" aria-labelledby="{{ $heading }}">
     <header class="px-5 pt-4 pb-3 flex flex-col lg:flex-row lg:items-start justify-between gap-3">
         <div class="min-w-0">
             <div class="flex items-center gap-2">
@@ -110,7 +110,7 @@
                                 <span class="w-1.5 h-1.5 rounded-full {{ $inUse ? 'bg-green-500' : 'bg-gray-300' }}" aria-hidden="true"></span>
                                 {{ $u['contracts'] }} contract{{ $u['contracts'] === 1 ? '' : 's' }}
                             </span>
-                            @if(!$isType || $u['templates'] > 0)
+                            @if((!$isType && $kind !== 'work_placement') || $u['templates'] > 0)
                                 <span class="block text-gray-400 mt-0.5 pl-3">{{ $u['templates'] }} template{{ $u['templates'] === 1 ? '' : 's' }}</span>
                             @endif
                         </td>

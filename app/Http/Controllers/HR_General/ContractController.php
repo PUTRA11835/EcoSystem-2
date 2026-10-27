@@ -195,7 +195,7 @@ class ContractController extends Controller
         try {
             $doc = $this->contracts->previewDocument($employeeId, $data, $this->employeeCanView('general.contracts.salary'));
         } catch (\DomainException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'issues' => $e instanceof \App\Exceptions\ContractDataException ? $e->issues : []], 422);
         }
 
         return response()->json([
@@ -410,6 +410,7 @@ class ContractController extends Controller
     private function failed(\DomainException $e, string $mode, ?int $contractId = null)
     {
         return back()->withInput()->withErrors(['contract' => $e->getMessage()])
+            ->with('issues', $e instanceof \App\Exceptions\ContractDataException ? $e->issues : [])
             ->with('reopen_modal', ['mode' => $mode, 'id' => $contractId]);
     }
 

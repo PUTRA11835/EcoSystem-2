@@ -40,6 +40,35 @@ final class ExternalSigners
         return ['options' => $options, 'default' => $defaultId !== null ? (int) $defaultId : null, 'restricted' => $restricted, 'names' => $options->pluck('name')->all()];
     }
 
+    /**
+     * Penandatangan yang DIWAJIBKAN config tetapi belum bisa dipilih: orangnya belum terdaftar di Settings → Signers (atau ECI-nya tidak
+     * ditemukan). Tanpa ini layar diam-diam menampilkan orang lain — gejala "nama Pak Arbin tidak ada". Dipakai untuk peringatan di layar.
+     *
+     * @return array<int,array{eci:string,name:?string,exists:bool}>
+     */
+    public static function missing(string $scope): array
+    {
+        $ecis = array_map('strtoupper', (array) (config("hc_external.signers.{$scope}.eci") ?? []));
+        if (!$ecis) {
+            return [];
+        }
+        $registered = LetterService::signatoryOptions()->pluck('id')->map(fn ($i) => (int) $i)->all();
+        $rows = DB::table('employee as e')->leftJoin('employee_basic_data as b', 'b.employee_id', '=', 'e.employee_id')
+            ->whereIn('e.eci', $ecis)->get(['e.employee_id', 'e.eci', 'b.first_name', 'b.last_name'])
+            ->keyBy(fn ($r) => strtoupper($r->eci));
+
+        $out = [];
+        foreach ($ecis as $eci) {
+            $row = $rows[$eci] ?? null;
+            if ($row && in_array((int) $row->employee_id, $registered, true)) {
+                continue;
+            }
+            $out[] = ['eci' => $eci, 'name' => $row ? trim(($row->first_name ?? '') . ' ' . ($row->last_name ?? '')) : null, 'exists' => $row !== null];
+        }
+
+        return $out;
+    }
+
     /** Boleh menandatangani? Tanpa pembatasan, semua penandatangan terdaftar boleh. */
     public static function allows(string $scope, int $employeeId): bool
     {

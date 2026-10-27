@@ -67,6 +67,45 @@ class ContractOptionService
         return $names;
     }
 
+    /**
+     * Pilihan "Work placement" kontrak External: daftar tambahan dari Settings (mis. "Client site", "Remote") ditambah cabang aktif dari
+     * menu Management → Branches. Yang tersimpan di kontrak adalah NAMA-nya (teks), jadi mengganti nama cabang tidak mengubah kontrak lama.
+     *
+     * @return array{custom:string[],branches:string[]}
+     */
+    public function placements(string $scope, ?string $keep = null): array
+    {
+        $custom = array_values($this->options($scope, ContractOption::KIND_WORK_PLACEMENT));
+        $branches = $this->branchNames();
+        if ($keep !== null && trim($keep) !== '' && !in_array($keep, $custom, true) && !in_array($keep, $branches, true)) {
+            $custom[] = $keep;   // nilai lama yang sudah dimatikan/dihapus tetap tampil saat kontraknya dibuka
+        }
+
+        return ['custom' => $custom, 'branches' => $branches];
+    }
+
+    /** Cabang aktif (tidak dihapus) menurut menu Management → Branches. @return string[] */
+    public function branchNames(): array
+    {
+        if (!Schema::hasTable('branches')) {
+            return [];
+        }
+        $q = DB::table('branches')->where('is_active', 1);
+        if (Schema::hasColumn('branches', 'deleted_at')) {
+            $q->whereNull('deleted_at');
+        }
+
+        return $q->orderBy('name')->pluck('name')->map(fn ($n) => trim((string) $n))->filter()->values()->all();
+    }
+
+    /** Penempatan bawaan formulir kontrak baru (opsi bertanda bintang), atau null. */
+    public function defaultPlacement(string $scope): ?string
+    {
+        $row = $this->all()->where('scope', $scope)->where('kind', ContractOption::KIND_WORK_PLACEMENT)->where('is_active', true)->firstWhere('is_default', true);
+
+        return $row['label'] ?? null;
+    }
+
     /** The code the form preselects (an active option marked as default), or null. */
     public function defaultCode(string $scope, string $kind): ?string
     {
@@ -124,12 +163,18 @@ class ContractOptionService
 
         $contractsByKind = EmployeeContract::whereNotNull('contract_kind')->selectRaw('contract_kind, count(*) as n')->groupBy('contract_kind')->pluck('n', 'contract_kind');
         $contractsByPosition = EmployeeContract::whereNotNull('position_type')->selectRaw('position_type, count(*) as n')->groupBy('position_type')->pluck('n', 'position_type');
+        $contractsByPlacement = EmployeeContract::whereNotNull('work_location')->whereIn(DB::raw('UPPER(contract_type)'), ContractRules::aliasKeysOf(ContractRules::TYPE_EXTERNAL))
+            ->selectRaw('work_location, count(*) as n')->groupBy('work_location')->pluck('n', 'work_location');
         $templatesByPosition = ContractTemplate::whereNotNull('position_type')->selectRaw('position_type, count(*) as n')->groupBy('position_type')->pluck('n', 'position_type');
         $templatesByType = ContractTemplate::selectRaw('contract_type, count(*) as n')->groupBy('contract_type')->pluck('n', 'contract_type');
 
         foreach ($rows as $row) {
             if ($row->kind === ContractOption::KIND_POSITION_TYPE) {
                 $out[$row->id] = ['contracts' => (int) ($contractsByPosition[$row->label] ?? 0), 'templates' => (int) ($templatesByPosition[$row->label] ?? 0)];
+                continue;
+            }
+            if ($row->kind === ContractOption::KIND_WORK_PLACEMENT) {
+                $out[$row->id] = ['contracts' => (int) ($contractsByPlacement[$row->label] ?? 0), 'templates' => 0];
                 continue;
             }
             if ($row->is_system) {
@@ -155,6 +200,26 @@ class ContractOptionService
             'scope' => $scope, 'kind' => ContractOption::KIND_POSITION_TYPE, 'code' => $code, 'label' => $name,
             'description' => $this->cleanText($description),
             'sort_order' => $this->nextOrder($scope, ContractOption::KIND_POSITION_TYPE), 'is_active' => true, 'is_system' => false,
+        ]);
+        $this->forget();
+
+        return $row;
+    }
+
+    /** Satu penempatan kerja tambahan (kontrak External). @throws \DomainException */
+    public function addPlacement(string $scope, string $name, ?string $description = null): ContractOption
+    {
+        $name = $this->cleanName($name);
+        if (in_array(mb_strtolower($name), array_map('mb_strtolower', $this->branchNames()), true)) {
+            throw new \DomainException("“{$name}” is already offered: it is a branch from Management → Branches.");
+        }
+        $code = $this->codeOf($name);
+        $this->assertFree($scope, ContractOption::KIND_WORK_PLACEMENT, $code, $name);
+
+        $row = ContractOption::create([
+            'scope' => $scope, 'kind' => ContractOption::KIND_WORK_PLACEMENT, 'code' => $code, 'label' => $name,
+            'description' => $this->cleanText($description),
+            'sort_order' => $this->nextOrder($scope, ContractOption::KIND_WORK_PLACEMENT), 'is_active' => true, 'is_system' => false,
         ]);
         $this->forget();
 
@@ -225,7 +290,7 @@ class ContractOptionService
         $label = $this->cleanName($label);
         $old = $option->label;
 
-        if ($option->kind === ContractOption::KIND_POSITION_TYPE && $label !== $old) {
+        if (in_array($option->kind, [ContractOption::KIND_POSITION_TYPE, ContractOption::KIND_WORK_PLACEMENT], true) && $label !== $old) {
             $code = $this->codeOf($label);
             $clash = ContractOption::where('scope', $option->scope)->where('kind', $option->kind)->where('code', $code)->where('id', '!=', $option->id)->exists();
             if ($clash) {
@@ -257,6 +322,9 @@ class ContractOptionService
             if ($option->kind === ContractOption::KIND_POSITION_TYPE && $label !== $old) {
                 EmployeeContract::where('position_type', $old)->update(['position_type' => $label]);
                 ContractTemplate::where('position_type', $old)->update(['position_type' => $label]);
+            }
+            if ($option->kind === ContractOption::KIND_WORK_PLACEMENT && $label !== $old) {
+                EmployeeContract::where('work_location', $old)->whereIn(DB::raw('UPPER(contract_type)'), ContractRules::aliasKeysOf(ContractRules::TYPE_EXTERNAL))->update(['work_location' => $label]);
             }
         });
         $this->forget();

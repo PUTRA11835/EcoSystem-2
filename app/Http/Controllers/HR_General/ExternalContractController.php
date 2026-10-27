@@ -26,7 +26,8 @@ use Illuminate\Validation\Rule;
  *
  * V daftar, halaman kelola, dokumen · C buat kontrak · E ubah / ganti status · D hapus kontrak Draft.
  * Kontrak = baris `employee_contract` jenis EXTERNAL (ContractService); ketentuan komersial di `external_contract_terms`.
- * Tarif hanya terlihat dan bisa diubah pemegang `general.contracts.salary`. Teks kontrak tetap dari menu Contract → Templates.
+ * Tarif hanya terlihat dan bisa diubah pemegang `general.external.contracts.rate` (izin khusus konsultan, 27 Okt 2026) ATAU `general.contracts.salary`
+ * (pemegang lama tidak kehilangan akses). Teks kontrak tetap dari menu Contract → Templates.
  */
 class ExternalContractController extends Controller
 {
@@ -50,7 +51,7 @@ class ExternalContractController extends Controller
             'status' => (string) $request->query('status'),
         ];
         $perPage = $this->perPage($request);
-        $canRate = $this->canView('general.contracts.salary');
+        $canRate = $this->canRate();
 
         // A custom contract type is filed under its own code; a built-in scheme filters by scheme as before.
         $query = $filters;
@@ -85,8 +86,8 @@ class ExternalContractController extends Controller
     /** Halaman kelola satu konsultan: ringkasan, riwayat kontrak, dan formulir kontrak baru / ubah. */
     public function manage(Request $request, int $employeeId)
     {
-        $canRate = $this->canView('general.contracts.salary');
-        $consultant = $this->consultants->find($employeeId, $this->canView('external.section.engagement_rate.view'));
+        $canRate = $this->canRate();
+        $consultant = $this->consultants->find($employeeId, $canRate || $this->canView('external.section.engagement_rate.view'));
         abort_if($consultant === null, 404);
 
         $history = $this->external->history($employeeId, $canRate);
@@ -117,6 +118,8 @@ class ExternalContractController extends Controller
                 ->mapWithKeys(fn ($code) => [$code => $this->options->resolve(ContractOption::SCOPE_EXTERNAL, $code)['base']])->all(),
             'defaultScheme' => $this->options->defaultCode(ContractOption::SCOPE_EXTERNAL, ContractOption::KIND_CONTRACT_TYPE),
             'defaultPositionType' => $this->options->defaultPositionType(ContractOption::SCOPE_EXTERNAL),
+            'placements'  => $this->options->placements(ContractOption::SCOPE_EXTERNAL, $edit?->work_location),
+            'defaultPlacement' => $this->options->defaultPlacement(ContractOption::SCOPE_EXTERNAL),
             'kindLabels'  => $this->options->labels(ContractOption::SCOPE_EXTERNAL),
             'positionTypes' => $this->options->positionTypes(ContractOption::SCOPE_EXTERNAL, $edit?->position_type),
             'currencies'  => EngagementRules::CURRENCIES,
@@ -124,7 +127,7 @@ class ExternalContractController extends Controller
             'settable'    => ContractRules::SETTABLE_STATUSES,
             'statuses'    => ContractRules::STATUS_LABELS,
             'canTemplates' => $this->canView('general.contracts.templates'),
-            'canProfile'  => $this->canView('master.employee'),
+            'canProfile'  => $this->canView('general.external.consultants'),
         ]);
     }
 
@@ -134,9 +137,9 @@ class ExternalContractController extends Controller
         $data = $this->withKind($request->validate($this->rules(false)));
 
         try {
-            $contract = $this->external->create($employeeId, $data, $this->actorId(), $this->canView('general.contracts.salary'));
+            $contract = $this->external->create($employeeId, $data, $this->actorId(), $this->canRate());
         } catch (\DomainException $e) {
-            return back()->withInput()->withErrors(['contract' => $e->getMessage()]);
+            return $this->refuse($e);
         }
 
         return redirect()->route('general.external.contracts.manage', $employeeId)
@@ -149,9 +152,9 @@ class ExternalContractController extends Controller
         $data = $this->withKind($request->validate($this->rules(true, $contract)));
 
         try {
-            $this->external->update($contract, $data, $this->canView('general.contracts.salary'));
+            $this->external->update($contract, $data, $this->canRate());
         } catch (\DomainException $e) {
-            return back()->withInput()->withErrors(['contract' => $e->getMessage()]);
+            return $this->refuse($e);
         }
 
         return redirect()->route('general.external.contracts.manage', $contract->employee_id)->with('success', "Contract {$contract->contract_number} saved.");
@@ -168,9 +171,9 @@ class ExternalContractController extends Controller
         unset($data['body_html'], $data['body_customized']);
 
         try {
-            $doc = $this->external->preview($employeeId, $data, $this->canView('general.contracts.salary'));
+            $doc = $this->external->preview($employeeId, $data, $this->canRate());
         } catch (\DomainException $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 422);
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'issues' => $e instanceof \App\Exceptions\ContractDataException ? $e->issues : []], 422);
         }
 
         return response()->json([
@@ -180,6 +183,7 @@ class ExternalContractController extends Controller
             'use_letterhead' => $doc['use_letterhead'],
             'page'           => ['size' => $doc['page']['size'], 'orientation' => $doc['page']['orientation'], 'margins' => $doc['page']['margins']],
             'warnings'       => $doc['warnings'],
+            'gaps'           => $doc['gaps'] ?? [],
         ]);
     }
 
@@ -200,7 +204,7 @@ class ExternalContractController extends Controller
     public function document(int $contractId)
     {
         $contract = $this->externalContract($contractId);
-        $mask = !$this->canView('general.contracts.salary');
+        $mask = !$this->canRate();
         $status = ContractRules::effectiveStatus($contract->lifecycle_status, (bool) $contract->is_active, $contract->end_date?->toDateString(), now()->toDateString());
 
         return view('hr-general.contracts.document', [
@@ -224,7 +228,7 @@ class ExternalContractController extends Controller
     /** PDF dengan kop surat. Tanpa izin tarif ditolak: tarif tersamar tak boleh tercetak sebagai kontrak. */
     public function pdf(int $contractId)
     {
-        abort_unless($this->canView('general.contracts.salary'), 403, 'Only holders of "View Salary" can print a contract.');
+        abort_unless($this->canRate(), 403, 'Printing an external contract shows its rate, which needs the permission "External Contract rate" (or "View Salary"). Ask an administrator to add it in Control Center → Menu Access.');
 
         $contract = $this->externalContract($contractId);
         $doc = $this->contracts->document($contract, false);
@@ -236,6 +240,19 @@ class ExternalContractController extends Controller
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
+
+    /** Penolakan dari service: pesan lengkap + (bila karena data belum lengkap) daftar butir yang bisa diklik di layar. */
+    private function refuse(\DomainException $e)
+    {
+        return back()->withInput()->withErrors(['contract' => $e->getMessage()])
+            ->with('issues', $e instanceof \App\Exceptions\ContractDataException ? $e->issues : []);
+    }
+
+    /** Tarif kontrak External: izin khusus konsultan, atau "View Salary" (pemegang lama tetap bisa). */
+    private function canRate(): bool
+    {
+        return $this->canView('general.external.contracts.rate') || $this->canView('general.contracts.salary');
+    }
 
     /** Kontrak yang dibuka lewat menu ini harus berjenis EXTERNAL — kontrak PKWT/PKWTT bukan urusan halaman ini. */
     private function externalContract(int $contractId): EmployeeContract

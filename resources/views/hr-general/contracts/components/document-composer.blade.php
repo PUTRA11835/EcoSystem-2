@@ -101,6 +101,37 @@
         s.textContent = text;
     }
 
+    // Pesan berdaftar: judul + baris; baris yang punya url menjadi tautan (tab baru agar isian form tidak hilang).
+    function statusList(kind, heading, rows) {
+        status(kind, heading);
+        const s = $('dcStatus');
+        if (!rows.length) return;
+        const ul = document.createElement('ul');
+        ul.className = 'mt-1.5 space-y-1';
+        rows.forEach(r => {
+            const li = document.createElement('li');
+            li.className = 'flex items-start gap-1.5';
+            const dot = document.createElement('span'); dot.textContent = '•'; li.appendChild(dot);
+            const body = document.createElement('span');
+            if (r.url) {
+                const a = document.createElement('a');
+                a.href = r.url; a.target = '_blank'; a.rel = 'noopener';
+                a.className = 'font-semibold underline decoration-dotted hover:opacity-80';
+                a.textContent = r.text;
+                body.appendChild(a);
+                const hint = document.createElement('span'); hint.textContent = ' — ' + (r.tab ? 'open the ' + r.tab + ' tab' : 'open the page') + ' ↗'; hint.className = 'opacity-75';
+                body.appendChild(hint);
+            } else {
+                body.textContent = r.text;
+            }
+            if (r.why) { const w = document.createElement('span'); w.textContent = ' (' + r.why + ')'; w.className = 'opacity-75'; body.appendChild(w); }
+            li.appendChild(body); ul.appendChild(li);
+        });
+        s.appendChild(ul);
+        s.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    const issueRows = list => (list || []).map(i => ({ text: i.label, url: i.url, tab: i.tab_label, why: i.why }));
+
     async function generate() {
         const btn = $('dcGenerate');
         const fd = new FormData(form);
@@ -111,10 +142,27 @@
                 method: 'POST', body: fd, credentials: 'same-origin',
                 headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
             });
-            const json = await res.json().catch(() => ({}));
-            if (!res.ok || json.success === false) {
-                const first = Object.values(json.errors || {}).flat()[0];
-                status('error', first || json.message || 'The document could not be generated.');
+            const json = await res.json().catch(() => null);
+            if (!res.ok || (json && json.success === false)) {
+                if (json === null) {
+                    // Bukan JSON (halaman galat peladen / sesi habis): sebutkan penyebab yang paling mungkin, bukan pesan umum.
+                    status('error', ({
+                        419: 'Your session has expired. Reload the page (your form is kept if you saved it as a Draft) and try again.',
+                        401: 'You are signed out. Sign in again, then generate the document.',
+                        403: 'You do not have permission to generate this document. Ask an administrator for the Create or Edit permission of this menu.',
+                        404: 'The consultant or contract was not found. Reload the page.',
+                        500: 'The server hit an error while generating the document (code 500). Tell the administrator the time of this attempt.',
+                    })[res.status] || ('The server answered with an unexpected result (code ' + res.status + '). Reload the page and try again.'));
+                    return;
+                }
+                const fieldErrors = Object.values(json.errors || {}).flat();
+                if (json.issues && json.issues.length) {
+                    statusList('error', json.message || 'Some data is missing:', issueRows(json.issues));
+                } else if (fieldErrors.length) {
+                    statusList('error', fieldErrors.length === 1 ? 'Please correct this field:' : 'Please correct these ' + fieldErrors.length + ' fields:', fieldErrors.map(t => ({ text: t })));
+                } else {
+                    status('error', json.message || 'The document could not be generated for an unknown reason (the server gave no detail).');
+                }
                 return;
             }
 
@@ -134,13 +182,18 @@
             $('dcTemplateNote').querySelector('strong').textContent = json.template?.name || '';
             $('dcResetFlag').value = '';
             $('dcHint').textContent = 'Read the document below and adjust it where needed. It is stored with the contract when you save.';
-            status(json.warnings && json.warnings.length ? 'warn' : 'ok',
-                json.warnings && json.warnings.length
-                    ? 'Generated. These fields are not known for this contract type: ' + json.warnings.join(', ') + '.'
-                    : 'Generated from the template “' + (json.template?.name || '') + '”. Adjust the text below if needed, then save the contract.');
+            const gaps = json.gaps || [];
+            if (gaps.length) {
+                statusList('warn', 'Generated, but ' + gaps.length + ' detail' + (gaps.length === 1 ? ' is' : 's are') + ' empty in the contract text. Fill them in on the person’s page, then generate again:', issueRows(gaps));
+            } else {
+                status(json.warnings && json.warnings.length ? 'warn' : 'ok',
+                    json.warnings && json.warnings.length
+                        ? 'Generated. These fields are not known for this contract type: ' + json.warnings.join(', ') + '.'
+                        : 'Generated from the template “' + (json.template?.name || '') + '”. Adjust the text below if needed, then save the contract.');
+            }
             wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } catch (e) {
-            status('error', 'The document could not be generated. Please try again.');
+            status('error', 'Could not reach the server (network problem or the page was left open too long). Check your connection, reload the page and try again.');
         } finally {
             btn.disabled = false; $('dcGenerateText').textContent = 'Generate again';
         }

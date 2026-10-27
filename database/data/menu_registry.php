@@ -4979,4 +4979,15 @@ return array (
     'seq' => 2,
     'active' => true,
   ),
+  452 => 
+  array (
+    'slug' => 'general.external.contracts.rate',
+    'name' => 'External Contract rate',
+    'type' => 'function',
+    'parent' => 'general.external',
+    'route' => NULL,
+    'icon' => NULL,
+    'seq' => 21,
+    'active' => true,
+  ),
 );

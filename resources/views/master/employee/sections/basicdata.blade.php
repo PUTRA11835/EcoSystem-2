@@ -37,7 +37,7 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Nick Name <span class="text-red-500">*</span></label>
                 <input type="text" id="nickName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Gender</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -53,7 +53,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Religion</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -80,7 +80,7 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Last Name</label>
                 <input type="text" id="lastName" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Marital Status</label>
                 <div class="custom-dd relative">
                     <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
@@ -96,7 +96,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Birth Date</label>
                 <input type="date" id="birthDate" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
@@ -130,11 +130,11 @@
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Search Term 2 <span class="text-gray-500 text-xs">(auto-generated)</span></label>
                 <input type="text" id="searchTerm2" readonly class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none">
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Birth Place</label>
                 <input type="text" id="birthPlace" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent">
             </div>
-            <div class="flex flex-col js-internal-only">
+            <div class="flex flex-col">
                 <label class="text-sm font-semibold text-gray-700 mb-1.5">Since Date
                     @if(!empty($isOwnProfile))<i class="fas fa-lock text-[10px] text-gray-400 ml-1" aria-hidden="true"></i>@endif
                 </label>
@@ -163,6 +163,9 @@
                 <p class="text-xs text-red-600 mt-1 hidden" data-error-for="mother_maiden_name"></p>
             </div>
         </div>
+        @endif
+        @if(!empty($hrEmergencyBasic))
+            <div class="mt-6">@include('master.employee.sections.emergency-card', ['emergencyOptional' => true])</div>
         @endif
     </div>
 

@@ -127,7 +127,7 @@
                     <p class="{{ $label }} text-gray-400">Consultant data</p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div><label class="{{ $label }}" for="dConsultant">External consultant</label>
-                            <select id="dConsultant" name="employee_id" class="{{ $input }}" required>
+                            <select id="dConsultant" name="employee_id" data-searchable="true" data-search-placeholder="Search consultant name or ID…" class="{{ $input }}" required>
                                 <option value="">Select consultant</option>
                                 @foreach($consultants as $opt)<option value="{{ $opt['id'] }}" @selected((string) old('employee_id', $openConsultant ?: '') === (string) $opt['id'])>{{ $opt['eci'] }} — {{ $opt['name'] }}</option>@endforeach
                             </select></div>
@@ -146,7 +146,8 @@
                         <div class="md:col-span-1"><label class="{{ $label }}" for="dSigner">Signer</label>
                             <select id="dSigner" name="signatory_employee_id" class="{{ $input }}" required>
                                 @foreach($signerRows as $p)<option value="{{ $p['id'] }}" @selected((string) old('signatory_employee_id', $form['signer']['id'] ?? '') === (string) $p['id'])>{{ $p['name'] }}</option>@endforeach
-                            </select></div>
+                            </select>
+                            @include('hr-general.external.components.signer-warning', ['signerScope' => 'letters'])</div>
                         <div class="md:col-span-2"><label class="{{ $label }}" for="dTitle">Signer position</label><input id="dTitle" name="signatory_title" maxlength="150" value="{{ old('signatory_title', $form['signer']['position'] ?? '') }}" class="{{ $input }}" required>
                             <p class="text-[10px] text-gray-400 mt-1">Filled from the signer; you can change what is printed under the signature.</p></div>
                         <div class="md:col-span-3">
