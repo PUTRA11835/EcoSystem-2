@@ -17,6 +17,32 @@ final class SchemaCache
     /** @var array<string, bool> */
     private static array $known = [];
 
+    /** Kolom ada? Sama seperti hasTable: hanya jawaban "ada" disimpan. */
+    public static function hasColumn(string $table, string $column): bool
+    {
+        $k = $table . '.' . $column;
+        if (isset(self::$known[$k])) {
+            return true;
+        }
+        $key = 'schema.has_column.' . $k;
+        try {
+            if (Cache::get($key) === true) {
+                return self::$known[$k] = true;
+            }
+        } catch (\Throwable $e) {
+        }
+        $has = Schema::hasColumn($table, $column);
+        if ($has) {
+            self::$known[$k] = true;
+            try {
+                Cache::forever($key, true);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return $has;
+    }
+
     public static function hasTable(string $table): bool
     {
         if (isset(self::$known[$table])) {

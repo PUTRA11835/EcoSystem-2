@@ -87,8 +87,12 @@ class ExternalDocumentService
      */
     public function formOptions(int $actorId): array
     {
-        $signatories = LetterService::signatoryOptions();
-        $signer = $signatories->firstWhere('id', $actorId) ?? $signatories->first();
+        // Surat konsultan ditandatangani Pak Arbin (config/hc_external.php); tanpa pembatasan yang berlaku = perilaku lama.
+        $rule = \App\Support\External\ExternalSigners::for(\App\Support\External\ExternalSigners::LETTERS);
+        $signatories = $rule['options'];
+        $signer = $rule['restricted']
+            ? ($signatories->firstWhere('id', $rule['default']) ?? $signatories->first())
+            : ($signatories->firstWhere('id', $actorId) ?? $signatories->first());
 
         $defaults = [];
         foreach (ExternalRules::DOCUMENTS as $key => $doc) {

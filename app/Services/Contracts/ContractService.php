@@ -937,7 +937,7 @@ class ContractService
                 'vendor'               => $eng->vendor_partner ?? '',
                 'perusahaan_prinsipal' => $eng->client_company ?? '',
                 'spesialisasi'         => $c->position ?: ($eng->assignment_role ?? ''),
-                'penugasan'            => $eng->assignment_role ?? ($c->position ?: ($basic->position ?? '')),
+                'penugasan'            => ($terms->assignment ?? null) ?: ($eng->assignment_role ?? ($c->position ?: ($basic->position ?? ''))),
                 'skema'                => $terms ? ExternalRules::schemeLabel($terms->engagement_scheme) : ($eng->engagement_scheme ?? ''),
                 'tarif'                => $maskSalary ? $masked : $rate,
                 'satuan_tagihan'       => $unit,

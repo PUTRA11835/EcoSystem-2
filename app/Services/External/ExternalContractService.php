@@ -6,6 +6,7 @@ use App\Models\EmployeeContract;
 use App\Services\Contracts\ContractService;
 use App\Support\Contracts\ContractRules;
 use App\Support\External\ExternalRules;
+use App\Support\External\ExternalSigners;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
@@ -151,10 +152,11 @@ class ExternalContractService
     public function create(int $employeeId, array $d, int $actorId, bool $canRate): EmployeeContract
     {
         $terms = ExternalRules::cleanTerms($d, $canRate);
+        $d = $this->withSigner($d, null);
 
         return DB::transaction(function () use ($employeeId, $d, $actorId, $terms) {
             $contract = $this->contracts->create($employeeId, $this->contractData($d), $actorId, false);
-            $this->saveTerms($contract, $terms);
+            $this->saveTerms($contract, $terms, $d);
 
             return $contract;
         });
@@ -170,10 +172,11 @@ class ExternalContractService
             throw new \DomainException('This is not an external consultant contract.');
         }
         $terms = ExternalRules::cleanTerms($d, $canRate);
+        $d = $this->withSigner($d, $contract);
 
         return DB::transaction(function () use ($contract, $d, $terms) {
             $contract = $this->contracts->update($contract, $this->contractData($d) + ['contract_number' => $d['contract_number'] ?? $contract->contract_number], false);
-            $this->saveTerms($contract, $terms);
+            $this->saveTerms($contract, $terms, $d);
 
             return $contract;
         });
@@ -220,15 +223,49 @@ class ExternalContractService
     public function preview(int $employeeId, array $d, bool $canRate): array
     {
         $terms = ExternalRules::cleanTerms($d, $canRate);
-        $terms += ['rate' => null, 'currency' => 'IDR'];
+        $terms += ['rate' => null, 'currency' => 'IDR', 'assignment' => trim((string) ($d['assignment'] ?? '')) ?: null];
+        $d = $this->withSigner($d, null, true);
 
         // Without the rate permission the rate stays masked in the generated text, as it does in the document.
         return $this->contracts->previewDocument($employeeId, $this->contractData($d), $canRate, (object) $terms);
     }
 
-    /** @param  array<string,mixed>  $terms  baris dari ExternalRules::cleanTerms (tanpa tarif bila tak berizin → tarif lama dipertahankan) */
-    private function saveTerms(EmployeeContract $contract, array $terms): void
+    /**
+     * Penandatangan kontrak External: Pak Arbin atau Pak Titus (config/hc_external.php). Kosong = Arbin (bawaan). Orang lain ditolak,
+     * kecuali kontrak yang sudah ada dan penandatangannya tidak diubah (kontrak lama tidak dipaksa berganti penandatangan).
+     *
+     * @param  array<string,mixed>  $d
+     * @return array<string,mixed>
+     * @throws \DomainException
+     */
+    private function withSigner(array $d, ?EmployeeContract $existing, bool $preview = false): array
     {
+        $picked = ($d['signatory_employee_id'] ?? '') !== '' ? (int) $d['signatory_employee_id'] : null;
+        $rule = ExternalSigners::for(ExternalSigners::CONTRACT);
+
+        if ($picked === null) {
+            // Dibiarkan kosong pada kontrak yang sudah punya penandatangan = tetap; kontrak baru = penandatangan bawaan
+            if (!$existing || !$existing->signatory_employee_id) {
+                $d['signatory_employee_id'] = $rule['default'];
+            }
+
+            return $d;
+        }
+        $unchanged = $existing && (int) $existing->signatory_employee_id === $picked;
+        if (!$unchanged && !$preview && !$rule['options']->contains('id', $picked)) {
+            throw new \DomainException('External contracts are signed by ' . implode(' or ', $rule['names']) . '. Pick one of them as the company signatory.');
+        }
+
+        return $d;
+    }
+
+    /** @param  array<string,mixed>  $terms  baris dari ExternalRules::cleanTerms (tanpa tarif bila tak berizin → tarif lama dipertahankan) */
+    private function saveTerms(EmployeeContract $contract, array $terms, array $form = []): void
+    {
+        // Penugasan (proyek / ruang lingkup): hanya bila kolomnya sudah ada (migrasi 2026_10_26_100001 / ALTER TABLE di server).
+        if (array_key_exists('assignment', $form) && \App\Support\SchemaCache::hasColumn('external_contract_terms', 'assignment')) {
+            $terms['assignment'] = trim((string) $form['assignment']) !== '' ? mb_substr(trim((string) $form['assignment']), 0, 255) : null;
+        }
         $existing = DB::table('external_contract_terms')->where('contract_id', $contract->contract_id)->exists();
 
         if ($existing) {
