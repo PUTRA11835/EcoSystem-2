@@ -7,6 +7,7 @@ use App\Models\EmployeeIdentification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 
 class EmployeeIdentificationController extends Controller
@@ -94,10 +95,11 @@ class EmployeeIdentificationController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
+        $cur = null;
         $validator = Validator::make($request->all(), [
-            'identification_type' => 'required|string|max:50',
-            'identification_number' => 'required|string|max:100',
-            'responsible_institution' => 'nullable|string|max:255',
+            'identification_type' => array_filter(['required', 'string', 'max:50', MD::inRule('identification', 'identification_type', $cur->identification_type ?? null)]),
+            'identification_number' => ['required', 'string', 'max:' . MD::maxLength('identification', 'number_max_length')],
+            'responsible_institution' => ['nullable', 'string', 'max:' . MD::maxLength('identification', 'institution_max_length')],
             'country' => 'nullable|string|max:100',
             'region' => 'nullable|string|max:100',
             'valid_from' => 'nullable|date',
@@ -213,10 +215,11 @@ class EmployeeIdentificationController extends Controller
      */
     public function update(Request $request, $employeeId, $identificationId)
     {
+        $cur = DB::table('employee_identification')->where('identification_id', $identificationId)->first();
         $validator = Validator::make($request->all(), [
-            'identification_type' => 'required|string|max:50',
-            'identification_number' => 'required|string|max:100',
-            'responsible_institution' => 'nullable|string|max:255',
+            'identification_type' => array_filter(['required', 'string', 'max:50', MD::inRule('identification', 'identification_type', $cur->identification_type ?? null)]),
+            'identification_number' => ['required', 'string', 'max:' . MD::maxLength('identification', 'number_max_length')],
+            'responsible_institution' => ['nullable', 'string', 'max:' . MD::maxLength('identification', 'institution_max_length')],
             'country' => 'nullable|string|max:100',
             'region' => 'nullable|string|max:100',
             'valid_from' => 'nullable|date',

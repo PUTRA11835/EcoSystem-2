@@ -98,7 +98,7 @@ class ContractService
      */
     public function dashboard(int $window = 30): array
     {
-        $window = in_array($window, [30, 60, 90], true) ? $window : 30;
+        $window = in_array($window, [30, 60, 90], true) ? $window : (int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days');
         $today = now()->toDateString();
         $until = fn (int $days) => now()->addDays($days)->toDateString();
 
@@ -153,7 +153,7 @@ class ContractService
     public function summary(): array
     {
         $today = now()->toDateString();
-        $soon = now()->addDays((int) config('hc_contract.expiring_soon_days', 30))->toDateString();
+        $soon = now()->addDays((int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days'))->toDateString();
 
         $row = $this->baseQuery(false)->selectRaw(
             "COUNT(*) as employees,
@@ -229,7 +229,7 @@ class ContractService
         $row->type = ContractRules::normalizeType($row->contract_type);
         $row->position = $row->contract_position ?: $row->employee_position;
         $row->ending_soon = $row->effective_status === ContractRules::STATUS_ACTIVE && $row->end_date
-            && $row->end_date <= now()->addDays((int) config('hc_contract.expiring_soon_days', 30))->toDateString();
+            && $row->end_date <= now()->addDays((int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days'))->toDateString();
 
         return $row;
     }

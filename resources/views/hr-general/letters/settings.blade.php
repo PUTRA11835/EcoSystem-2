@@ -26,6 +26,7 @@
     $allSteps = [
         'numbering'   => ['Numbering & Codes', 'How a letter number is built, and the codes in it', 'hashtag'],
         'types'       => ['Letter Types', 'The code and language each letter uses', 'file-lines'],
+        'designs'     => ['Template Designs', 'The wording and fields of each letter template', 'pen-ruler'],
         'signers'     => ['Signers', 'Who can be picked to sign a letter or a contract', 'signature'],
         'letterheads' => ['Letterheads', 'The page each document is printed on', 'image'],
         'requests'    => ['Employee Requests', 'What employees can ask HR for', 'inbox'],
@@ -241,17 +242,28 @@
     </section>
     @endif
 
+    {{-- ── Template designs: the wording and fields of each letter template ───── --}}
+    @if($section === 'designs')
+    <section data-panel="designs">
+        @include('hr-general.letters.designs.list', ['usage' => $designUsage])
+    </section>
+    @include('hr-general.recruitment.components.confirm-forms')
+    @endif
+
     {{-- ── ② Letter types ───────────────────────────────────────────────── --}}
     @if($section === 'types')
     <section data-panel="types">
         <form action="{{ route('general.letters.settings.templates.update') }}" method="POST" class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             @csrf
-            <div class="px-5 py-4 border-b border-gray-100">
-                <h3 class="text-sm font-bold text-gray-800">Letter Types</h3>
-                <p class="text-[11px] text-gray-400 mt-0.5">
-                    What a new letter of each type starts with — the example shows the number it would get. Language and code can still be changed on each letter.
-                    Who can sign is set in the next step.
-                </p>
+            <div class="px-5 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-bold text-gray-800">Letter Types</h3>
+                    <p class="text-[11px] text-gray-400 mt-0.5">
+                        What a new letter of each type starts with — the example shows the number it would get. Language and code can still be changed on each letter.
+                        Who can sign is set in the next step.
+                    </p>
+                </div>
+
             </div>
             <fieldset @disabled(!$canEdit) class="overflow-x-auto">
                 <table class="w-full text-xs text-left">

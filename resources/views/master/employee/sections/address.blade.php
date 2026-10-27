@@ -1,6 +1,6 @@
 @php
     // Pilihan dropdown. Nilai lama yang tidak ada di daftar (mis. "primary", "IDN") tetap tampil dan tetap sah — ditambahkan otomatis saat data dimuat.
-    $addrTypes = ['Home' => 'Home', 'KTP' => 'KTP', 'Domicile' => 'Domicile', 'Office' => 'Office'];
+    $addrTypes = \App\Services\Management\EmployeeMasterData::options('address', 'address_type');
     $addrLanguages = ['IDN' => 'Indonesian', 'ENG' => 'English'];
     $addrPreferred = ['email' => 'Email', 'cell_phone' => 'Cell phone', 'telephone' => 'Telephone', 'fax' => 'Fax'];
     $dialCodes = [
@@ -68,7 +68,10 @@
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Country</label>
                 <select id="country" class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-                    <option value="Indonesia" selected>Indonesia</option>
+                    @php $addrCountries = \App\Services\Management\EmployeeMasterData::options('address', 'country'); $addrDefaultCountry = array_key_exists('Indonesia', $addrCountries) ? 'Indonesia' : array_key_first($addrCountries); @endphp
+                    @foreach($addrCountries as $optValue => $optLabel)
+                        <option value="{{ $optValue }}" @selected($optValue === $addrDefaultCountry)>{{ $optLabel }}</option>
+                    @endforeach
                 </select>
             </div>
 

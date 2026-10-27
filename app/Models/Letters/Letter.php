@@ -8,6 +8,8 @@ use App\Models\EmployeeAddress;
 use App\Models\Letterhead;
 use App\Models\LetterTypeSetting;
 use App\Models\Recruitment\Offer;
+use App\Support\Contracts\PageSettings;
+use App\Support\Letters\LetterBody;
 use App\Support\Letters\LetterTemplates;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -257,6 +259,11 @@ class Letter extends Model
      */
     public function toPdf(bool $preview = false): \Barryvdh\DomPDF\PDF
     {
+        // A letter whose wording was designed (a template from Template Designs, or a custom letter written in the editor) prints the wording saved with it.
+        if (!empty($this->fields['_design']['body'])) {
+            return $this->designedPdf($preview);
+        }
+
         $view = $this->source === self::SOURCE_TEMPLATE ? "hr-general.letters.pdf.{$this->template_key}" : 'hr-general.letters.pdf.custom_letter';
         $language = $this->languageCode();
 
@@ -288,6 +295,44 @@ class Letter extends Model
         }
 
         return Pdf::loadHTML($html)->setPaper('a4', 'portrait');
+    }
+
+    /**
+     * The letter from the wording saved with it (`fields._design`: the text, the field definitions and the paper as they
+     * were when it was generated), so a later change to the template does not change a letter already made.
+     */
+    private function designedPdf(bool $preview): \Barryvdh\DomPDF\PDF
+    {
+        $language = $this->languageCode();
+        $fields = $this->fields ?? [];
+        $design = $fields['_design'];
+        $settings = LetterSetting::current();
+        $letterhead = $this->use_letterhead ? ($this->letterhead ?? Letterhead::forLetter($this->letterType())) : null;
+
+        $values = LetterBody::values((array) ($design['fields'] ?? []), $fields, $fields['employee'] ?? null, [
+            'lang'          => $language,
+            'letter_number' => $this->letter_number ?: __('letters.preview', [], $language),
+            'letter_date'   => $this->letter_date,
+            'subject'       => (string) $this->subject,
+            'recipient'     => (string) $this->counterparty,
+            'city'          => $fields['city'] ?? $settings->signing_city,
+            'company'       => $fields['company'] ?? $settings->company_name,
+            'signer_name'   => $this->signatory_name,
+            'signer_title'  => $this->signatory_title,
+            'signature'     => $preview ? null : $this->signatureDataUri(),
+            'closing'       => $design['closing'] ?? null,
+        ]);
+
+        $page = PageSettings::resolve($design['page'] ?? null, $letterhead !== null);
+        $html = view('hr-general.letters.pdf.designed', [
+            'title'      => trim($this->subject . ' ' . $this->letter_number),
+            'lang'       => $language,
+            'bodyHtml'   => LetterBody::render((string) $design['body'], $values),
+            'letterhead' => $letterhead,
+            'page'       => $page,
+        ])->render();
+
+        return Pdf::loadHTML($html)->setPaper(PageSettings::paper(['page' => $page]));
     }
 
     // ── Files ────────────────────────────────────────────────────────────────

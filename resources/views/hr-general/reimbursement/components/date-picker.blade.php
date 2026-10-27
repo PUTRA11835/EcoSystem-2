@@ -13,7 +13,8 @@
 <style>
     .flatpickr-calendar { font-family: inherit; border-radius: .75rem; border: 1px solid #e5e7eb; box-shadow: 0 10px 30px rgba(15, 23, 42, .15); z-index: 10050 !important; }
     .flatpickr-calendar:before, .flatpickr-calendar:after { display: none; }
-    .flatpickr-current-month { font-size: .85rem; font-weight: 700; }
+    .flatpickr-current-month { font-size: .85rem; font-weight: 700; padding-top: .55rem; }
+    .flatpickr-months .flatpickr-month { height: 2.75rem; }
     .flatpickr-day.selected, .flatpickr-day.selected:hover { background: var(--primary-color); border-color: var(--primary-color); }
     .flatpickr-day.today:not(.selected) { border-color: var(--primary-color); }
     input.rb-date-alt { cursor: pointer; background-color: #fff; }
@@ -35,6 +36,8 @@
                 altInputClass: (el.className + ' rb-date-alt').trim(),
                 allowInput: false,
                 disableMobile: true,
+                monthSelectorType: 'static',
+                locale: { firstDayOfWeek: 1 },
                 minDate: el.dataset.min || null,
                 maxDate: el.dataset.max || null,
             });

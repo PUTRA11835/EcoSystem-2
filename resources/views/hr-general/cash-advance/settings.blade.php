@@ -301,61 +301,6 @@
         </div>
 
         {{-- =============================================================
-             BAGIAN 4 — TANDA TANGAN CETAKAN
-             ============================================================= --}}
-        <div class="bg-white rounded-xl p-5 md:p-6 shadow-sm">
-            <div class="mb-5 pb-4 border-b-2 border-gray-100">
-                <h2 class="text-2xl font-bold text-gray-900">Document Signatures</h2>
-                <p class="text-sm text-gray-500 mt-0.5">
-                    The printed document carries four columns: Requester · Accounting · Cashier · Approved by.
-                </p>
-            </div>
-
-            {{-- 🔴 Dijelaskan, bukan didiamkan. Kalau blok ini hanya menampilkan dua
-                 field tanpa keterangan, orang akan mencari field ketiga yang memang
-                 SENGAJA tidak ada — dan menyimpulkan halamannya belum selesai. --}}
-            <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-5">
-                <p class="text-sm text-blue-900">
-                    <span class="font-semibold">There is deliberately no field for “Approved by”.</span>
-                    That column takes the name of whoever actually approved the document, on the workflow
-                    step whose Actor is “Approver”. Storing a signatory in two places would create one new
-                    class of mistake: the setting says one name, the approval history says another, and the
-                    paper someone signed says a third.
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Accounting</label>
-                    <select name="accounting_signer_employee_id"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 primary-border">
-                        <option value="">— leave blank —</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->employee_id }}"
-                                    @selected((int) old('accounting_signer_employee_id', $settings->accounting_signer_employee_id) === (int) $employee->employee_id)>
-                                {{ $employee->basicData?->full_name ?? $employee->eci }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Cashier</label>
-                    <select name="cashier_signer_employee_id"
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 primary-border">
-                        <option value="">— leave blank —</option>
-                        @foreach($employees as $employee)
-                            <option value="{{ $employee->employee_id }}"
-                                    @selected((int) old('cashier_signer_employee_id', $settings->cashier_signer_employee_id) === (int) $employee->employee_id)>
-                                {{ $employee->basicData?->full_name ?? $employee->eci }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-        </div>
-
-        {{-- =============================================================
              BAGIAN 5 — ATURAN PERTANGGUNGJAWABAN (CAR)
              ============================================================= --}}
         <div class="bg-white rounded-xl p-5 md:p-6 shadow-sm">

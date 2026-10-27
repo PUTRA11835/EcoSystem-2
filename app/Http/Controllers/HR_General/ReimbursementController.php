@@ -624,6 +624,7 @@ class ReimbursementController extends Controller
             'items.*.description.required' => 'Every item needs a description.',
             'items.*.branch_id.required'   => 'Every item needs a branch.',
             'items.*.amount.min'           => 'Item amounts must be greater than zero.',
+            'items.*.amount.max' => 'An item amount cannot be more than Rp 99.999.999.999.999.',
             'title.min'                    => "Please describe the reimbursement in at least {$minTitle} characters.",
         ]);
     }

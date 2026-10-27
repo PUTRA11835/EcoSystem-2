@@ -242,8 +242,9 @@
             @endif
 @php $sb['timesheet'] = ob_get_clean(); @endphp
 @php ob_start(); @endphp
-{{-- My Approvals: shown to anyone NAMED on an approval workflow (any module) — they need no HR menu to approve. --}}
-@if(session('user.type') === 'employee' && app(\App\Services\Approval\ApprovalEngine::class)->isApproverAnywhere((int) session('user.id')))
+{{-- My Approvals: shown to anyone NAMED on an approval workflow (any module) — they need no HR menu to approve —
+     and to a role given the "My Approvals" View box in Menu Access (same two doors as the route middleware). --}}
+@if(session('user.type') === 'employee' && ($can('general.approvals') || app(\App\Services\Approval\ApprovalEngine::class)->isApproverAnywhere((int) session('user.id'))))
                 @include('partials.ess-nav-item', [
                     'href'   => route('general.approvals.index'),
                     'icon'   => 'fas fa-clipboard-check',

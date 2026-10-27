@@ -99,6 +99,20 @@
         </div>
     </div>
 
+    {{-- Approver, but the buttons are hidden: say why instead of leaving the page silent. --}}
+    @if($canApprove && !$canApproveNow && !$leadMode && !$isSelfType && !$isApproved)
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3 text-xs text-amber-800">
+        <i class="fas fa-circle-info mt-0.5"></i>
+        <p>
+            @if($isSelf)
+                You can't approve your own evaluation.
+            @elseif(!$evaluation->isReadyForApproval())
+                {{ $isUpward ? 'Approval opens once the rater submits their assessment.' : 'Approval opens once the lead submits their review to HR (it is still a draft or not started).' }}
+            @endif
+        </p>
+    </div>
+    @endif
+
     @if($isSelfType)
     <div class="bg-purple-50 border border-purple-200 rounded-2xl p-4 flex items-start gap-3">
         <i class="fas fa-eye text-purple-600 mt-0.5"></i>

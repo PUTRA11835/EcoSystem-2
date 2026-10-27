@@ -40,13 +40,28 @@
         'subject'               => old('subject', $letter?->subject ?? $letterRequest?->request_type_name),
         // A custom letter answering a request starts titled with what was asked for, addressed to the employee.
         'counterparty'          => old('counterparty', $letter?->counterparty ?? $letterRequest?->employeeName()),
-        'body'                  => old('body', $letter?->fields['body'] ?? null),
         'use_letterhead'        => old('_token') ? (bool) old('use_letterhead') : ($letter?->use_letterhead ?? true),
     ];
     // A request's purpose is what the letter is for.
     if ($letterRequest && empty($fields['purpose'])) {
         $fields['purpose'] = $letterRequest->purpose;
     }
+    // Custom letter: the template it started from, and the wording the editor opens with (saved text, a template's, or blank).
+    $baseKey = old('base_template', $letter?->fields['_base'] ?? null);
+    $baseKey = $baseKey && isset($templates[$baseKey]) ? $baseKey : null;
+    $legacyBody = $letter && empty($letter->fields['_design']['body']) && !empty($letter->fields['body'])
+        ? str_replace('<p><br></p><p><br></p>', collect(preg_split('/\R{2,}/', trim((string) $letter->fields['body'])))
+            ->map(fn ($p) => '<p>' . nl2br(e(trim($p))) . '</p>')->implode(''), $blankBodies[$start['language']] ?? $blankBodies['id'])
+        : null;
+    $customBody = \App\Support\Contracts\ContractHtmlSanitizer::clean(old('body_html')
+        ?? $letter?->fields['_design']['body'] ?? $legacyBody
+        ?? ($baseKey ? ($designBodies[$baseKey][$start['language']] ?? null) : null)
+        ?? ($blankBodies[$start['language']] ?? $blankBodies['id']));
+    $storedPage = $letter?->fields['_design']['page'] ?? [];
+    $customPage = [
+        'size' => old('page_size', $storedPage['size'] ?? 'A4'), 'orientation' => old('page_orientation', $storedPage['orientation'] ?? 'portrait'),
+        'margins' => collect(['top', 'right', 'bottom', 'left'])->mapWithKeys(fn ($side) => [$side => old("margin_{$side}", $storedPage['margins'][$side] ?? null)])->all(),
+    ];
     $sampleNumber = app(\App\Services\Letters\LetterNumberService::class)->outgoingNumber(now(), $nextSequence, 'OF', $start['language']);
     $me = (int) session('user.id');
     // The confirmation before signing: plain for your own signature; for someone else's, a reminder to agree it with them first.
@@ -152,72 +167,76 @@
                         </div>
                     </div>
 
-                    {{-- The fields of each template; only the chosen template's are enabled and sent. --}}
-                    @foreach($templates as $key => $template)
-                        <div data-template-fields="{{ $key }}" class="grid grid-cols-1 md:grid-cols-2 gap-4 {{ $templateKey === $key ? '' : 'hidden' }}">
-                            @foreach($template['fields'] as $name => $field)
-                                @php $fieldId = "f-{$key}-{$name}"; $current = $templateKey === $key ? ($fields[$name] ?? null) : null; @endphp
-                                <div class="{{ in_array($field['type'], ['textarea', 'items'], true) ? 'md:col-span-2' : '' }}">
-                                    <label for="{{ $fieldId }}" class="{{ $label }}">{{ $field['label'] }} @if($field['required'])<span class="text-red-500">*</span>@endif</label>
-                                    @switch($field['type'])
-                                        @case('textarea')
-                                            <textarea name="fields[{{ $name }}]" id="{{ $fieldId }}" rows="3" maxlength="5000" @required($field['required']) class="{{ $input }}">{{ $current }}</textarea>
-                                            @break
-                                        @case('date')
-                                            <input type="date" name="fields[{{ $name }}]" id="{{ $fieldId }}" value="{{ $current }}" @required($field['required']) class="{{ $input }}">
-                                            @break
-                                        @case('money')
-                                            <div class="relative">
-                                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Rp</span>
-                                                <input type="text" inputmode="numeric" name="fields[{{ $name }}]" id="{{ $fieldId }}" data-money
-                                                    value="{{ $current !== null && $current !== '' ? number_format((float) preg_replace('/\D/', '', (string) $current), 0, ',', '.') : '' }}"
-                                                    @required($field['required']) class="{{ $input }} pl-9 text-right">
-                                            </div>
-                                            @break
-                                        @case('items')
-                                            <div data-items="{{ $key }}" class="space-y-2">
-                                                @foreach(($current ?: [['name' => '', 'qty' => '', 'note' => '']]) as $i => $item)
-                                                    <div data-item-row class="grid grid-cols-12 gap-2">
-                                                        <input type="text" name="fields[{{ $name }}][{{ $i }}][name]" value="{{ $item['name'] ?? '' }}" placeholder="Item" maxlength="255" class="{{ $input }} col-span-5">
-                                                        <input type="text" name="fields[{{ $name }}][{{ $i }}][qty]" value="{{ $item['qty'] ?? '' }}" placeholder="Qty" maxlength="50" class="{{ $input }} col-span-2">
-                                                        <input type="text" name="fields[{{ $name }}][{{ $i }}][note]" value="{{ $item['note'] ?? '' }}" placeholder="Notes" maxlength="255" class="{{ $input }} col-span-4">
-                                                        <button type="button" data-item-remove class="col-span-1 text-red-500 hover:text-red-700" title="Remove this item" aria-label="Remove this item"><i class="fas fa-trash text-xs"></i></button>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                            <button type="button" data-item-add="{{ $key }}" data-item-name="{{ $name }}" class="mt-2 text-xs font-semibold primary-text">
-                                                <i class="fas fa-plus text-[10px]"></i> Add an item
-                                            </button>
-                                            @break
-                                        @default
-                                            <input type="text" name="fields[{{ $name }}]" id="{{ $fieldId }}" value="{{ $current }}" maxlength="255"
-                                                placeholder="{{ $field['placeholder'] ?? '' }}" @required($field['required']) class="{{ $input }}">
-                                    @endswitch
-                                    @if(!empty($field['help']))<p class="{{ $help }}">{{ $field['help'] }}</p>@endif
-                                </div>
-                            @endforeach
-                        </div>
-                    @endforeach
+                    @include('hr-general.letters.components.template-fields', ['activeKey' => $templateKey])
                 @else
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2">
+                        <div>
+                            <label for="baseTemplate" class="{{ $label }}">Start from</label>
+                            <select name="base_template" id="baseTemplate" class="{{ $input }}">
+                                <option value="" @selected(!$baseKey)>Blank letter</option>
+                                @foreach($templates as $key => $template)
+                                    <option value="{{ $key }}" @selected($baseKey === $key)>{{ $template['label'] }} — {{ $template['label_en'] }}</option>
+                                @endforeach
+                            </select>
+                            <p class="{{ $help }}">Picks that template's wording and fields as the starting point. Changing the text below changes only this letter — never the template.</p>
+                        </div>
+                        <div>
+                            <label for="employeeId" class="{{ $label }}">Employee <span class="text-gray-400 font-normal">(optional)</span></label>
+                            @if($letterRequest)
+                                <input type="hidden" name="employee_id" value="{{ $letterRequest->employee_id }}">
+                                <p class="text-sm font-semibold text-gray-800 py-2">{{ $letterRequest->employeeName() }}</p>
+                            @else
+                                <select name="employee_id" id="employeeId" data-searchable="true" data-search-placeholder="Name, employee ID…" class="{{ $input }}">
+                                    <option value="">-- None --</option>
+                                    @foreach($employees as $person)
+                                        <option value="{{ $person['id'] }}" @selected((string) ($start['employee_id'] ?? '') === (string) $person['id'])>
+                                            {{ $person['name'] }} ({{ $person['eci'] }}){{ $person['position'] ? ' — ' . $person['position'] : '' }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @endif
+                            <p class="{{ $help }}">Fills the employee fields of the text (name, position…) from the master data.</p>
+                        </div>
+                        <div>
                             <label for="subject" class="{{ $label }}">Subject <span class="text-red-500">*</span></label>
                             <input type="text" name="subject" id="subject" required maxlength="255" value="{{ $start['subject'] }}" class="{{ $input }}">
+                            <p class="{{ $help }}">Written in the text as <code>@{{subject}}</code>; also the title in the register.</p>
                         </div>
-                        <div class="md:col-span-2">
+                        <div>
                             <label for="counterparty" class="{{ $label }}">Recipient / Addressed To</label>
                             <input type="text" name="counterparty" id="counterparty" maxlength="255" value="{{ $start['counterparty'] }}" class="{{ $input }}">
+                            <p class="{{ $help }}">Written in the text as <code>@{{recipient}}</code>.</p>
                         </div>
-                        <div class="md:col-span-2">
-                            <label for="body" class="{{ $label }}">Letter Text <span class="text-red-500">*</span></label>
-                            <textarea name="body" id="body" rows="12" required maxlength="20000" class="{{ $input }} leading-relaxed">{{ $start['body'] }}</textarea>
-                            <p class="{{ $help }}">A blank line starts a new paragraph. The title, number, date and signature are added around it.</p>
-                        </div>
-                        <div class="md:col-span-2">
-                            @include('hr-general.recruitment.components.toggle-switch', [
-                                'toggleName' => 'use_letterhead', 'toggleChecked' => $start['use_letterhead'], 'toggleText' => 'Print on the letterhead (set for Custom Letter in Settings)',
-                            ])
-                        </div>
+                    </div>
+
+                    {{-- The fields of the template picked above (none for a blank letter). --}}
+                    @include('hr-general.letters.components.template-fields', ['activeKey' => $baseKey])
+
+                    <div>
+                        <label class="{{ $label }}">Letter Text <span class="text-red-500">*</span></label>
+                        <p class="{{ $help }} mb-2">
+                            Write it as in Word — fonts, tables, indents, page breaks. <strong>Fields</strong> inserts what is filled in for this letter
+                            (<code>@{{signature_block}}</code> prints the city, date, signature and signer). <strong>Preview</strong> shows the PDF. Press <kbd class="px-1 border rounded bg-gray-50">F1</kbd> for shortcuts.
+                        </p>
+                        @include('hr-general.contracts.components.word-editor', [
+                            'weHtml'         => $customBody,
+                            'weInput'        => 'bodyHtml',
+                            'weForm'         => 'composeForm',
+                            'weFields'       => ['employee' => \App\Support\Letters\LetterBody::placeholders($baseKey && isset($templates[$baseKey]) ? $templates[$baseKey]['fields'] : [])],
+                            'weTypeSelect'   => 'noTypeSelect',
+                            'weLhToggle'     => '#lhWrap input',
+                            'weLetterhead'   => $letterheadUri,
+                            'wePreviewUrl'   => route('general.letters.compose.preview'),
+                            'wePreviewExtra' => '#composeForm input:not([type=radio]):not([type=checkbox]), #composeForm select, #composeForm textarea, #composeForm input[type=radio]:checked, #composeForm input[type=checkbox]:checked',
+                            'wePage'         => $customPage,
+                            'wePageDefaults' => ['plain' => \App\Support\Contracts\PageSettings::defaultMarginsCm(false), 'letterhead' => \App\Support\Contracts\PageSettings::defaultMarginsCm(true)],
+                        ])
+                        <input type="hidden" name="body_html" id="bodyHtml">
+                    </div>
+                    <div id="lhWrap">
+                        @include('hr-general.recruitment.components.toggle-switch', [
+                            'toggleName' => 'use_letterhead', 'toggleChecked' => $start['use_letterhead'], 'toggleText' => 'Print on the letterhead (set for Custom Letter in Settings)',
+                        ])
                     </div>
                 @endif
 
@@ -329,6 +348,11 @@
                     <div class="px-5 py-3.5 border-b border-gray-100">
                         <h3 class="text-sm font-bold text-gray-800">Templates</h3>
                         <p class="text-[10px] text-gray-400 mt-0.5">Switched on in Settings; each is written in Bahasa Indonesia and English.</p>
+                        @if($canDo('general.letter-templates', 'view'))
+                            <a href="{{ route('general.letters.settings.index', ['section' => 'designs']) }}" class="inline-block mt-1.5 text-[11px] font-semibold primary-text">
+                                <i class="fas fa-pen-ruler text-[10px]"></i> View &amp; adjust the wording
+                            </a>
+                        @endif
                     </div>
                     <div class="p-3 space-y-2">
                         @foreach($templates as $key => $template)
@@ -491,6 +515,10 @@
         const signatories = {{ Js::from($signatories->keyBy('id')) }};
         // Role → the people of it who may sign, as Create Letter offers them.
         const signingRoles = {{ Js::from(collect($signingRoles)->keyBy('id')) }};
+        // Custom letter: the wording each template starts from, the blank one, and the placeholders each offers in the editor.
+        const designBodies = {{ Js::from($designBodies) }};
+        const blankBodies = {{ Js::from($blankBodies) }};
+        const placeholderSets = {{ Js::from($templates->map(fn ($t) => \App\Support\Letters\LetterBody::placeholders($t['fields']))->put('', \App\Support\Letters\LetterBody::placeholders([]))) }};
 
         function setSelect(select, value) {
             if (!select) return;
@@ -580,6 +608,47 @@
             }
         });
 
+        // Custom letter: "Start from" a template (or blank) loads that wording into the editor — for this letter only.
+        const baseSelect = byId('baseTemplate');
+        if (baseSelect) {
+            const root = document.querySelector('[data-word-editor]');
+            const editor = () => root && root._we;
+            const lang = () => (form.querySelector('input[name="language"]:checked') || {}).value || 'id';
+            const bodyFor = (key, l) => key ? ((designBodies[key] || {})[l] || '') : (blankBodies[l] || blankBodies.id);
+            const ask = async message => window.showConfirm ? await showConfirm(message, 'Replace the text', 'danger') : confirm(message);
+            let prevBase = baseSelect.value;
+            let loaded = null;   // what the editor held when it was last filled from a template — to tell whether it was edited since
+            window.addEventListener('load', () => { if (editor()) loaded = editor().getHTML(); });
+
+            function setPlaceholders(key) {
+                root.dataset.fields = JSON.stringify({ employee: placeholderSets[key || ''] || placeholderSets[''] });
+                root.dispatchEvent(new Event('we-fields'));
+            }
+
+            // false when the person kept what they had written
+            async function replaceText(what) {
+                const we = editor();
+                if (!we) return true;
+                const touched = loaded !== null && we.getHTML() !== loaded;
+                if ((touched || editing) && !(await ask('Replace the letter text with ' + what + '? What is written in the editor now is lost.'))) return false;
+                we.setHTML(bodyFor(baseSelect.value, lang()));
+                loaded = null;
+                setTimeout(() => { loaded = we.getHTML(); }, 50);
+                return true;
+            }
+
+            baseSelect.addEventListener('change', async () => {
+                if (!(await replaceText('the wording of that template'))) { baseSelect.value = prevBase; return; }
+                prevBase = baseSelect.value;
+                showTemplate(baseSelect.value);
+                setPlaceholders(baseSelect.value);
+            });
+            form.querySelectorAll('input[name="language"]').forEach(radio => radio.addEventListener('change', () => { replaceText('the wording in the chosen language'); }));
+
+            showTemplate(baseSelect.value);
+            setPlaceholders(baseSelect.value);
+        }
+
         // Money as typed, with thousands separators.
         form.addEventListener('input', event => {
             if (!event.target.matches('[data-money]')) return;
@@ -597,7 +666,7 @@
                 const row = list.querySelector('[data-item-row]').cloneNode(true);
                 row.querySelectorAll('input').forEach(input => {
                     input.value = '';
-                    input.name = input.name.replace(/\[\d+\]\[(name|qty|note)\]$/, `[${index}][$1]`);
+                    input.name = input.name.replace(/\[\d+\]\[(name|qty|note|amount)\]$/, `[${index}][$1]`);
                 });
                 list.appendChild(row);
                 return;

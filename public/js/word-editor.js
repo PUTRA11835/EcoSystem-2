@@ -483,11 +483,12 @@
         $$('[data-table]').forEach(b => b.addEventListener('click', () => { run(() => tableOp(b.dataset.table)); closePops(); }));
 
         // fields (placeholders)
-        const fields = JSON.parse(root.dataset.fields || '{}');
+        // read each time: a host page (letter template designer) may change the list while editing and ping 'we-fields'
+        const readFields = () => JSON.parse(root.dataset.fields || '{}');
         const typeSel = root.dataset.typeSelect ? document.getElementById(root.dataset.typeSelect) : null;
         const fieldList = $('.we-field-list'), fieldFilter = $('.we-fields input');
         function renderFields() {
-            const ext = typeSel && typeSel.value === 'EXTERNAL', set = fields[ext ? 'external' : 'employee'] || {}, q = (fieldFilter.value || '').toLowerCase();
+            const ext = typeSel && typeSel.value === 'EXTERNAL', set = readFields()[ext ? 'external' : 'employee'] || {}, q = (fieldFilter.value || '').toLowerCase();
             fieldList.innerHTML = Object.entries(set).filter(([k, m]) => !q || k.includes(q) || m.toLowerCase().includes(q))
                 .map(([k, m]) => '<button type="button" class="we-field" data-token="{{' + k + '}}"><code>{{' + k + '}}</code><small>' + esc(m) + '</small></button>').join('') || '<p class="text-xs text-gray-400 p-2">No field matches.</p>';
         }
@@ -495,6 +496,7 @@
         // Enter inside the form would save the template: here it inserts the first matching field instead
         fieldFilter.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const f = fieldList.querySelector('[data-token]'); if (f) f.click(); } });
         if (typeSel) typeSel.addEventListener('change', renderFields);
+        root.addEventListener('we-fields', renderFields);
         renderFields();
         fieldList.addEventListener('click', e => { const f = e.target.closest('[data-token]'); if (f) { run(() => exec('insertText', f.dataset.token)); closePops(); } });
 
@@ -947,6 +949,8 @@
             fd.append('body_html', getHTML());
             fd.append('contract_type', typeSel ? typeSel.value : 'PKWT');
             fd.append('use_letterhead', !lhToggle || lhToggle.checked ? '1' : '0');
+            // host page: more inputs to send along (e.g. the letter language and field definitions)
+            if (root.dataset.previewExtra) document.querySelectorAll(root.dataset.previewExtra).forEach(i => { if (i.name) fd.append(i.name, i.value); });
             fd.append('page_size', ps.size); fd.append('page_orientation', ps.orient);
             SIDES.forEach(x => fd.append('margin_' + x, ps.m[x] === null ? '' : String(ps.m[x])));
             const box = modal('preview'), frame = box.querySelector('iframe'), msg = box.querySelector('.we-prev-msg');
@@ -965,7 +969,7 @@
                 if (e.defaultPrevented) return;
                 flush(); clearMarks();
                 hidden.value = getHTML();
-                if (!ed.textContent.trim()) { e.preventDefault(); if (window.showNotification) window.showNotification('The contract text cannot be empty.', 'error'); }
+                if (!root.dataset.allowEmpty && !ed.textContent.trim()) { e.preventDefault(); if (window.showNotification) window.showNotification('The contract text cannot be empty.', 'error'); }
             });
         }
 

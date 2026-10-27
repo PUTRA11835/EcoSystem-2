@@ -7,6 +7,7 @@ use App\Models\EmployeePayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 
 class EmployeePaymentController extends Controller
@@ -151,13 +152,14 @@ class EmployeePaymentController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = null;
         $validator = Validator::make($request->all(), [
             // Payment Details
             'amount' => 'required|numeric|min:0',
             'paid_at' => 'nullable|date',
-            'payment_method' => 'nullable|string|max:100',
-            'reference_number' => 'nullable|string|max:100|unique:employee_payment,reference_number',
-            'payment_status' => 'nullable|string|in:Pending,Completed,Failed,Processing,Cancelled',
+            'payment_method' => array_filter(['nullable', 'string', 'max:100', MD::inRule('payment', 'payment_method', $cur->payment_method ?? null)]),
+            'reference_number' => 'nullable|string|max:' . MD::maxLength('payment', 'reference_max_length') . '|unique:employee_payment,reference_number',
+            'payment_status' => array_filter(['nullable', 'string', 'max:50', MD::inRule('payment', 'payment_status', $cur->payment_status ?? null)]),
             
             // Validity
             'valid_to' => 'nullable|date',
@@ -270,13 +272,14 @@ class EmployeePaymentController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = DB::table('employee_payment')->where('payment_id', $paymentId)->first();
         $validator = Validator::make($request->all(), [
             // Payment Details
             'amount' => 'required|numeric|min:0',
             'paid_at' => 'nullable|date',
-            'payment_method' => 'nullable|string|max:100',
-            'reference_number' => 'nullable|string|max:100|unique:employee_payment,reference_number,' . $paymentId . ',payment_id',
-            'payment_status' => 'nullable|string|in:Pending,Completed,Failed,Processing,Cancelled',
+            'payment_method' => array_filter(['nullable', 'string', 'max:100', MD::inRule('payment', 'payment_method', $cur->payment_method ?? null)]),
+            'reference_number' => 'nullable|string|max:' . MD::maxLength('payment', 'reference_max_length') . '|unique:employee_payment,reference_number,' . $paymentId . ',payment_id',
+            'payment_status' => array_filter(['nullable', 'string', 'max:50', MD::inRule('payment', 'payment_status', $cur->payment_status ?? null)]),
             
             // Validity
             'valid_to' => 'nullable|date',
@@ -755,7 +758,8 @@ class EmployeePaymentController extends Controller
     public function getByDateRange(Request $request, $employeeId)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $cur = null;
+        $validator = Validator::make($request->all(), [
                 'start_date' => 'required|date',
                 'end_date' => 'required|date|after_or_equal:start_date',
             ]);

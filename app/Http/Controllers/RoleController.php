@@ -21,7 +21,8 @@ class RoleController extends Controller
 
     public function index()
     {
-        $roles = EmployeeRole::withCount('employees')->orderBy('id')->get();
+        // `menus_count`: how many menus the role can open (View) — the same number the Menu Access page and Menu List agree on.
+        $roles = EmployeeRole::withCount(['employees', 'menus as menus_count' => fn ($q) => $q->where('role_menu.can_view', true)])->orderBy('id')->get();
         return response()->json(['success' => true, 'data' => $roles]);
     }
 

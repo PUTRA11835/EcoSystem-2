@@ -337,10 +337,10 @@
                 }
                 hint.className = 'text-xs text-purple-700 font-semibold mt-1 block';
             } else if (qItem.remaining_quota <= 0) {
-                hint.innerText = '⚠️ Quota for this leave type has been exhausted.';
+                hint.innerText = quotaHintFor(qItem);
                 hint.className = 'text-xs text-red-600 font-bold mt-1 block';
             } else {
-                hint.innerText = `Available Remaining Quota: ${qItem.remaining_quota} day(s).`;
+                hint.innerText = quotaHintFor(qItem);
                 hint.className = 'text-xs text-green-600 font-semibold mt-1 block';
             }
         }
@@ -364,11 +364,8 @@
             badge.classList.remove('hidden');
             badge.classList.add('flex');
         } else if (start && end) {
-            const d1 = new Date(start);
-            const d2 = new Date(end);
-            if (d2 >= d1) {
-                const diffTime = Math.abs(d2 - d1);
-                requestedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            if (end >= start) {
+                requestedDays = countBusinessDays(start, end);
                 val.innerText = `${requestedDays} day(s)`;
                 badge.classList.remove('hidden');
                 badge.classList.add('flex');
@@ -384,7 +381,7 @@
         const qItem = cachedUserQuotas.find(q => q.type_id === typeId);
         if (warnBanner && qItem && !qItem.is_event_based && requestedDays > 0) {
             if (requestedDays > qItem.remaining_quota) {
-                if (warnText) warnText.innerText = `Requested duration (${requestedDays} day(s)) exceeds your available remaining quota balance (${qItem.remaining_quota} day(s)). Application cannot be submitted.`;
+                if (warnText) warnText.innerText = `Requested ${requestedDays} day(s) of ${qItem.type_name} (${qItem.type_code}) exceeds your remaining ${qItem.type_name} quota (${qItem.remaining_quota} day(s)). Quota is counted per leave type. Application cannot be submitted.`;
                 warnBanner.classList.remove('hidden');
                 warnBanner.classList.add('flex');
             } else {
@@ -442,15 +439,14 @@
                 : 'No WFH / Off for remainder of day';
             reason += ` [Half-Day Leave: ${wfhText}]`;
         } else {
-            const diffTime = Math.abs(d2 - d1);
-            requestedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            requestedDays = countBusinessDays(start, end);
         }
 
         const qItem = cachedUserQuotas.find(q => q.type_id === typeId);
 
         if (qItem && !qItem.is_event_based && requestedDays > qItem.remaining_quota) {
             if (typeof showToast === 'function') {
-                showToast(`Cannot submit application: Requested duration (${requestedDays} day(s)) exceeds your remaining quota balance (${qItem.remaining_quota} day(s)).`, 'error');
+                showToast(`Cannot submit application: Requested ${requestedDays} day(s) of ${qItem.type_name} exceeds your remaining ${qItem.type_name} quota (${qItem.remaining_quota} day(s)).`, 'error');
             }
             const warnBanner = document.getElementById('applyQuotaWarningBanner');
             if (warnBanner) {

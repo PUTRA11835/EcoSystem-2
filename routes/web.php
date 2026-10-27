@@ -649,23 +649,30 @@ Route::middleware(CheckAuthToken::class)->group(function () {
             ->middleware('menu:management.module-groups')
             ->name('module-groups.index');
 
+        // Management → Employee: settings of each section of the employee profile (dropdown lists + rules). The tab a route belongs to is a
+        // literal of the route group's own prefix, never a request value; View opens the tab, Create adds an option, Edit changes / moves one or the rules, Delete removes one.
         Route::prefix('employee')->name('employee.')->group(function () {
-            Route::get('/basic-data',     [\App\Http\Controllers\ManagementEmployeeController::class, 'basicData'])    ->middleware('menu:management.employee.basic-data')    ->name('basic-data.index');
-            Route::get('/address',        [\App\Http\Controllers\ManagementEmployeeController::class, 'address'])      ->middleware('menu:management.employee.address')        ->name('address.index');
-            Route::get('/identification', [\App\Http\Controllers\ManagementEmployeeController::class, 'identification'])->middleware('menu:management.employee.identification') ->name('identification.index');
-            Route::get('/family',         [\App\Http\Controllers\ManagementEmployeeController::class, 'family'])       ->middleware('menu:management.employee.family')         ->name('family.index');
-            Route::get('/education',      [\App\Http\Controllers\ManagementEmployeeController::class, 'education'])    ->middleware('menu:management.employee.education')      ->name('education.index');
-            Route::get('/qualification',  [\App\Http\Controllers\ManagementEmployeeController::class, 'qualification']) ->middleware('menu:management.employee.qualification')  ->name('qualification.index');
-            Route::get('/contract',       [\App\Http\Controllers\ManagementEmployeeController::class, 'contract'])     ->middleware('menu:management.employee.contract')       ->name('contract.index');
-            Route::get('/bank',           [\App\Http\Controllers\ManagementEmployeeController::class, 'bank'])         ->middleware('menu:management.employee.bank')           ->name('bank.index');
-            Route::get('/payment',        [\App\Http\Controllers\ManagementEmployeeController::class, 'payment'])      ->middleware('menu:management.employee.payment')        ->name('payment.index');
-            Route::get('/attachment',     [\App\Http\Controllers\ManagementEmployeeController::class, 'attachment'])   ->middleware('menu:management.employee.attachment')     ->name('attachment.index');
-            // Data satu seksi untuk halaman di atas: SATU permintaan (join + pagination + pencarian di server), bukan satu per karyawan.
-            foreach (['address', 'identification', 'family', 'education', 'bank', 'payment', 'attachment'] as $recordSection) {
-                Route::get("/{$recordSection}/data", [\App\Http\Controllers\ManagementEmployeeRecordsController::class, 'data'])
-                    ->defaults('section', $recordSection)
-                    ->middleware("menu:management.employee.{$recordSection}")
-                    ->name("{$recordSection}.data");
+            $pages = [
+                'basic-data' => 'basicData', 'address' => 'address', 'identification' => 'identification', 'family' => 'family', 'education' => 'education',
+                'qualification' => 'qualification', 'contract' => 'contract', 'bank' => 'bank', 'payment' => 'payment', 'attachment' => 'attachment',
+            ];
+
+            foreach ($pages as $section => $action) {
+                $slug = \App\Support\Management\EmployeeMasterSettings::SLUGS[$section];
+                $can = fn (string $ability) => "menu.can:{$slug},{$ability}";
+
+                Route::prefix($section)->name("{$section}.")->middleware("menu:{$slug}")->group(function () use ($action, $can) {
+                    Route::get('/', [\App\Http\Controllers\ManagementEmployeeController::class, $action])->name('index');
+
+                    $settings = \App\Http\Controllers\Management\EmployeeSettingsController::class;
+                    Route::post('/options', [$settings, 'storeOption'])->name('options.store')->middleware($can('create'));
+                    Route::post('/settings', [$settings, 'updateSettings'])->name('settings.update')->middleware($can('edit'));
+                    Route::whereNumber('optionId')->group(function () use ($settings, $can) {
+                        Route::post('/options/{optionId}/update', [$settings, 'updateOption'])->name('options.update')->middleware($can('edit'));
+                        Route::post('/options/{optionId}/move', [$settings, 'moveOption'])->name('options.move')->middleware($can('edit'));
+                        Route::post('/options/{optionId}/delete', [$settings, 'destroyOption'])->name('options.destroy')->middleware($can('delete'));
+                    });
+                });
             }
         });
     });

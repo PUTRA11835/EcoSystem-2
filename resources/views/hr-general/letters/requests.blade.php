@@ -78,7 +78,7 @@
                                     <span class="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold" title="Typed by the employee — answered with a custom letter">OTHER</span>
                                 @endif
                                 <span class="block text-[10px] text-gray-400">
-                                    {{ $letterRequest->usesTemplate() ? 'Template: ' . \App\Support\Letters\LetterTemplates::label($letterRequest->template_key) : 'Custom letter' }}
+                                    {{ $letterRequest->usesTemplate() ? 'Template: ' . \App\Support\Letters\LetterTemplates::label($letterRequest->template_key) : 'Custom letter — start from any template, then adjust' }}
                                 </span>
                                 <span class="block text-[10px] text-gray-500 mt-0.5">{{ $letterRequest->purpose }}</span>
                                 @if($letterRequest->notes)
@@ -123,7 +123,7 @@
                                         @if(!$letter && $canCompose)
                                             {{-- Opens Create Letter with the request filled in. --}}
                                             @include($action, [
-                                                'icon' => 'pen-to-square', 'tone' => 'blue', 'label' => $letterRequest->usesTemplate() ? 'Process: generate the letter from its template' : 'Process: write it as a custom letter',
+                                                'icon' => 'pen-to-square', 'tone' => 'blue', 'label' => $letterRequest->usesTemplate() ? 'Process: generate the letter from its template' : 'Process: start from a template (or blank) and adjust the wording for this letter',
                                                 'post' => route('general.letters.requests.process', $letterRequest),
                                             ])
                                         @endif

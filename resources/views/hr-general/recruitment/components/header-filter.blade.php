@@ -45,6 +45,8 @@
     $active = $isRange
         ? array_filter($rangeValue, fn ($v) => $v !== '' && $v !== null) !== []
         : ($type === 'checkboxes' ? $selected !== [] : ($selected !== '' && $selected !== (string) $default));
+    // The icon says what the filter is: a magnifier to search, a caret for a dropdown list, a checklist, a calendar, sliders.
+    $filterIcon = ['search' => 'fa-magnifying-glass', 'options' => 'fa-caret-down', 'checkboxes' => 'fa-list-check', 'range' => 'fa-sliders', 'daterange' => 'fa-calendar-days'][$type] ?? 'fa-filter';
     $optionRow = 'w-full flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-left hover:bg-gray-50 transition-colors';
 @endphp
 @unless($inline ?? false)<th class="px-4 py-3 {{ $thClass ?? '' }}">@endunless
@@ -57,8 +59,8 @@
         <button type="button" data-hf-btn data-hf-target="{{ $popoverId }}" onclick="toggleHF(event, '{{ $popoverId }}')"
             class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ $active ? '' : 'text-gray-400 hover:text-gray-600' }}"
             @if($active) style="color: var(--primary-color);" @endif
-            title="Filter {{ $label }}" aria-label="Filter {{ $label }}" aria-haspopup="true">
-            <i class="fas fa-filter text-[10px]"></i>
+            title="{{ $type === 'search' ? 'Search' : 'Filter' }} {{ $label }}" aria-label="{{ $type === 'search' ? 'Search' : 'Filter' }} {{ $label }}" aria-haspopup="true">
+            <i class="fas {{ $filterIcon }} text-[10px]"></i>
             <span data-hf-dot class="{{ $active ? '' : 'hidden' }} absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ring-2 ring-white" style="background: var(--primary-color);"></span>
         </button>
     </div>

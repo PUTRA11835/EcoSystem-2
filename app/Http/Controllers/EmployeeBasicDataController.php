@@ -7,6 +7,7 @@ use App\Models\EmployeeBasicData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 
 class EmployeeBasicDataController extends Controller
 {
@@ -141,16 +142,16 @@ class EmployeeBasicDataController extends Controller
 
         $validator = Validator::make($request->all(), [
             // Identitas Pribadi
-            'title'     => 'nullable|string|max:10',
-            'nick_name' => 'required|string|max:100|' . $nickNameUnique,
-            'gender' => 'nullable|string|max:10',
-            'religion' => 'nullable|string|max:50',
-            'first_name' => 'required|string|max:255',
+            'title' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'title', null)]),
+            'nick_name' => 'required|string|max:' . MD::maxLength('basic-data', 'nick_name_max_length') . '|' . $nickNameUnique,
+            'gender' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'gender', null)]),
+            'religion' => array_filter(['nullable', 'string', 'max:50', MD::inRule('basic-data', 'religion', null)]),
+            'first_name' => ['required', 'string', 'max:' . MD::maxLength('basic-data', 'first_name_max_length')],
             'last_name' => 'nullable|string|max:255',
             'search_term_1' => 'nullable|string|max:255',
             'search_term_2' => 'nullable|string|max:255',
-            'marital_status' => 'nullable|string|max:50',
-            'education_level' => 'nullable|in:SD,SMP,SMA/SMK,D1,D2,D3,D4,S1,S2,S3',
+            'marital_status' => array_filter(['nullable', 'string', 'max:50', MD::inRule('basic-data', 'marital_status', null)]),
+            'education_level' => array_filter(['nullable', 'string', 'max:20', MD::inRule('basic-data', 'education_level', null)]),
             'birth_date' => 'nullable|date',
             'birth_place' => 'nullable|string|max:255',
             'since_date' => 'nullable|date',
@@ -325,16 +326,16 @@ class EmployeeBasicDataController extends Controller
 
             // Validate only provided fields
             $validator = Validator::make($request->all(), [
-                'title' => 'nullable|string|max:10',
+                'title' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'title', null)]),
                 'nick_name' => 'sometimes|required|string|max:100|unique:employee_basic_data,nick_name,' . $basicData->basic_data_id . ',basic_data_id',
-                'gender' => 'nullable|in:Male,Female',
-                'religion' => 'nullable|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu,Confucian',   // 'Confucian' = nilai lama, tetap diterima
+                'gender' => array_filter(['nullable', 'string', 'max:10', MD::inRule('basic-data', 'gender', $basicData->gender ?? null)]),
+                'religion' => array_filter(['nullable', 'string', 'max:50', MD::inRule('basic-data', 'religion', $basicData->religion ?? null)]),   // the saved value stays valid (e.g. old "Confucian")
                 'first_name' => 'nullable|string|max:255',
                 'last_name' => 'nullable|string|max:255',
                 'search_term_1' => 'nullable|string|max:255',
                 'search_term_2' => 'nullable|string|max:255',
-                'marital_status' => 'nullable|string|max:50',
-                'education_level' => 'nullable|in:SD,SMP,SMA/SMK,D1,D2,D3,D4,S1,S2,S3',
+                'marital_status' => array_filter(['nullable', 'string', 'max:50', MD::inRule('basic-data', 'marital_status', null)]),
+                'education_level' => array_filter(['nullable', 'string', 'max:20', MD::inRule('basic-data', 'education_level', null)]),
                 'birth_date' => 'nullable|date',
                 'birth_place' => 'nullable|string|max:255',
                 'since_date' => 'nullable|date',

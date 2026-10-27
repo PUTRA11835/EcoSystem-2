@@ -29,11 +29,12 @@
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Name</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Description</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Members</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Menu access</th>
                     <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
                 </tr>
             </thead>
             <tbody id="rolesTableBody" class="divide-y divide-gray-100">
-                <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
+                <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">Loading...</td></tr>
             </tbody>
         </table>
     </div>
@@ -109,6 +110,7 @@
     </div>
 </div>
 
+<script src="{{ asset('js/permission-sync.js') }}?v={{ @filemtime(public_path('js/permission-sync.js')) }}"></script>
 <script>
 let rolesData = [];
 let currentRoleId = null;
@@ -140,7 +142,7 @@ function renderRoles() {
         : rolesData;
 
     if (!filtered.length) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">${query ? 'No roles match your search.' : 'No roles found.'}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">${query ? 'No roles match your search.' : 'No roles found.'}</td></tr>`;
         return;
     }
     tbody.innerHTML = filtered.map(role => `
@@ -153,6 +155,11 @@ function renderRoles() {
                     class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
                     ${role.employees_count} member${role.employees_count !== 1 ? 's' : ''}
                 </button>
+            </td>
+            <td class="px-4 py-3">
+                <a href="/management/roles/${role.id}/menu-access" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 transition-colors" title="Menus this role can open">
+                    ${role.menus_count ?? 0} menu${(role.menus_count ?? 0) !== 1 ? 's' : ''}
+                </a>
             </td>
             <td class="px-4 py-3">
                 <div class="flex items-center gap-2">
@@ -339,5 +346,9 @@ function escHtml(str) {
 
 // Init
 loadRoles();
+
+// In step with the Menu Access page and the Menu List: their saves change the "Menu access" count here.
+PermissionSync.subscribe(() => loadRoles());
+PermissionSync.onStale(() => loadRoles());
 </script>
 @endsection

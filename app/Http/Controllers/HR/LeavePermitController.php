@@ -475,12 +475,9 @@ class LeavePermitController extends Controller
         $user       = session('user');
         $employeeId = $user['id'] ?? null;
 
-        $employeeModel = $employeeId ? Employee::find($employeeId) : null;
-        $isHR = false;
-        if ($employeeModel) {
-            $isHR = $employeeModel->canAccessMenu('hr_general.leave-permit.manage')
-                || $employeeModel->hasAnyRole([1, 4, 5, 7]);
-        }
+        
+        $isHR = $this->menuCan('can_view', 'hr_general.leave_permit.tab-inbox')
+            || $this->menuCan('can_view');
 
         $query = LeavePermitApplication::with(['employee.basicData', 'leavePermitType', 'reviewer.basicData', 'logs.performer.basicData']);
 
@@ -495,7 +492,15 @@ class LeavePermitController extends Controller
         }
 
         if ($request->filled('year')) {
-            $query->whereYear('start_date', $request->year);
+            // include_open: requests still waiting on a decision are listed whatever year they start in, so the
+            // "N request" pending counter in the page header always matches what the inbox shows.
+            if ($request->boolean('include_open')) {
+                $query->where(function ($q) use ($request) {
+                    $q->whereYear('start_date', $request->year)->orWhereIn('status', ['pending', 'revision']);
+                });
+            } else {
+                $query->whereYear('start_date', $request->year);
+            }
         }
 
         if ($request->filled('month')) {
@@ -957,8 +962,8 @@ class LeavePermitController extends Controller
 
         $byEmployee = $applications->groupBy('employee_id')->map(function ($items) {
             $first = $items->first();
-            $empName = $first->employee && $first->employee->basicData 
-                ? $first->employee->basicData->full_name 
+            $empName = $first->employee && $first->employee->basicData
+                ? $first->employee->basicData->full_name
                 : ($first->employee ? $first->employee->eci : 'Emp #' . $first->employee_id);
             $eci = $first->employee ? $first->employee->eci : '-';
             return [

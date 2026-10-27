@@ -7,6 +7,7 @@ use App\Models\EmployeeFamily;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\JsonResponse;
 
@@ -23,6 +24,10 @@ class EmployeeFamilyController extends Controller
         if ($value === null || $value === '') {
             return null;
         }
+        // A value the Management → Employee → Family list offers is kept as it is; only the old spellings around it are normalised.
+        if (in_array($value, MD::values('family', 'religion'), true)) {
+            return $value;
+        }
         $map = [
             'christianity' => 'Christian', 'christian' => 'Christian', 'protestant' => 'Christian', 'kristen' => 'Christian',
             'catholicism' => 'Catholic', 'catholic' => 'Catholic', 'katolik' => 'Catholic',
@@ -38,18 +43,18 @@ class EmployeeFamilyController extends Controller
     /**
      * Validation rules for family member
      */
-    private function validationRules(): array
+    private function validationRules(?object $cur = null): array
     {
         return [
-            'name' => 'required|string|max:255',
+            'name' => ['required', 'string', 'max:' . MD::maxLength('family', 'name_max_length')],
             'title' => 'nullable|string|max:50',
-            'relation' => 'required|string|in:spouse,child,parent,father,mother,sibling,brother,sister,other',
-            'gender' => 'nullable|string|in:Male,Female',
-            'religion' => 'nullable|string|in:Islam,Christian,Catholic,Hindu,Buddhist,Konghucu',
+            'relation' => array_filter(['required', 'string', 'max:50', MD::inRule('family', 'relation', $cur->relation ?? null)]),
+            'gender' => array_filter(['nullable', 'string', 'max:50', MD::inRule('family', 'gender', $cur->gender ?? null)]),
+            'religion' => array_filter(['nullable', 'string', 'max:100', MD::inRule('family', 'religion', $cur->religion ?? null)]),
             'country' => 'nullable|string|max:255',
             'birth_place' => 'nullable|string|max:255',
             'birth_date' => 'nullable|date|before_or_equal:today',
-            'occupation' => 'nullable|string|max:255',
+            'occupation' => ['nullable', 'string', 'max:' . MD::maxLength('family', 'occupation_max_length')],
             'is_alive' => 'nullable|boolean',
             'valid_from' => 'nullable|date',
             'valid_to' => 'nullable|date|after_or_equal:valid_from',
@@ -129,7 +134,7 @@ class EmployeeFamilyController extends Controller
     public function store(Request $request, string $employeeId): JsonResponse
     {
         $request->merge(['religion' => self::normalizeReligion($request->input('religion'))]);
-        $validator = Validator::make($request->all(), $this->validationRules());
+        $validator = Validator::make($request->all(), $this->validationRules(null));
 
         $this->friendly($validator);
 
@@ -192,7 +197,7 @@ class EmployeeFamilyController extends Controller
     public function update(Request $request, string $employeeId, int $familyId): JsonResponse
     {
         $request->merge(['religion' => self::normalizeReligion($request->input('religion'))]);
-        $validator = Validator::make($request->all(), $this->validationRules());
+        $validator = Validator::make($request->all(), $this->validationRules(DB::table('employee_family')->where('family_id', $familyId)->first()));
 
         $this->friendly($validator);
 
@@ -358,9 +363,9 @@ class EmployeeFamilyController extends Controller
         $validator = Validator::make($request->all(), [
             'families' => 'required|array|min:1',
             'families.*.name' => 'required|string|max:255',
-            'families.*.relation' => 'required|string|in:spouse,child,parent,father,mother,sibling,brother,sister,other',
+            'families.*.relation' => array_filter(['required', 'string', 'max:50', MD::inRule('family', 'relation', null)]),
             'families.*.title' => 'nullable|string|max:50',
-            'families.*.gender' => 'nullable|string|in:Male,Female',
+            'families.*.gender' => array_filter(['nullable', 'string', 'max:50', MD::inRule('family', 'gender', null)]),
             'families.*.birth_date' => 'nullable|date|before_or_equal:today',
         ]);
 

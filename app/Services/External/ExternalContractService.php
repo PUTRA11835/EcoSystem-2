@@ -99,7 +99,7 @@ class ExternalContractService
         $row->scheme_key = ExternalRules::schemeKey($row->engagement_scheme);
         $row->scheme_label = $row->scheme_key !== null ? ExternalRules::schemeLabel($row->scheme_key) : null;
         $row->ending_soon = $row->effective_status === ContractRules::STATUS_ACTIVE && $row->end_date
-            && $row->end_date <= now()->addDays((int) config('hc_contract.expiring_soon_days', 30))->toDateString();
+            && $row->end_date <= now()->addDays((int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days'))->toDateString();
         $row->has_signed = !empty($row->signed_file_path);
         if (property_exists($row, 'rate')) {
             $row->rate_text = $row->rate !== null ? ExternalRules::money($row->rate, $row->currency) : null;

@@ -13,6 +13,10 @@
 @php
     $ownView   = isset($isOwnProfile) && $isOwnProfile;
     $manageUrl = !$ownView && $canDo('general.contracts.list') ? route('general.contracts.show', $employeeId) : null;
+    // Management → Employee → Contract: what an employee sees on their own profile (HR viewing someone else is unaffected).
+    $showSalary = $ownView && \App\Services\Management\EmployeeMasterData::rule('contract', 'show_salary');
+    $soonDays   = (int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days');
+    $cols       = 5 + ($ownView ? 1 : 0) + ($showSalary ? 1 : 0);
 @endphp
 <div id="contractRecap" class="space-y-4">
     {{-- My Profile: contracts forwarded to me to approve (filled in by the script when there are any). --}}
@@ -43,7 +47,7 @@
                     <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Type</th>
                     <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Position</th>
                     <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Period</th>
-                    @if($ownView)
+                    @if($showSalary)
                         <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Salary</th>
                     @endif
                     <th class="text-left px-4 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
@@ -53,7 +57,7 @@
                 </tr>
             </thead>
             <tbody id="contractTableBody" class="bg-white divide-y divide-gray-100">
-                <tr><td colspan="{{ $ownView ? 7 : 5 }}" class="px-4 py-10 text-center text-sm text-gray-400">Loading contracts…</td></tr>
+                <tr><td colspan="{{ $cols }}" class="px-4 py-10 text-center text-sm text-gray-400">Loading contracts…</td></tr>
             </tbody>
         </table>
     </div>
@@ -63,7 +67,9 @@
 (function () {
     const empId   = {{ (int) $employeeId }};
     const OWN     = @json($ownView);
-    const COLS    = OWN ? 7 : 5;
+    const SALARY  = @json($showSalary);
+    const SOON    = {{ $soonDays }};
+    const COLS    = {{ $cols }};
     const body    = document.getElementById('contractTableBody');
     const esc     = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const date    = d => d ? new Date(d).toLocaleDateString('id-ID', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
@@ -75,7 +81,7 @@
         if (!c.end_date) return badge('bg-blue-100 text-blue-800', 'Active (Permanent)');
         const days = Math.ceil((new Date(c.end_date) - new Date()) / 86400000);
         if (days < 0) return badge('bg-red-100 text-red-800', 'Expired');
-        if (days <= 30) return badge('bg-yellow-100 text-yellow-800', 'Expiring Soon');
+        if (days <= SOON) return badge('bg-yellow-100 text-yellow-800', 'Expiring Soon');
         return badge('bg-green-100 text-green-800', 'Active');
     }
 
@@ -85,7 +91,7 @@
 
     // The active components' total stands in for contract.salary on My Profile; only the active contract carries it.
     async function activeTotal() {
-        if (!OWN) return null;
+        if (!SALARY) return null;
         try {
             const res = await fetch('/api/profile/salary-summary', { headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, credentials: 'same-origin' });
             const json = await res.json();
@@ -141,7 +147,7 @@
                 <td class="px-4 py-3 text-sm">${badge('bg-blue-100 text-blue-800', esc(c.contract_type || '-'))}</td>
                 <td class="px-4 py-3 text-sm text-gray-600">${esc(c.position || '-')}</td>
                 <td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">${date(c.start_date)} – ${c.end_date ? date(c.end_date) : 'Permanent'}</td>
-                ${OWN ? `<td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">${inForce && c.contract_id === inForce.contract_id && total !== null ? `<span class="font-semibold text-gray-900">${rupiah(total)}</span>` : '-'}</td>` : ''}
+                ${SALARY ? `<td class="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">${inForce && c.contract_id === inForce.contract_id && total !== null ? `<span class="font-semibold text-gray-900">${rupiah(total)}</span>` : '-'}</td>` : ''}
                 <td class="px-4 py-3 text-sm">${status(c)}</td>
                 ${OWN ? `<td class="px-4 py-3 text-sm">${signingCell(c, state)}</td>` : ''}
             </tr>`).join('');
