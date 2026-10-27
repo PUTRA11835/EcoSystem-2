@@ -5,7 +5,7 @@ namespace App\Http\Controllers\HR;
 use App\Http\Controllers\Controller;
 use App\Models\DeliveryProject;
 use App\Models\Employee;
-use App\Models\EmployeeBasicData;
+use App\Models\Position;
 use App\Models\EmployeeRole;
 use App\Models\KpiEvaluation;
 use App\Models\KpiEvaluationDetail;
@@ -134,12 +134,8 @@ class KpiTemplateController extends Controller
     {
         $roles = EmployeeRole::orderBy('name')->get(['id', 'name']);
 
-        $positions = EmployeeBasicData::whereNotNull('position')
-            ->where('position', '!=', '')
-            ->distinct()
-            ->orderBy('position')
-            ->pluck('position')
-            ->values();
+        // Master data > Positions (active rows), the same list the employee Basic Data dropdown uses.
+        $positions = collect(Position::options());
 
         $employees = Employee::with(['basicData', 'roles', 'deliveryProjects'])
             ->where('is_active', true)

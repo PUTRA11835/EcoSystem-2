@@ -467,9 +467,6 @@ class CashAdvanceSettingController extends Controller
 
             'locked_period_policy'          => ['required', Rule::in(CashAdvanceSetting::LOCK_POLICIES)],
 
-            'accounting_signer_employee_id' => ['nullable', 'integer', 'exists:employee,employee_id'],
-            'cashier_signer_employee_id'    => ['nullable', 'integer', 'exists:employee,employee_id'],
-
             'require_car_before_new_ca'     => ['nullable', 'boolean'],
             'car_due_days'                  => ['required', 'integer', 'min:0', 'max:3650'],
             'car_reminders_enabled'         => ['nullable', 'boolean'],

@@ -83,12 +83,12 @@ class MyLetterRequestController extends Controller
         return back()->with('success', 'Your request was cancelled.');
     }
 
-    /** The finished letter: the signed / stamped scan if HR uploaded one, else the generated (signed) PDF. */
+    /** The result: the signed / stamped scan if HR uploaded one, else the generated (signed) PDF — once HR signed it, even before it is emailed. */
     public function download(LetterRequest $letterRequest)
     {
         $this->authorizeOwn($letterRequest);
         $letter = $letterRequest->activeLetter();
-        abort_unless($letterRequest->isDone() && $letter, 404);
+        abort_unless($letterRequest->isReady() && $letter, 404);
 
         return $this->serve($letter);
     }

@@ -1,36 +1,43 @@
 @extends('dashboard')
 
-@section('title', 'Master Module')
-@section('page-title', 'Master Module')
+@section('title', 'Employee Qualification')
+@section('page-title', 'Employee Qualification')
+@section('page-subtitle', 'The modules consultants can hold, and the choices on the Qualification form')
 
+{{-- Two blocks: the Master Module list (sec-modules) and the settings of the Qualification section of the profile, with the mini sidebar beside them. --}}
 @section('content')
-<div class="bg-white rounded-xl p-6 shadow-sm">
+<div class="w-full px-1 lg:px-2 lg:flex lg:gap-6 items-start space-y-4 lg:space-y-0">
+@include('management.employee.components.mini-sidebar', ['extraAnchors' => [['sec-modules', 'Modules', 'fa-cubes']]])
+
+<div class="flex-1 min-w-0 space-y-5">
+<div id="sec-modules" class="scroll-mt-24 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
 
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b-2 border-gray-100">
-        <div>
-            <h2 class="text-2xl font-bold text-gray-900">Master Module</h2>
-            <p class="text-sm text-gray-500 mt-1">Manage the list of modules available for consultants</p>
+    <div class="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            <h3 class="text-base font-bold text-gray-900">Modules</h3>
+            <span id="moduleCount" class="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[11px] font-semibold"></span>
         </div>
-        <button onclick="openCreateModal()" class="inline-flex items-center px-4 py-2 bg-red-800 text-white text-sm font-semibold rounded-lg hover:bg-red-900 transition-all">
-            <i class="fas fa-plus mr-2"></i> Add Module
-        </button>
-    </div>
-
-    <!-- Search & Filter -->
-    <div class="flex flex-col sm:flex-row gap-3 mb-4">
-        <input type="text" id="moduleSearch" placeholder="Search module name..."
-            oninput="filterModules()"
-            class="w-full sm:w-72 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-        <select id="statusFilter" onchange="filterModules()" class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800">
-            <option value="">All Status</option>
-            <option value="1">Active</option>
-            <option value="0">Inactive</option>
-        </select>
+        <div class="flex flex-wrap items-center gap-2">
+            <label class="relative">
+                <span class="sr-only">Search module</span>
+                <i class="fas fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] text-gray-400"></i>
+                <input type="search" id="moduleSearch" placeholder="Search module…" oninput="filterModules()"
+                    class="w-44 pl-7 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200">
+            </label>
+            <select id="statusFilter" onchange="filterModules()" aria-label="Status" class="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                <option value="">All status</option>
+                <option value="1">Active</option>
+                <option value="0">Inactive</option>
+            </select>
+            <button onclick="openCreateModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 shadow-sm">
+                <i class="fas fa-plus text-[10px]"></i> Add module
+            </button>
+        </div>
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto border border-gray-200 rounded-lg">
+    <div class="overflow-x-auto border-t border-gray-100">
         <table class="w-full text-sm">
             <thead class="bg-gray-50 border-b border-gray-200">
                 <tr>
@@ -49,8 +56,14 @@
             </tbody>
         </table>
     </div>
-    <div class="mt-3 text-xs text-gray-400" id="moduleCount"></div>
 </div>
+
+{{-- The dropdown lists of the Qualification section of the employee profile (Management → Employee settings). --}}
+@include('hr-general.recruitment.components.form-errors')
+@include('management.employee.components.settings-panel')
+</div>
+</div>
+@include('hr-general.recruitment.components.confirm-forms')
 
 <!-- Modal Create/Edit -->
 <div id="moduleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -220,7 +233,7 @@
 
     function renderTable(modules) {
         const tbody = document.getElementById('moduleTableBody');
-        document.getElementById('moduleCount').textContent = modules.length + ' module(s)';
+        document.getElementById('moduleCount').textContent = modules.length + (modules.length === 1 ? ' module' : ' modules');
 
         if (!modules.length) {
             tbody.innerHTML = `<tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No modules yet</td></tr>`;

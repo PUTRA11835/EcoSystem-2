@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
@@ -45,17 +46,20 @@ class EmployeeAttachmentController extends Controller
      */
     public function store(Request $request, $employeeId)
     {
+        $maxMb = (int) MD::rule('attachment', 'max_file_size_mb');
+        $extensions = MD::allowedExtensions();
+
         $validator = Validator::make($request->all(), [
-            'document_type'  => 'required|string|max:100',
+            'document_type'  => array_filter(['required', 'string', 'max:100', MD::inRule('attachment', 'document_type')]),
             'document_title' => 'required|string|max:255',
             'description'    => 'nullable|string',
-            'file'           => 'required|file|max:10240|mimes:pdf,doc,docx,jpg,jpeg,png,xlsx,xls',
+            'file'           => ['required', 'file', 'max:' . ($maxMb * 1024), 'mimes:' . implode(',', $extensions)],
         ], [
             'document_type.required'  => 'Document type is required',
             'document_title.required' => 'Document title is required',
             'file.required'           => 'Please select a file to upload',
-            'file.max'                => 'File size must not exceed 10MB',
-            'file.mimes'              => 'Allowed file types: PDF, DOC, DOCX, JPG, PNG, XLSX, XLS',
+            'file.max'                => "File size must not exceed {$maxMb}MB",
+            'file.mimes'              => 'Allowed file types: ' . strtoupper(implode(', ', $extensions)),
         ]);
 
         if ($validator->fails()) {

@@ -128,7 +128,7 @@
                     </td>
 
                     <td class="px-3 py-3">
-                        <input type="number" name="items[{{ $key }}][amount]" min="0" step="0.01" required
+                        <input type="number" name="items[{{ $key }}][amount]" min="0" max="99999999999999" step="0.01" required
                                value="{{ $row['amount'] ?? '' }}" placeholder="0"
                                class="js-amount w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-red-800">
                         @error("items.{$key}.amount")<p class="text-xs text-red-600 mt-1">{{ $message }}</p>@enderror
@@ -196,7 +196,7 @@
                    class="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-red-800">
         </td>
         <td class="px-3 py-3">
-            <input type="number" name="items[__KEY__][amount]" min="0" step="0.01" required placeholder="0"
+            <input type="number" name="items[__KEY__][amount]" min="0" max="99999999999999" step="0.01" required placeholder="0"
                    class="js-amount w-full px-2 py-1.5 border border-gray-300 rounded text-sm text-right focus:outline-none focus:ring-1 focus:ring-red-800">
         </td>
         <td class="px-3 py-3 text-center">

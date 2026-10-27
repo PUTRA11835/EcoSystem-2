@@ -98,6 +98,17 @@ class LetterRequest extends Model
         return LetterTemplates::exists($this->template_key);
     }
 
+    /**
+     * Whether the employee can open the result: the request is done, or HR already generated AND signed the letter (the approval) and is
+     * only left to email it. A letter that changed after signing lost its signature, so it is not ready again until re-signed.
+     */
+    public function isReady(): bool
+    {
+        $letter = $this->activeLetter();
+
+        return $letter !== null && ($this->isDone() || ($this->status === self::IN_PROGRESS && $letter->isSigned()));
+    }
+
     /** The letter, once HR generated it and it was not voided. */
     public function activeLetter(): ?Letter
     {

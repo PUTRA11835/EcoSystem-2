@@ -80,6 +80,10 @@ class LetterTemplateController extends Controller
             'signingRoles'   => LetterService::signingRoles(),
             'employees'      => $employees,
             'templateLabels' => LetterTemplates::labels(),
+            // Template Designs step
+            'designs'        => \App\Models\Letters\LetterTemplateDef::orderByDesc('is_system')->orderBy('label')->get(),
+            'designUsage'    => \App\Models\Letters\Letter::whereNotNull('template_key')->selectRaw('template_key, count(*) as total')->groupBy('template_key')->pluck('total', 'template_key'),
+            'systemOnes'     => collect(LetterTemplates::BUILT_IN)->filter(fn ($t, $key) => !empty($t['system']) && !\App\Models\Letters\LetterTemplateDef::where('template_key', $key)->exists()),
             'tokens'         => LetterSetting::TOKENS,
             'nextSequence'   => $sequence,
             'nextIncoming'   => $numbers->peek(LetterNumberService::INCOMING, $today->year),
@@ -314,7 +318,7 @@ class LetterTemplateController extends Controller
         return $request->validate([
             'name'         => ['required', 'string', 'max:150', Rule::unique('letter_request_types', 'name')->ignore($requestType?->id)],
             // Empty: HR answers it with a custom letter titled with the name.
-            'template_key' => ['nullable', Rule::in(array_keys(LetterTemplates::TEMPLATES))],
+            'template_key' => ['nullable', Rule::in(array_keys(LetterTemplates::all()))],
         ], ['name.unique' => 'That letter is already on the list.'], ['template_key' => 'answered with']);
     }
 

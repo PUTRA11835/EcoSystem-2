@@ -11,6 +11,7 @@ use App\Models\CashAdvance\CashAdvanceReportItem;
 use App\Models\CashAdvance\CashAdvanceSetting;
 use App\Models\DeliveryProject;
 use App\Models\Employee;
+use App\Support\CashAdvance\SignatureColumn;
 use App\Models\EmployeeRole;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
@@ -671,52 +672,17 @@ class CashAdvanceReportService
     public function signatureColumns(CashAdvanceReport $report): array
     {
         $settings = CashAdvanceSetting::current();
+        $column = fn (string $actor, string $title, ?Employee $legacy = null) => SignatureColumn::build(
+            $report->approvals, $actor, $title, CashAdvanceReportApproval::STATUS_APPROVED, CashAdvanceReportApproval::STATUS_SKIPPED,
+            fn (?Employee $e) => $this->nameOf($e), $legacy
+        );
 
-        $columns = [[
-            'title'   => 'Requester',
-            'name'    => $this->nameOf($report->employee),
-            'pending' => false,
-        ], [
-            'title'   => 'Accounting',
-            'name'    => $this->nameOf($settings->accountingSigner),
-            'pending' => false,
-        ], [
-            'title'   => 'Cashier',
-            'name'    => $this->nameOf($settings->cashierSigner),
-            'pending' => false,
-        ]];
-
-        $approverSteps = $report->approvals
-            ->where('actor_role', CashAdvanceApprovalStep::ACTOR_APPROVER)
-            ->where('status', '!=', CashAdvanceReportApproval::STATUS_SKIPPED);
-
-        $acted = $approverSteps->where('status', CashAdvanceReportApproval::STATUS_APPROVED)
-                               ->sortByDesc('order_seq')
-                               ->first();
-
-        if ($acted) {
-            $columns[] = [
-                'title'   => 'Approved by',
-                'name'    => $this->nameOf($acted->actor),
-                'pending' => false,
-            ];
-
-            return $columns;
-        }
-
-        $waiting = $approverSteps->sortBy('order_seq')->first();
-        $name    = '';
-
-        if ($waiting) {
-            $ids  = array_map('intval', $waiting->approver_employee_ids ?? []);
-            $name = count($ids) === 1
-                ? $this->nameOf(Employee::with('basicData')->find($ids[0]))
-                : '';
-        }
-
-        $columns[] = ['title' => 'Approved by', 'name' => $name, 'pending' => true];
-
-        return $columns;
+        return [
+            ['title' => 'Requester', 'name' => $this->nameOf($report->employee), 'pending' => false],
+            $column(CashAdvanceApprovalStep::ACTOR_ACCOUNTING, 'Accounting', $settings->accountingSigner),
+            $column(CashAdvanceApprovalStep::ACTOR_CASHIER, 'Cashier', $settings->cashierSigner),
+            $column(CashAdvanceApprovalStep::ACTOR_APPROVER, 'Approved by'),
+        ];
     }
 
     // =======================================================================
@@ -1245,6 +1211,7 @@ class CashAdvanceReportService
                 Notification::create([
                     'employee_id' => $employeeId,
                     'type'        => 'cash_advance_report_pending_approval',
+                    'from_employee_id' => $report->employee_id,   // the requester: "X sent a ... for your approval"
                     'preview'     => $message,
                     'link'        => '/general/approvals',
                 ]);

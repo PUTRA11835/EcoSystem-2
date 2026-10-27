@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\EmployeeContract;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +12,21 @@ use Illuminate\Support\Facades\Log;
 
 class EmployeeContractController extends Controller
 {
+    /** The contracts an employee may see on their own profile (Management → Employee → Contract). */
+    private function forOwner($contracts)
+    {
+        if (!MD::rule('contract', 'show_past_contracts')) {
+            $today = now()->toDateString();
+            $contracts = $contracts->filter(fn ($c) => $c->is_active && (!$c->end_date || $c->end_date->toDateString() >= $today))->values();
+        }
+
+        if (!MD::rule('contract', 'show_contract_number')) {
+            $contracts->each(fn ($c) => $c->makeHidden('contract_number'));
+        }
+
+        return $contracts;
+    }
+
     /**
      * Get all employee contract records
      */
@@ -26,6 +42,12 @@ class EmployeeContractController extends Controller
                 ->orderBy('start_date', 'desc')
                 ->orderBy('contract_id', 'desc')
                 ->get();
+
+            // My Profile → Contract: what Management → Employee → Contract allows the employee to see. Applied here, not only in the
+            // page, so the API shows the same. HR reading someone else's contracts is untouched.
+            if ((int) session('user.id') === (int) $employeeId) {
+                $contracts = $this->forOwner($contracts);
+            }
 
             if ($contracts->isEmpty()) {
                 Log::info('No contract records found for employee', [

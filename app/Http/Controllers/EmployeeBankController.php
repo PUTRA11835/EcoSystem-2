@@ -7,6 +7,7 @@ use App\Models\EmployeeBank;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 
 class EmployeeBankController extends Controller
@@ -148,11 +149,12 @@ class EmployeeBankController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = null;
         $validator = Validator::make($request->all(), [
             // Bank Details
-            'bank_name' => 'required|string|max:255',
+            'bank_name' => array_filter(['required', 'string', 'max:255', MD::inRule('bank', 'bank_name', $cur->bank_name ?? null)]),
             'bank_key' => 'nullable|string|max:50',
-            'account_number' => 'required|string|max:50|unique:employee_bank,account_number',
+            'account_number' => 'required|string|max:' . MD::maxLength('bank', 'account_number_max_length') . (MD::rule('bank', 'account_number_digits_only') ? '|regex:/^[0-9]+$/' : '') . '|unique:employee_bank,account_number',
             'account_holder' => 'nullable|string|max:255',
             
             // Validity Period
@@ -258,11 +260,12 @@ class EmployeeBankController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = DB::table('employee_bank')->where('bank_id', $bankId)->first();
         $validator = Validator::make($request->all(), [
             // Bank Details
-            'bank_name' => 'required|string|max:255',
+            'bank_name' => array_filter(['required', 'string', 'max:255', MD::inRule('bank', 'bank_name', $cur->bank_name ?? null)]),
             'bank_key' => 'nullable|string|max:50',
-            'account_number' => 'required|string|max:50|unique:employee_bank,account_number,' . $bankId . ',bank_id',
+            'account_number' => 'required|string|max:' . MD::maxLength('bank', 'account_number_max_length') . (MD::rule('bank', 'account_number_digits_only') ? '|regex:/^[0-9]+$/' : '') . '|unique:employee_bank,account_number,' . $bankId . ',bank_id',
             'account_holder' => 'nullable|string|max:255',
             
             // Validity Period

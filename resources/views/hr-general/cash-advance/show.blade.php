@@ -432,7 +432,7 @@
                     @endforeach
                 </div>
                 <p class="text-xs text-gray-400 mt-3">
-                    “Approved by” shows whoever actually approves the step whose actor is “Approver”.
+                    Accounting, Cashier and Approved by show whoever acts on the workflow step with that actor.
                 </p>
             </div>
         </div>

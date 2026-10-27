@@ -2,61 +2,35 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\HR_General\Concerns\HandlesRecruitmentTables;
-use App\Services\Contracts\ContractService;
-use App\Support\Contracts\ContractRules;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Management\EmployeeSettingsController;
 
+/**
+ * Management → Employee: one tab per section of the employee profile. They are SETTINGS, not lists of records — each tab manages what its
+ * section of the profile offers (dropdown lists) and accepts (limits, what is required); the employee's own records are read and edited on
+ * Master → Employee. See EmployeeSettingsController for the actions and App\Support\Management\EmployeeMasterSettings for what each tab holds.
+ */
 class ManagementEmployeeController extends Controller
 {
-    use HandlesRecruitmentTables;
+    public function basicData()      { return $this->page('basic-data'); }
+    public function address()        { return $this->page('address'); }
+    public function identification() { return $this->page('identification'); }
+    public function family()         { return $this->page('family'); }
+    public function education()      { return $this->page('education'); }
+    public function bank()           { return $this->page('bank'); }
+    public function payment()        { return $this->page('payment'); }
+    public function attachment()     { return $this->page('attachment'); }
 
-    public function basicData()     { return view('management.employee.basic-data.index'); }
-    public function address()       { return view('management.employee.address.index'); }
-    public function identification(){ return view('management.employee.identification.index'); }
-    public function family()        { return view('management.employee.family.index'); }
-    public function education()      { return view('management.employee.education.index'); }
-    public function qualification() { return view('management.employee.qualification.index'); }
-    public function bank()          { return view('management.employee.bank.index'); }
-    public function payment()       { return view('management.employee.payment.index'); }
-    public function attachment()    { return view('management.employee.attachment.index'); }
-
-    /**
-     * Management → Employee → Contract. Two tabs on one route: `?tab=dashboard` (default) shows whose contract
-     * ends soon and the figures around it; `?tab=list` is the table, filtered from the funnel of each column header.
-     */
-    public function contract(Request $request, ContractService $contracts)
+    /** The Master Module list this tab always had, with the settings of the Qualification section under it. */
+    public function qualification()
     {
-        if ($request->query('tab') !== 'list') {
-            return view('management.employee.contract.index', [
-                'tab'  => 'dashboard',
-                'dash' => $contracts->dashboard((int) $request->query('window', 30)),
-            ]);
-        }
+        return view('management.employee.qualification.index', ['panel' => EmployeeSettingsController::panel('qualification')]);
+    }
 
-        $date = fn (string $key) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $request->query($key)) ? (string) $request->query($key) : '';
-        $text = fn (string $key) => trim((string) $request->query($key));
+    /** What the Contract tab of My Profile shows. The dashboard and every contract list are HR & General → Contract, not repeated here. */
+    public function contract() { return $this->page('contract'); }
 
-        $filters = [
-            'employee'   => $text('employee'),
-            'number'     => $text('number'),
-            'type'       => $text('type'),
-            'department' => $text('department'),
-            'status'     => $text('status'),
-            'end_from'   => $date('end_from'),
-            'end_to'     => $date('end_to'),
-        ];
-        $perPage = $this->perPage($request);
-
-        return view('management.employee.contract.index', [
-            'tab'            => 'list',
-            'rows'           => $contracts->listing($filters, $perPage),
-            'filters'        => $filters,
-            'perPage'        => $perPage,
-            'perPageOptions' => self::PER_PAGE_OPTIONS,
-            'types'          => ContractRules::TYPES,
-            'statuses'       => ContractRules::STATUS_LABELS + ['none' => 'No contract'],
-            'departments'    => $contracts->departments(),
-        ]);
+    private function page(string $section)
+    {
+        return view('management.employee.settings', ['panel' => EmployeeSettingsController::panel($section)]);
     }
 }

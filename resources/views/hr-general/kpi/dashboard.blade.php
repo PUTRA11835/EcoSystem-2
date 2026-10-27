@@ -162,8 +162,8 @@
                                 <span>Employee</span>
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'employeeFilterBox')"
                                     class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($search) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
-                                    title="Filter Employee">
-                                    <i class="fas fa-filter text-[10px]"></i>
+                                    title="Search Employee">
+                                    <i class="fas fa-magnifying-glass text-[10px]"></i>
                                     @if(!empty($search))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
@@ -175,14 +175,19 @@
                                     @endif
                                 </div>
                                 <div class="p-2.5">
-                                    <div class="relative">
-                                        <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Name, ECI, position or department…" autocomplete="off"
-                                            oninput="debouncedFilterSubmit('headerSearchInput', this.value)"
-                                            onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
-                                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
-                                        <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <div class="flex items-center gap-1.5">
+                                        <div class="relative flex-1">
+                                            <input type="text" id="headerEmployeeSearch" value="{{ $search ?? '' }}" placeholder="Name, ECI, position or department…" autocomplete="off"
+                                                onkeydown="if(event.key==='Enter'){event.preventDefault();onSearchEnter(this.value);}"
+                                                class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                            <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                        </div>
+                                        <button type="button" title="Search" onclick="onSearchEnter(document.getElementById('headerEmployeeSearch').value)"
+                                            class="shrink-0 w-7 h-7 rounded-lg primary-gradient text-white flex items-center justify-center shadow-sm hover:opacity-90 transition-all">
+                                            <i class="fas fa-magnifying-glass text-[10px]"></i>
+                                        </button>
                                     </div>
-                                    <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                    <p class="text-[10px] text-gray-400 mt-1.5">Press Enter or click the search icon.</p>
                                 </div>
                             </div>
                         </th>
@@ -193,7 +198,7 @@
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'positionFilterBox')"
                                     class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($positionFilter) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Position">
-                                    <i class="fas fa-filter text-[10px]"></i>
+                                    <i class="fas fa-caret-down text-[10px]"></i>
                                     @if(!empty($positionFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
@@ -226,8 +231,8 @@
                                 <span>Supervisor</span>
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'supervisorFilterBox')"
                                     class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($supervisorId) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
-                                    title="Filter Supervisor">
-                                    <i class="fas fa-filter text-[10px]"></i>
+                                    title="Search Supervisor">
+                                    <i class="fas fa-magnifying-glass text-[10px]"></i>
                                     @if(!empty($supervisorId))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
@@ -239,14 +244,19 @@
                                     @endif
                                 </div>
                                 <div class="p-2.5">
-                                    <div class="relative">
-                                        <input type="text" id="headerSupervisorSearch" value="{{ $supervisorId ?? '' }}" placeholder="Name or ECI…" autocomplete="off"
-                                            oninput="debouncedFilterSubmit('headerSupervisorInput', this.value)"
-                                            onkeydown="if(event.key==='Enter'){event.preventDefault();onSupervisorSearchEnter(this.value);}"
-                                            class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
-                                        <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <div class="flex items-center gap-1.5">
+                                        <div class="relative flex-1">
+                                            <input type="text" id="headerSupervisorSearch" value="{{ $supervisorId ?? '' }}" placeholder="Name or ECI…" autocomplete="off"
+                                                onkeydown="if(event.key==='Enter'){event.preventDefault();onSupervisorSearchEnter(this.value);}"
+                                                class="w-full bg-gray-50 border border-gray-200 text-gray-800 text-xs rounded-lg pl-7 pr-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-(--primary-color)/25 focus:border-(--primary-color) transition-all font-normal">
+                                            <i class="fas fa-search text-[10px] absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                        </div>
+                                        <button type="button" title="Search" onclick="onSupervisorSearchEnter(document.getElementById('headerSupervisorSearch').value)"
+                                            class="shrink-0 w-7 h-7 rounded-lg primary-gradient text-white flex items-center justify-center shadow-sm hover:opacity-90 transition-all">
+                                            <i class="fas fa-magnifying-glass text-[10px]"></i>
+                                        </button>
                                     </div>
-                                    <p class="text-[10px] text-gray-400 mt-1.5">Results update as you type.</p>
+                                    <p class="text-[10px] text-gray-400 mt-1.5">Press Enter or click the search icon.</p>
                                 </div>
                             </div>
                         </th>
@@ -257,7 +267,7 @@
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'templateFilterBox')"
                                     class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ (!empty($templateIds) || !empty($typeFilters)) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Template">
-                                    <i class="fas fa-filter text-[10px]"></i>
+                                    <i class="fas fa-list-check text-[10px]"></i>
                                     @if(!empty($templateIds) || !empty($typeFilters))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
@@ -330,7 +340,7 @@
                                 <button type="button" data-hf-btn onclick="toggleHF(event, 'statusFilterBox')"
                                     class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all {{ !empty($statusFilter) ? 'text-(--primary-color)' : 'text-gray-400 hover:text-gray-600' }}"
                                     title="Filter Status">
-                                    <i class="fas fa-filter text-[10px]"></i>
+                                    <i class="fas fa-caret-down text-[10px]"></i>
                                     @if(!empty($statusFilter))<span class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>@endif
                                 </button>
                             </div>
@@ -536,6 +546,12 @@
                                        class="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-all">
                                         View
                                     </a>
+                                    @if($canApprove && !$isSelf && $eval->isReadyForApproval() && $eval->status !== \App\Models\KpiEvaluation::STATUS_HR_APPROVED)
+                                    <button type="button" onclick="approveEvaluation({{ $eval->id }}, this)"
+                                       class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all">
+                                        <i class="fas fa-check text-[9px]"></i> Approve
+                                    </button>
+                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -773,15 +789,6 @@ function onStatusHeaderFilterChange(val) {
     document.getElementById('tableFilterForm')?.submit();
 }
 
-// ── Realtime search — auto-submit a short beat after the last keystroke ─────
-let _filterDebounce = null;
-function debouncedFilterSubmit(hiddenId, val) {
-    const el = document.getElementById(hiddenId);
-    if (el) el.value = val;
-    clearTimeout(_filterDebounce);
-    _filterDebounce = setTimeout(() => document.getElementById('tableFilterForm')?.submit(), 400);
-}
-
 // After a filtered reload, re-open the search popover and put the caret back
 // so typing feels continuous.
 document.addEventListener('DOMContentLoaded', function () {
@@ -855,6 +862,23 @@ function toggleCov(empId) {
     let opening = false;
     rows.forEach(r => { r.classList.toggle('hidden'); if (!r.classList.contains('hidden')) opening = true; });
     if (chev) chev.style.transform = opening ? 'rotate(180deg)' : '';
+}
+
+// ── Approve a submitted evaluation straight from the coverage table ─────────
+async function approveEvaluation(id, btn) {
+    if (!await showConfirm('Approve this evaluation? The employee will be able to see the final scorecard.', 'Approve', 'primary')) return;
+    btn.disabled = true;
+    try {
+        const res = await fetch(`/general/kpi-evaluation/${id}/approve`, {
+            method: 'POST', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' },
+        });
+        const data = await res.json();
+        showToast(data.message || 'Done.', data.success ? 'success' : 'error');
+        if (data.success) setTimeout(() => location.reload(), 700); else btn.disabled = false;
+    } catch (e) {
+        showToast('Approval failed. Please try again.', 'error');
+        btn.disabled = false;
+    }
 }
 
 // ── Re-sync coverage with template targeting ──────────────────────────────

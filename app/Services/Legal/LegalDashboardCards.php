@@ -35,7 +35,7 @@ class LegalDashboardCards
                 'stats' => [
                     ['Active', $s['active'], 'green'],
                     ['Draft', $s['draft'], 'amber'],
-                    ['Ending in ' . (int) config('hc_contract.expiring_soon_days', 30) . ' days', $s['ending'], 'red'],
+                    ['Ending in ' . (int) \App\Services\Management\EmployeeMasterData::rule('contract', 'ending_soon_days') . ' days', $s['ending'], 'red'],
                     ['Employees without a contract', $s['none'], 'gray'],
                 ],
             ];

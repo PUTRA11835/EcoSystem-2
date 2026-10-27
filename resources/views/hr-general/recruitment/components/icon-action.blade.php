@@ -16,7 +16,7 @@
       $post     — renders a one-button POST form to this URL; add $confirm
                   (with optional $confirmTitle, $confirmOk) to ask first —
                   the page must then include components/confirm-forms
-      $submit   — true: a submit button for the form it sits in
+      $submit   — true: a submit button for the form it sits in (or, with $submitForm, for the form of that id)
 --}}
 @php
     $tones = [
@@ -39,7 +39,7 @@
         <button type="submit" title="{{ $label }}" aria-label="{{ $label }}" class="{{ $class }}">{!! $iconHtml !!}</button>
     </form>
 @elseif(!empty($submit))
-    <button type="submit" title="{{ $label }}" aria-label="{{ $label }}" class="{{ $class }}">{!! $iconHtml !!}</button>
+    <button type="submit" @if(!empty($submitForm)) form="{{ $submitForm }}" @endif title="{{ $label }}" aria-label="{{ $label }}" class="{{ $class }}">{!! $iconHtml !!}</button>
 @else
     <button type="button" title="{{ $label }}" aria-label="{{ $label }}" class="{{ $class }}"
         @if(!empty($data)) data-payload='@json($data)' @endif onclick="{{ $onclick }}">{!! $iconHtml !!}</button>

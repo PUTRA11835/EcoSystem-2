@@ -1,7 +1,7 @@
 @extends('dashboard')
 @section('title', 'My Letter Requests')
 @section('page-title', 'My Letter Requests')
-@section('page-subtitle', 'Ask HR for a letter — an employment certificate, a reference, or any other letter you need — and download it here once it is ready. It is also emailed to you.')
+@section('page-subtitle', 'Ask HR for a letter — an employment certificate, a reference, or any other letter you need — and download it here as soon as HR has approved it. It is also emailed to you.')
 
 @php
     use App\Models\Letters\LetterRequest;
@@ -57,7 +57,7 @@
                                 @if($letterRequest->is_other)
                                     <span class="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[9px] font-bold">OTHER</span>
                                 @endif
-                                @if($letterRequest->isDone() && $letter)
+                                @if($letterRequest->isReady())
                                     <span class="block text-[10px] text-gray-400">{{ $letter->letter_number }}</span>
                                 @endif
                             </td>
@@ -68,9 +68,14 @@
                             <td class="px-4 py-3 whitespace-nowrap">{{ $letterRequest->created_at->format('d M Y') }}</td>
                             <td class="px-4 py-3 whitespace-nowrap">{{ $letterRequest->needed_by?->format('d M Y') ?? '-' }}</td>
                             <td class="px-4 py-3">
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap {{ LetterRequest::STATUS_BADGES[$letterRequest->status] }}">
-                                    {{ LetterRequest::STATUSES[$letterRequest->status] }}
+                                {{-- Signed by HR but not emailed yet: the result is already there to download. --}}
+                                @php $readyOnly = $letterRequest->isReady() && !$letterRequest->isDone(); @endphp
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap {{ $readyOnly ? 'bg-green-100 text-green-700' : LetterRequest::STATUS_BADGES[$letterRequest->status] }}">
+                                    {{ $readyOnly ? 'Approved — ready' : LetterRequest::STATUSES[$letterRequest->status] }}
                                 </span>
+                                @if($readyOnly)
+                                    <span class="block text-[10px] text-gray-400 mt-0.5">HR signed it — download it now; the email follows.</span>
+                                @endif
                                 @if($letterRequest->status === LetterRequest::REJECTED && $letterRequest->reject_reason)
                                     <span class="block text-[10px] text-red-600 mt-0.5">{{ $letterRequest->reject_reason }}</span>
                                 @endif
@@ -80,7 +85,7 @@
                             </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center justify-end gap-1.5">
-                                    @if($letterRequest->isDone() && $letter)
+                                    @if($letterRequest->isReady())
                                         @include($action, ['icon' => 'download', 'tone' => 'green', 'label' => 'Download the letter', 'href' => route('general.my-letter-requests.download', $letterRequest)])
                                     @endif
                                     @if($letterRequest->isPending() && $canEdit)

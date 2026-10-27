@@ -7,6 +7,7 @@ use App\Models\EmployeeAddress;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use App\Services\Management\EmployeeMasterData as MD;
 use Illuminate\Support\Facades\Log;
 
 class EmployeeAddressController extends Controller
@@ -149,17 +150,18 @@ class EmployeeAddressController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = null;
         $validator = Validator::make($request->all(), [
             // 🏠 ADDRESS INFORMATION
-            'address_type' => 'required|string|max:255',
-            'country' => 'nullable|string|max:255',
+            'address_type' => array_filter(['required', 'string', 'max:255', MD::inRule('address', 'address_type', $cur->address_type ?? null)]),
+            'country' => array_filter(['nullable', 'string', 'max:255', MD::inRule('address', 'country', $cur->country ?? null)]),
             'region' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:255',
             'rural_urban_village' => 'nullable|string|max:255',
-            'street' => 'nullable|string|max:255',
-            'house_number' => 'nullable|string|max:50',
-            'postal_code' => 'nullable|string|max:20',
+            'street' => [MD::presence('address', 'require_street'), 'string', 'max:' . MD::maxLength('address', 'street_max_length')],
+            'house_number' => ['nullable', 'string', 'max:' . MD::maxLength('address', 'house_number_max_length')],
+            'postal_code' => [MD::presence('address', 'require_postal_code'), 'string', 'max:' . MD::maxLength('address', 'postal_code_max_length')],
             
             // 📞 COMMUNICATION
             'language' => 'nullable|string|max:50',
@@ -300,17 +302,18 @@ class EmployeeAddressController extends Controller
             'data' => $request->all()
         ]);
 
+        $cur = DB::table('employee_address')->where('address_id', $addressId)->first();
         $validator = Validator::make($request->all(), [
             // 🏠 ADDRESS INFORMATION
-            'address_type' => 'required|string|max:255',
-            'country' => 'nullable|string|max:255',
+            'address_type' => array_filter(['required', 'string', 'max:255', MD::inRule('address', 'address_type', $cur->address_type ?? null)]),
+            'country' => array_filter(['nullable', 'string', 'max:255', MD::inRule('address', 'country', $cur->country ?? null)]),
             'region' => 'nullable|string|max:255',
             'city' => 'nullable|string|max:255',
             'district' => 'nullable|string|max:255',
             'rural_urban_village' => 'nullable|string|max:255',
-            'street' => 'nullable|string|max:255',
-            'house_number' => 'nullable|string|max:50',
-            'postal_code' => 'nullable|string|max:20',
+            'street' => [MD::presence('address', 'require_street'), 'string', 'max:' . MD::maxLength('address', 'street_max_length')],
+            'house_number' => ['nullable', 'string', 'max:' . MD::maxLength('address', 'house_number_max_length')],
+            'postal_code' => [MD::presence('address', 'require_postal_code'), 'string', 'max:' . MD::maxLength('address', 'postal_code_max_length')],
             
             // 📞 COMMUNICATION
             'language' => 'nullable|string|max:50',

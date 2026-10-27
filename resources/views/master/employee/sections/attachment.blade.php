@@ -25,22 +25,9 @@
                     <input type="hidden" id="attachDocumentType" value="">
                     <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
                         <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">Select Type</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="KTP">KTP / ID Card</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="NPWP">NPWP</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Paspor">Paspor / Passport</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Kesehatan">BPJS Kesehatan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="BPJS Ketenagakerjaan">BPJS Ketenagakerjaan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Ijazah">Ijazah / Diploma</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Transkrip Nilai">Transkrip Nilai</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Sertifikat">Sertifikat</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kontrak Kerja">Kontrak Kerja</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="SK Pengangkatan">SK Pengangkatan</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Surat Referensi">Surat Referensi</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="CV">CV / Resume</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Akta Lahir">Akta Lahir</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Kartu Keluarga">Kartu Keluarga</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Foto">Foto</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Lainnya">Lainnya</button>
+                        @foreach(\App\Services\Management\EmployeeMasterData::options('attachment', 'document_type') as $optValue => $optLabel)
+                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="{{ $optValue }}">{{ $optLabel }}</button>
+                        @endforeach
                     </div>
                 </div>
             </div>
@@ -57,7 +44,7 @@
                 <label class="flex items-center justify-center w-full h-[42px] border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-red-800 transition-colors bg-white text-xs text-gray-500 hover:text-red-800 gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 flex-shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" /></svg>
                     <span id="attachFileLabel" class="truncate">Choose file</span>
-                    <input type="file" id="attachFile" class="hidden" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xlsx,.xls">
+                    <input type="file" id="attachFile" class="hidden" accept="{{ collect(\App\Services\Management\EmployeeMasterData::allowedExtensions())->map(fn ($e) => '.' . $e)->implode(',') }}">
                 </label>
             </div>
 
@@ -68,7 +55,7 @@
             </div>
         </div>
 
-        <p class="mt-2 text-xs text-gray-400">Supported: PDF, DOC, DOCX, JPG, PNG, XLSX, XLS — Max 10MB</p>
+        <p class="mt-2 text-xs text-gray-400">Supported: {{ strtoupper(implode(', ', \App\Services\Management\EmployeeMasterData::allowedExtensions())) }} — Max {{ \App\Services\Management\EmployeeMasterData::rule('attachment', 'max_file_size_mb') }}MB</p>
     </div>
 
     <!-- DOCUMENTS TABLE -->

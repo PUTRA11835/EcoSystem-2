@@ -46,10 +46,9 @@
                          nilai lama (Home, primary, Office) tetap sah dan tidak berubah. --}}
                     <input type="text" id="addressType" list="addressTypeSuggestions" autocomplete="off" placeholder="e.g. Home, KTP, Domicile" class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent pr-8">
                     <datalist id="addressTypeSuggestions">
-                        <option value="Home"></option>
-                        <option value="KTP"></option>
-                        <option value="Domicile"></option>
-                        <option value="Office"></option>
+                        @foreach(\App\Services\Management\EmployeeMasterData::options('address', 'address_type') as $optValue => $optLabel)
+                            <option value="{{ $optValue }}">{{ $optLabel }}</option>
+                        @endforeach
                     </datalist>
                     <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -63,7 +62,10 @@
             <div class="col-span-1">
                 <label class="block text-xs font-semibold text-gray-600 mb-1.5">Country</label>
                 <select id="country" class="addr-select w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-                    <option value="Indonesia" selected>Indonesia</option>
+                    @php $addrCountries = \App\Services\Management\EmployeeMasterData::options('address', 'country'); $addrDefaultCountry = array_key_exists('Indonesia', $addrCountries) ? 'Indonesia' : array_key_first($addrCountries); @endphp
+                    @foreach($addrCountries as $optValue => $optLabel)
+                        <option value="{{ $optValue }}" @selected($optValue === $addrDefaultCountry)>{{ $optLabel }}</option>
+                    @endforeach
                 </select>
             </div>
 

@@ -105,7 +105,7 @@ class LetterDatasets
 
     public static function requestTypes(): Dataset
     {
-        $templates = array_combine(array_keys(LetterTemplates::TEMPLATES), array_keys(LetterTemplates::TEMPLATES));
+        $templates = array_combine(array_keys(LetterTemplates::all()), array_keys(LetterTemplates::all()));
 
         return new Dataset(
             'letters.request-types', 'Letter Request Options', 'general.letter-templates',

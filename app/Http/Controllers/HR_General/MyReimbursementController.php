@@ -163,6 +163,7 @@ class MyReimbursementController extends Controller
             'items.*.receipt_date_from.required' => 'Every item needs a receipt date.',
             'items.*.amount.required'          => 'Every item needs an amount.',
             'items.*.amount.min'               => 'Item amounts must be greater than zero.',
+            'items.*.amount.max' => 'An item amount cannot be more than Rp 99.999.999.999.999.',
             'title.min'                        => "Please describe the reimbursement in at least {$minTitle} characters.",
             'supporting_url.required'          => 'A supporting document link is required.',
             'supporting_url.url'               => 'The supporting document must be a full link, starting with https://',

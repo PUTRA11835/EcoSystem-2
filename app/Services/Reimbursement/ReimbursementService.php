@@ -40,6 +40,9 @@ use Illuminate\Support\Facades\Log;
  */
 class ReimbursementService
 {
+    /** The largest amount one item may carry: 14 digits, so 255 items still fit the decimal(20,2) totals. */
+    public const MAX_ITEM_AMOUNT = 99999999999999;
+
     public function __construct(private ReimbursementTotalService $totals)
     {
     }
@@ -685,7 +688,8 @@ class ReimbursementService
                                             : ['nullable', 'string', 'max:50'],
             'items.*.receipt_date_from' => ['required', 'date', $this->receiptDateRule($settings, $input)],
             'items.*.receipt_date_to'   => ['nullable', 'date', $this->dateOrderRule($input)],
-            'items.*.amount'            => ['required', 'numeric', 'min:0.01'],
+            // max: the column is decimal(20,2) — an amount typed as 5e170 is still "numeric" and would crash the insert.
+            'items.*.amount'            => ['required', 'numeric', 'min:0.01', 'max:' . self::MAX_ITEM_AMOUNT],
         ];
     }
 
@@ -1397,6 +1401,7 @@ class ReimbursementService
                 Notification::create([
                     'employee_id' => $employeeId,
                     'type'        => 'reimbursement_pending_approval',
+                    'from_employee_id' => $request->employee_id,   // the requester: "X sent a ... for your approval"
                     'preview'     => $message,
                     'link'        => '/general/approvals',
                 ]);

@@ -567,6 +567,9 @@ class Registry
                     ->select('a.*', 'e.eci', 't.name as type_name', DB::raw(self::person() . ' as employee_name'))
                     ->tap(fn ($q) => self::like($q, self::search($request), ['a.application_no', 'e.eci', 'b.first_name', 'b.last_name']))
                     ->when($request->query('status'), fn ($q, $s) => $q->where('a.status', $s))
+                    // Monthly / annual recap: `year` alone = the whole year, `year` + `month` = that month (by start date).
+                    ->when($request->query('year'), fn ($q, $y) => $q->whereYear('a.start_date', (int) $y))
+                    ->when($request->query('month'), fn ($q, $m) => $q->whereMonth('a.start_date', (int) $m))
                     ->orderByDesc('a.start_date')->orderByDesc('a.id')->get();
             }
         );
