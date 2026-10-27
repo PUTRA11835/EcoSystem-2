@@ -141,3 +141,10 @@ Schedule::command('teams:sync-chat-messages')
 Schedule::command('teams:flush-outbox')
     ->everyMinute()
     ->withoutOverlapping();
+
+// Masukkan guest (consultant eksternal) yang baru diundang ke group chat
+// tiketnya, begitu Teams sudah mengenalnya. Tiap menit; jeda per baris diatur
+// sendiri oleh next_attempt_at (TeamsPendingGuestMember::BACKOFF_MINUTES).
+Schedule::command('teams:add-pending-guests')
+    ->everyMinute()
+    ->withoutOverlapping();
