@@ -11,6 +11,8 @@
       $weLetterhead  — data URI of the letterhead image, or null
       $wePreviewUrl  — POST url that answers with the PDF of the unsaved text
       $wePage        — ['size' => 'A4', 'orientation' => 'portrait', 'margins' => ['top' => cm|null, 'right' => …]] (null margin = default)
+      $wePreviewExtra — (optional) CSS selector of inputs whose name/value are sent with the preview request
+      $weAllowEmpty  — (optional) true: an empty text may be saved (the host page keeps several texts)
       $wePageDefaults — ['plain' => [top,right,bottom,left in cm], 'letterhead' => [...]] default margins with / without letterhead
 --}}
 @php
@@ -28,6 +30,7 @@
 
 <div class="we" data-word-editor data-form="{{ $weForm }}" data-input="{{ $weInput }}" data-type-select="{{ $weTypeSelect }}"
      data-lh-toggle="{{ $weLhToggle }}" data-preview-url="{{ $wePreviewUrl }}" @if($weLetterhead) data-letterhead="{{ $weLetterhead }}" @endif
+     @if(!empty($wePreviewExtra)) data-preview-extra="{{ $wePreviewExtra }}" @endif @if(!empty($weAllowEmpty)) data-allow-empty="1" @endif
      data-fields="{{ json_encode($weFields) }}" data-sizes="{{ json_encode($pageSizes) }}" data-page-defaults="{{ json_encode($wePageDefaults) }}">
 
     {{-- Paper settings travel with the form (empty margin = default). --}}

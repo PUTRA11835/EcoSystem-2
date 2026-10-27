@@ -167,6 +167,9 @@
         // enhance, hasilnya double widget yang menumpuk di bawah picker Quill.
         if (sel.className && typeof sel.className === 'string' && /\bql-/.test(sel.className)) return true;
         if (sel.closest('.ql-toolbar, .ql-container, .ql-editor')) return true;
+        // Skip select milik kalender flatpickr (pilihan bulan): dikelola flatpickr sendiri; kalau di-enhance,
+        // kalender tertimpa widget lain dan header bulannya rusak.
+        if (sel.closest('.flatpickr-calendar')) return true;
         return false;
     }
 

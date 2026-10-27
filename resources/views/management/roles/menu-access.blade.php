@@ -153,6 +153,7 @@
     }
 </style>
 
+<script src="{{ asset('js/permission-sync.js') }}?v={{ @filemtime(public_path('js/permission-sync.js')) }}"></script>
 <script>
 (function () {
     'use strict';
@@ -200,9 +201,12 @@
     }
 
     // ───────────────────────────────────────────────── muat & bangun indeks
-    async function load() {
+    // keepDraft: reload what the server holds but keep what the person ticked and has not saved (a draft that now equals the server drops out).
+    // Returns true when the server's grants differ from what was on screen.
+    async function load(keepDraft) {
         const r = await call('GET', API);
-        if (!r.ok) { notify('Could not load menu access (' + r.status + ').', 'error'); return; }
+        if (!r.ok) { notify('Could not load menu access (' + r.status + ').', 'error'); return false; }
+        const before = JSON.stringify(grants);
         data = r.json.data;
         groupOf = {};
         data.modules.forEach((m) => { if (m.group) { groupOf[m.key] = groupKey(m.group); } });
@@ -212,8 +216,9 @@
         rows = data.rows || []; rowByKey = {}; rowChildren = {};
         rows.forEach((r) => { rowByKey[r.key] = r; });
         rows.forEach((r) => { const p = r.parent_key && rowByKey[r.parent_key] ? r.parent_key : ''; (rowChildren[p] = rowChildren[p] || []).push(r.key); });
-        draft.clear();
+        if (keepDraft) { Array.from(draft.keys()).forEach((id) => { if (!menusById[id] || same(draft.get(id), server(id))) { draft.delete(id); } }); } else { draft.clear(); }
         render();
+        return before !== JSON.stringify(grants);
     }
 
     // urutan tampil: pohon baris (induk dulu)
@@ -527,7 +532,7 @@
             if (sensitiveGrants.length && !document.getElementById('maSensOk').checked) { err.textContent = 'Please confirm the sensitive items first.'; err.classList.remove('hidden'); return; }
             const btn = document.getElementById('maRvSave'); btn.disabled = true; btn.textContent = 'Saving…';
             const r = await call('POST', API + '/apply', { changes: rows.map((x) => apiChange(x.id, x.after)), reason: document.getElementById('maReason').value || null });
-            if (r.ok) { closeModal(); notify(r.json.message || 'Access updated.', 'success'); await load(); return; }
+            if (r.ok) { closeModal(); notify(r.json.message || 'Access updated.', 'success'); PermissionSync.publish({ roleIds: [ROLE_ID], menuIds: rows.map((x) => x.id) }); await load(); return; }
             btn.disabled = false; btn.textContent = 'Save ' + rows.length + ' changes';
             err.textContent = (r.json && r.json.message) || ('Could not save (' + r.status + ').'); err.classList.remove('hidden');
         };
@@ -628,7 +633,7 @@
             b.disabled = true;
             const u = await call('POST', API + '/history/' + b.dataset.undo + '/undo');
             msg.classList.remove('hidden');
-            if (u.ok) { notify('Change undone. Access restored to what it was before that save.', 'success'); await load(); openHistory(); return; }
+            if (u.ok) { notify('Change undone. Access restored to what it was before that save.', 'success'); PermissionSync.publish({ roleIds: [ROLE_ID], all: true }); await load(); openHistory(); return; }
             b.disabled = false;
             msg.className = 'mb-3 text-sm rounded-lg p-3 bg-red-50 text-red-800';
             const names = (u.json.conflicts || []).map((c) => c.name).slice(0, 5).join(', ');
@@ -677,6 +682,16 @@
     document.getElementById('maBtnCompare').addEventListener('click', openCompare);
     document.getElementById('maBtnHistory').addEventListener('click', openHistory);
     window.addEventListener('beforeunload', (e) => { if (draft.size) { e.preventDefault(); e.returnValue = ''; } });
+
+    // ── in step with the other permission screens ───────────────────────────
+    async function refreshFromServer(why) {
+        if (!data) { return; }                                   // the first load is still running
+        if (await load(true)) { notify(why + (draft.size ? ' Your unsaved changes are kept.' : ''), 'info'); }
+    }
+    PermissionSync.subscribe((m) => {
+        if (m.all || (m.roleIds || []).includes(ROLE_ID)) { refreshFromServer('Access for this role was changed on another screen — updated.'); }
+    });
+    PermissionSync.onStale(() => refreshFromServer('Access for this role changed since you last looked — updated.'));
 
     syncFilter();
     load();

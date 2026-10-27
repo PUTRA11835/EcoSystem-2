@@ -52,7 +52,10 @@ class KpiController extends Controller
 
         // Coverage follows template targeting: materialise / prune the period's
         // evaluations so the table only ever *shows* what the templates dictate.
-        if ($canCreate) {
+        // It walks every active employee against every template, so it runs on a plain page open only — not on each
+        // search / filter / page change (the Re-sync button is there to force it).
+        $isRefine = $request->hasAny(['search', 'position', 'supervisor', 'supervisor_id', 'template_ids', 'template_id', 'types', 'status', 'page', 'per_page']);
+        if ($canCreate && !$isRefine) {
             KpiAssignments::syncPeriod($periodMonth, $employeeId, true);
         }
 
@@ -211,16 +214,6 @@ class KpiController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        // ── Templates offered to each employee on this page ──────────────────
-        // Targeting (roles / positions) now lives on the template itself, so the
-        // dashboard just hands every employee the templates that match them.
-        $eligibleTemplates = [];
-        foreach ($activeEmployees as $emp) {
-            $eligibleTemplates[$emp->employee_id] = $activeTemplates
-                ->filter(fn($tmpl) => $tmpl->appliesTo($emp))
-                ->values();
-        }
-
         // ── Resolve each employee's reporting-line leader to a name ──────────
         // Derived, display only: project manager → employee_basic_data
         // .direct_supervision → none. Changed only from master employee data.
@@ -228,21 +221,6 @@ class KpiController extends Controller
 
         $hasActiveFilters = $search !== '' || $positionFilter !== '' || $statusFilter !== ''
             || $supervisorId !== '' || !empty($templateIds) || !empty($typeFilters);
-
-        // ── All active employees for bulk assignment checklist modal ─────────
-        $allActiveEmployees = Employee::with('basicData')
-            ->where('is_active', true)
-            ->get()
-            ->sortBy(fn($e) => $e->basicData?->full_name ?? '');
-
-        // ── Active supervisors ──────────────────────────────────────────────
-        $supervisors = Employee::with('basicData')->where('is_active', true)->get()->sortBy(fn($e) => $e->basicData?->full_name ?? '');
-
-        // ── Employee roles for role-based multi-select ───────────────────────────
-        $employeeRoles = \App\Models\EmployeeRole::orderBy('name')->get();
-
-        // ── Delivery Projects for filter dropdown ─────────────────────────────
-        $projects = \App\Models\DeliveryProject::select('id', 'name')->orderBy('name')->get();
 
         // ── Employee Positions for position dropdown ──────────────────────────
         $positions = \App\Models\EmployeeBasicData::whereNotNull('position')
@@ -271,13 +249,9 @@ class KpiController extends Controller
             'monthlyTrend',
             'recentEvaluations',
             'activeTemplates',
-            'eligibleTemplates',
             'reportsToMap',
             'hasActiveFilters',
             'activeEmployees',
-            'allActiveEmployees',
-            'supervisors',
-            'employeeRoles',
             'scope',
             'filterType',
             'search',
@@ -289,7 +263,6 @@ class KpiController extends Controller
             'supervisorId',
             'typeFilters',
             'perPage',
-            'projects',
             'positions',
             'isSupervisorOnly',
             'canCreate',

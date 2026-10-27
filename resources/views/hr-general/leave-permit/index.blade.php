@@ -46,7 +46,7 @@
                 </div>
 
                 @if($pendingReqCount > 0 && $tabOk['inbox'])
-                <button type="button" onclick="switchTab('inbox')"
+                <button type="button" onclick="showPendingInbox()"
                     title="{{ $pendingReqCount }} pending validation"
                     class="inline-flex items-center gap-1.5 border text-xs font-semibold px-3 py-2 rounded-lg hover:opacity-80 transition shadow-sm whitespace-nowrap active:scale-95"
                     style="background: rgba(var(--primary-rgb), 0.08); border-color: rgba(var(--primary-rgb), 0.35); color: var(--primary-color);">
@@ -54,6 +54,18 @@
                     <span>{{ $pendingReqCount }} request</span>
                 </button>
                 @endif
+
+                {{-- Export period: the selected Year, optionally narrowed to one month (blank = full year). --}}
+                <div class="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-1.5 shadow-sm text-xs" title="Period used by the Excel export">
+                    <i class="fas fa-file-export text-gray-400"></i>
+                    <span class="font-semibold text-gray-600">Export:</span>
+                    <select id="selectExportMonth" class="bg-transparent font-bold text-gray-800 focus:outline-none cursor-pointer" onchange="syncExportLink()">
+                        <option value="">Full year</option>
+                        @foreach(['January','February','March','April','May','June','July','August','September','October','November','December'] as $mi => $mn)
+                            <option value="{{ $mi + 1 }}">{{ $mn }}</option>
+                        @endforeach
+                    </select>
+                </div>
 
                 @include('hr-general.partials.data-transfer', ['dataset' => 'leave-permit.applications', 'bare' => true])
 
@@ -108,7 +120,7 @@
                 <div
                     class="px-5 py-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <h3 class="font-bold text-xs uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                        <i class="fas fa-inbox text-yellow-600"></i> Employee Applications Pending Review
+                        <i class="fas fa-inbox text-yellow-600"></i> Employee Applications — Pending Review &amp; History
                     </h3>
                     <div class="flex items-center gap-3">
                         <p class="text-[10px] text-gray-400">Use the <i class="fas fa-filter text-[9px]"></i> icons in the table header to search &amp; filter.</p>
@@ -177,7 +189,7 @@
                                         <button type="button" data-hf-btn onclick="toggleHF(event, 'inboxStatusFilterBox')"
                                             class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600" title="Filter Status">
                                             <i class="fas fa-filter text-[10px]"></i>
-                                            <span id="inboxStatusFilterDot" class="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
+                                            <span id="inboxStatusFilterDot" class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-(--primary-color) ring-2 ring-white"></span>
                                         </button>
                                     </div>
                                     <div id="inboxStatusFilterBox" class="header-filter-popover hidden w-44 bg-white rounded-xl shadow-xl ring-1 ring-black/5 z-50 overflow-hidden text-left normal-case font-normal" onclick="event.stopPropagation()">
@@ -725,7 +737,7 @@
         // ── Shared client-side pagination + header-filter helper (Inbox, All Quotas, Master Types, Employee Report) ──
         const PAGE_SIZE = 10;
         const paginationState = {
-            inbox:       { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '', type: '', status: 'pending' } },
+            inbox:       { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '', type: '', status: '' } },
             allQuotas:   { page: 1, perPage: 25, pageSizes: [25, 50, 100, 200], data: [], filtered: [], filters: { employee: '', eci: '' }, sort: { key: '', dir: '' } },
             rptEmployee: { page: 1, perPage: PAGE_SIZE, data: [], filtered: [], filters: { employee: '' } },
             masterTypes: { page: 1, perPage: PAGE_SIZE, rows: [], filters: { search: '', status: '', paid: '', gender: '', quota: '' } },
@@ -886,17 +898,25 @@
             applyInboxFilters();
             closeAllHF();
         }
-        // Resets to the default view (status back to "pending")
+        // Resets to the default view (all statuses — approved/rejected stay visible as recap & history)
         function resetInboxFilters() {
             clearTimeout(_inboxEmployeeDebounce);
-            paginationState.inbox.filters = { employee: '', type: '', status: 'pending' };
+            paginationState.inbox.filters = { employee: '', type: '', status: '' };
             const el = document.getElementById('inboxEmployeeSearch');
             if (el) el.value = '';
             toggleFilterDot('inboxEmployeeFilterDot', false);
             toggleFilterDot('inboxTypeFilterDot', false);
-            toggleFilterDot('inboxStatusFilterDot', true);
+            toggleFilterDot('inboxStatusFilterDot', false);
             closeAllHF();
             applyInboxFilters();
+        }
+        // id → application for the rows currently loaded; row buttons look the record up here instead of embedding JSON in onclick.
+        let inboxById = new Map();
+
+        // Header "N request" pill: jump to the inbox showing only what still needs a decision.
+        function showPendingInbox() {
+            switchTab('inbox');
+            setInboxStatusFilter('pending');
         }
         function applyInboxFilters() {
             const st = paginationState.inbox;
@@ -907,6 +927,10 @@
                 if (f.status && app.status !== f.status) return false;
                 return true;
             });
+            // Needs-action first (pending, then revision), finished ones (approved/rejected) below; newest first within each group.
+            const rank = { pending: 0, revision: 1, approved: 2, rejected: 3 };
+            st.filtered.sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9)
+                || new Date(b.created_at) - new Date(a.created_at));
             st.page = 1;
             renderInboxPage();
         }
@@ -1056,8 +1080,21 @@
             if (FIRST_TAB && FIRST_TAB !== 'inbox') switchTab(FIRST_TAB);
         });
 
+        // Point the Excel export link at the chosen year (+ optional month) so the file is a monthly / annual recap.
+        function syncExportLink() {
+            const month = document.getElementById('selectExportMonth')?.value || '';
+            document.querySelectorAll('[data-excel-panel] a[href*="/leave-permit.applications/export"]').forEach(a => {
+                const u = new URL(a.href, location.origin);
+                u.searchParams.set('year', globalYear);
+                if (month) u.searchParams.set('month', month); else u.searchParams.delete('month');
+                a.href = u.toString();
+            });
+        }
+        document.addEventListener('DOMContentLoaded', syncExportLink);
+
         function onGlobalYearChange() {
             globalYear = parseInt(document.getElementById('selectGlobalYear').value);
+            syncExportLink();
             // Sync year display in report tab
             const rptYearDisplay = document.getElementById('rptYearDisplay');
             if (rptYearDisplay) rptYearDisplay.innerText = globalYear;
@@ -1100,7 +1137,7 @@
         // filtering happens client-side via the per-column header filters below.
         async function loadInboxApplications() {
             try {
-                const res = await fetch(`/api/hr-general/leave-permit/applications?year=${globalYear}`, { credentials: 'same-origin' });
+                const res = await fetch(`/api/hr-general/leave-permit/applications?year=${globalYear}&include_open=1`, { credentials: 'same-origin' });
                 const json = await res.json();
 
                 if (json.success) {
@@ -1112,6 +1149,7 @@
                     }
 
                     paginationState.inbox.data = json.data;
+                    inboxById = new Map(json.data.map(a => [a.id, a]));
                     renderInboxTypeFilterOptions();
                     applyInboxFilters();
                 }
@@ -1138,7 +1176,10 @@
 
         function buildInboxRow(app) {
             let quotaBadge = '';
-            if (app.is_event_based) {
+            if (app.status === 'approved' || app.status === 'rejected') {
+                // Already decided: remaining quota now includes this request, so a limit check would be misleading.
+                quotaBadge = `<span class="text-gray-300">—</span>`;
+            } else if (app.is_event_based) {
                 if (app.type_code === 'CTU' || (app.leave_permit_type && app.leave_permit_type.code === 'CTU')) {
                     quotaBadge = `<span class="bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded text-[10px]">Event-based</span>`;
                 } else {
@@ -1163,7 +1204,7 @@
                     <td class="px-4 py-3 text-center">${quotaBadge}</td>
                     <td class="px-4 py-3 text-center">${renderStatusBadge(app.status)}</td>
                     <td class="px-5 py-3 text-right">
-                        <button onclick='openReviewModal(${JSON.stringify(app)})' class="px-3 py-1 primary-gradient text-white text-[11px] font-semibold rounded hover:opacity-90">
+                        <button onclick="openReviewModal(inboxById.get(${app.id}))" class="px-3 py-1 primary-gradient text-white text-[11px] font-semibold rounded hover:opacity-90">
                             ${CAN_REVIEW ? 'Review / Edit' : 'View'}
                         </button>
                     </td>
@@ -1762,10 +1803,10 @@
                     }
                     hint.className = 'text-xs text-purple-700 font-semibold mt-1 block';
                 } else if (qItem.remaining_quota <= 0) {
-                    hint.innerText = '⚠️ Quota for this leave type has been exhausted for selected employee.';
+                    hint.innerText = quotaHintFor(qItem) + ' (selected employee)';
                     hint.className = 'text-xs text-red-600 font-bold mt-1 block';
                 } else {
-                    hint.innerText = `Available Remaining Quota: ${qItem.remaining_quota} day(s).`;
+                    hint.innerText = quotaHintFor(qItem);
                     hint.className = 'text-xs text-green-600 font-semibold mt-1 block';
                 }
             } else if (hint) {
@@ -1790,11 +1831,8 @@
                 if (val) val.innerText = `0.5 day (Half-Day Leave)`;
                 if (badge) { badge.classList.remove('hidden'); badge.classList.add('flex'); }
             } else if (start && end) {
-                const d1 = new Date(start);
-                const d2 = new Date(end);
-                if (d2 >= d1) {
-                    const diffTime = Math.abs(d2 - d1);
-                    requestedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                if (end >= start) {
+                    requestedDays = countBusinessDays(start, end);
                     if (val) val.innerText = `${requestedDays} day(s)`;
                     if (badge) { badge.classList.remove('hidden'); badge.classList.add('flex'); }
                 } else {
@@ -1809,7 +1847,7 @@
             const qItem = cachedUserQuotasForEmp.find(q => q.type_id === typeId);
             if (warnBanner && qItem && !qItem.is_event_based && requestedDays > 0) {
                 if (requestedDays > qItem.remaining_quota) {
-                    if (warnText) warnText.innerText = `Requested (${requestedDays} day(s)) exceeds available quota (${qItem.remaining_quota} day(s)).`;
+                    if (warnText) warnText.innerText = `Requested ${requestedDays} day(s) of ${qItem.type_name} (${qItem.type_code}) exceeds the remaining ${qItem.type_name} quota (${qItem.remaining_quota} day(s)). Quota is counted per leave type.`;
                     warnBanner.classList.remove('hidden'); warnBanner.classList.add('flex');
                 } else {
                     warnBanner.classList.add('hidden'); warnBanner.classList.remove('flex');
@@ -1852,13 +1890,13 @@
                     : 'No WFH / Off for remainder of day';
                 reason += ` [Half-Day Leave: ${wfhText}]`;
             } else {
-                requestedDays = Math.ceil(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+                requestedDays = countBusinessDays(start, end);
             }
 
             const qItem = cachedUserQuotasForEmp.find(q => q.type_id === typeId);
             if (qItem && !qItem.is_event_based && requestedDays > qItem.remaining_quota) {
                 if (typeof showToast === 'function') {
-                    showToast(`Cannot submit: Requested (${requestedDays} day(s)) exceeds remaining quota (${qItem.remaining_quota} day(s)).`, 'error');
+                    showToast(`Cannot submit: Requested ${requestedDays} day(s) of ${qItem.type_name} exceeds remaining ${qItem.type_name} quota (${qItem.remaining_quota} day(s)).`, 'error');
                 }
                 const wb = document.getElementById('applyQuotaWarningBanner');
                 if (wb) { wb.classList.remove('hidden'); wb.classList.add('flex'); }

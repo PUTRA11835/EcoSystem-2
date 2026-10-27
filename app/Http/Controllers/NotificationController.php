@@ -99,19 +99,27 @@ class NotificationController extends Controller
             ->limit(20)
             ->select([
                 'n.id', 'n.type', 'n.ticket_id', 'n.message_id',
-                'n.from_name', 'n.preview', 'n.link', 'n.is_read', 'n.created_at',
+                'n.from_name', 'n.from_employee_id', 'n.preview', 'n.link', 'n.is_read', 'n.created_at',
                 't.ticket_number',
                 'c.customer_code',
             ])
-            ->get()
+            ->get();
+
+        // Older rows kept the sender's id but not the name: look the names up once, for the whole list.
+        $senderNames = \App\Models\Employee::with('basicData')
+            ->whereIn('employee_id', $notifications->whereNull('from_name')->pluck('from_employee_id')->filter()->unique())
+            ->get()->mapWithKeys(fn ($e) => [$e->employee_id => $e->fullNameLabel()]);
+
+        $notifications = $notifications
             ->map(fn ($n) => [
                 'id'            => $n->id,
                 'type'          => $n->type,
+                'title'         => Notification::titleFor($n->type, $n->from_name ?: ($senderNames[$n->from_employee_id] ?? null)),
                 'ticket_id'     => $n->ticket_id,
                 'ticket_number' => $n->ticket_number,
                 'customer_name' => $n->customer_code,
                 'message_id'    => $n->message_id,
-                'from_name'     => $n->from_name,
+                'from_name'     => $n->from_name ?: ($senderNames[$n->from_employee_id] ?? null),
                 'preview'       => $n->preview,
                 'link'          => $n->link,
                 'is_read'       => (bool) $n->is_read,

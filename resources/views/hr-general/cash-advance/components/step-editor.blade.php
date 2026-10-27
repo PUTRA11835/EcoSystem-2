@@ -22,5 +22,5 @@
     'mandatory_hint'   => 'checked: the person here always acts and the requester only sees it. Unchecked: the requester chooses from them.',
     'open_count'       => $openCount,
     'open_label'       => 'document(s)',
-    'note'             => 'Adding a step can be applied to documents already in progress; removing or changing one never is — a document waiting at a deleted step could otherwise jump to approved unreviewed. At least one active step must have the actor <strong>Approver</strong>: the printed "Approved by" column takes its name from it.',
+    'note'             => 'Adding a step can be applied to documents already in progress; removing or changing one never is — a document waiting at a deleted step could otherwise jump to approved unreviewed. The Actor decides the printed column: <strong>Accounting</strong>, <strong>Cashier</strong> and <strong>Approver</strong> print the name of whoever acted on that step under “Accounting”, “Cashier” and “Approved by”; a Verificator only checks. At least one active step must have the actor <strong>Approver</strong>.',
 ]])

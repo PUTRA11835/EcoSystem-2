@@ -95,6 +95,17 @@ return [
         'hr_general.leave_permit',              // Create = Log Leave / Permit, Edit = edit a logged application
         'hr_general.leave_permit.tab-inbox',    // Edit = approve / reject / ask for revision
         'hr_general.leave_permit.tab-types',    // Create = add a leave type, Edit = edit / (de)activate a type
+        // Management → Employee tabs: Create = add a dropdown option, Edit = rename / switch on or off / move an option and change the rules, Delete = remove an unused option
+        'management.employee.basic-data',
+        'management.employee.address',
+        'management.employee.identification',
+        'management.employee.family',
+        'management.employee.education',
+        'management.employee.qualification',
+        'management.employee.contract',
+        'management.employee.bank',
+        'management.employee.payment',
+        'management.employee.attachment',
         'general.my-letter-requests', // Global ESS: baris terkunci di layar, tetapi rutenya memakai menu.can
         'general.approvals',                     // Edit = adjust / Delete = delete the document an approver (named on a workflow) reviews — the extra powers; deciding needs only the naming
         'calendar.events',                       // Create / Edit / Delete = make / change / remove COMPANY-WIDE events (anyone keeps personal ones) — enforced in CalendarController
@@ -185,6 +196,16 @@ return [
         'hr_general.leave_permit'             => ['c' => 'Log Leave / Permit (on behalf of an employee, all tabs)', 'e' => 'Edit a logged application (HR override)'],
         'hr_general.leave_permit.tab-inbox'   => ['e' => 'Approve / Reject / Ask for revision'],
         'hr_general.leave_permit.tab-types'   => ['c' => 'Add a leave type', 'e' => 'Edit or (de)activate a leave type'],
+        'management.employee.basic-data'        => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.address'           => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.identification'    => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.family'            => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.education'         => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.qualification'     => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.contract'        => ['e' => 'Change what employees see on their Contract tab'],
+        'management.employee.bank'              => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.payment'           => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
+        'management.employee.attachment'        => ['c' => 'Add an option to a dropdown list', 'e' => 'Rename, switch on or off, move an option; change the rules', 'd' => 'Delete an option nobody uses'],
         'employee.section.address.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.identification.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
         'employee.section.family.view' => ['c' => 'Add a record to this tab', 'd' => 'Delete a record from this tab'],
@@ -225,7 +246,7 @@ return [
         // My Workspace
         ['key' => 'ess',         'label' => 'My Workspace (ESS)',        'group' => 'My Workspace', 'short' => 'Self-service (ESS)', 'match' => ['ess', 'ess.*', 'general.my-*', 'my-leave-permit', 'profile.my', 'my-profile', 'my-profile.*', 'general.my-kpi*']],
         ['key' => 'approvals',   'label' => 'My Approvals',              'group' => 'My Workspace', 'short' => 'My Approvals',
-            'about' => 'Being NAMED on an approval workflow already lets a person open the My Approvals inbox and decide the documents waiting on them — no box needed. These boxes add EXTRA powers while reviewing: Edit adjusts the document, Delete removes it, and Export downloads it. All off by default.',
+            'about' => 'Being NAMED on an approval workflow already lets a person open the My Approvals inbox and decide the documents waiting on them — no box needed. View shows the inbox menu to the whole role (it lists only what waits for each person). Edit adjusts the document, Delete removes it, and Export downloads it. All off by default.',
             'match' => ['general.approvals', 'general.approvals.*']],
         ['key' => 'calendar',    'label' => 'Calendar & Timesheet',     'group' => 'My Workspace', 'short' => 'Calendar & Timesheet', 'match' => ['calendar', 'calendar.*', 'timesheet', 'timesheet.*']],
         // Human Capital — same order as the sidebar (Employee Data → … → Inventory & Assets)

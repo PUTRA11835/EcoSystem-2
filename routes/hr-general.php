@@ -22,6 +22,7 @@ use App\Http\Controllers\HR_General\LetterComposeController;
 use App\Http\Controllers\HR_General\LetterDashboardController;
 use App\Http\Controllers\HR_General\LetterRegisterController;
 use App\Http\Controllers\HR_General\LetterRequestController;
+use App\Http\Controllers\HR_General\LetterDesignController;
 use App\Http\Controllers\HR_General\LetterTemplateController;
 use App\Http\Controllers\HR_General\MyLetterRequestController;
 use App\Http\Controllers\HR_General\MyAttendanceController;
@@ -116,7 +117,7 @@ Route::prefix('general')
         // atau finance yang hanya menyetujui tidak perlu menu HR / umum. Isinya hanya dokumen yang menunggu orang itu.
         Route::get('approvals', [\App\Http\Controllers\HR_General\ApprovalInboxController::class, 'index'])
             ->name('approvals.index')
-            ->middleware('menu.approver:any');
+            ->middleware('menu.approver:any,general.approvals');
 
         // One document for the approver — the approver-only page (no HR layout). Taking part in the document opens it.
         Route::get('approvals/{module}/{id}', [\App\Http\Controllers\HR_General\ApprovalInboxController::class, 'show'])
@@ -1392,6 +1393,21 @@ Route::prefix('general')
                 Route::post('/codes', [LetterTemplateController::class, 'storeCode'])->name('codes.store')->middleware($can('create'));
                 Route::post('/codes/{code}/update', [LetterTemplateController::class, 'updateCode'])->name('codes.update')->middleware($can('edit'));
                 Route::post('/codes/{code}/delete', [LetterTemplateController::class, 'destroyCode'])->name('codes.destroy')->middleware($can('delete'));
+
+                // Template Designs: the wording and fields of each letter template, written in the Word-style editor.
+                Route::prefix('designs')->name('designs.')->group(function () use ($can) {
+                    Route::get('/', [LetterDesignController::class, 'index'])->name('index');
+                    Route::get('/create', [LetterDesignController::class, 'create'])->name('create')->middleware($can('create'));
+                    Route::post('/', [LetterDesignController::class, 'store'])->name('store')->middleware($can('create'));
+                    Route::post('/preview', [LetterDesignController::class, 'previewDraft'])->name('preview')->middleware('throttle:30,1');
+                    Route::whereNumber('design')->group(function () use ($can) {
+                        Route::get('/{design}', [LetterDesignController::class, 'show'])->name('show');
+                        Route::get('/{design}/edit', [LetterDesignController::class, 'edit'])->name('edit')->middleware($can('edit'));
+                        Route::post('/{design}/update', [LetterDesignController::class, 'update'])->name('update')->middleware($can('edit'));
+                        Route::post('/{design}/reset', [LetterDesignController::class, 'reset'])->name('reset')->middleware($can('edit'));
+                        Route::post('/{design}/delete', [LetterDesignController::class, 'destroy'])->name('destroy')->middleware($can('delete'));
+                    });
+                });
 
             });
 

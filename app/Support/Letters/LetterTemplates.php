@@ -8,11 +8,11 @@ use Illuminate\Support\Carbon;
 /**
  * The letter templates of HR & General → Letter Templates → Create Letter.
  *
- * Each template is written in code: its fields here, its wording — Bahasa
- * Indonesia and English side by side — in one Blade,
- * resources/views/hr-general/letters/pdf/{key}.blade.php. Words every letter
- * shares (Number, Subject, Sincerely…) are in lang/{id,en}/letters.php.
- * A new template is one entry here plus one Blade.
+ * BUILT_IN is what ships in code: the fields of each template and, for the system letters (BPJS, external
+ * consultants), their wording in a Blade, resources/views/hr-general/letters/pdf/{key}.blade.php.
+ * The internal templates are also kept as data (App\Models\Letters\LetterTemplateDef): HR edits their names, fields and
+ * wording in Settings → Template Designs and adds templates of their own, and all() is the merge of the two — every
+ * caller reads all(), never BUILT_IN. Words every letter shares (Number, Subject, Sincerely…) are in lang/{id,en}/letters.php.
  *
  * Field types: text · textarea · date · money · items (rows of name / qty / note).
  * `employee`: 'required' — the letter is about an employee; 'optional'; or false.
@@ -21,7 +21,7 @@ class LetterTemplates
 {
     public const CUSTOM = 'custom_letter';
 
-    public const TEMPLATES = [
+    public const BUILT_IN = [
         'employment_certificate' => [
             'label'       => 'Surat Keterangan Kerja',
             'label_en'    => 'Employment Certificate',
@@ -73,6 +73,28 @@ class LetterTemplates
                 'amount'        => ['type' => 'money', 'label' => 'Amount (Rp)', 'required' => true],
                 'amount_words'  => ['type' => 'text', 'label' => 'Amount in words', 'required' => false, 'help' => 'Empty: written out automatically in the letter\'s language.'],
                 'purpose'       => ['type' => 'textarea', 'label' => 'For payment of', 'required' => true],
+            ],
+        ],
+        // The offering letter of HR & General → Offering Letter, available here so HR can write one without taking a candidate
+        // through the offering process. It shares the "Offering Letter" letter type with that menu: same letterhead, number code and
+        // default language. About a candidate (typed here), not an employee.
+        'offering_letter' => [
+            'label'       => 'Surat Penawaran Kerja',
+            'label_en'    => 'Offering Letter',
+            'description' => 'Offers a position to a candidate: position, joining date, compensation and benefits. Written here directly — no candidate has to go through the offering process.',
+            'employee'    => false,
+            'fields'      => [
+                'candidate_name'  => ['type' => 'text', 'label' => 'Candidate name', 'required' => true],
+                'candidate_email' => ['type' => 'text', 'label' => 'Candidate email', 'required' => false, 'help' => 'Where Send emails the signed letter.'],
+                'position_title'  => ['type' => 'text', 'label' => 'Position offered', 'required' => true],
+                'job_description' => ['type' => 'textarea', 'label' => 'Responsibilities', 'required' => false, 'help' => 'What the candidate will be doing in this position.'],
+                'joining_date'    => ['type' => 'date', 'label' => 'Joining date', 'required' => true],
+                'compensation'    => ['type' => 'lines', 'label' => 'Compensation', 'required' => true, 'help' => 'One line per component (base salary, allowances…) with its monthly amount; the total is added up in the letter.'],
+                'salary_type'     => ['type' => 'text', 'label' => 'Gross or nett', 'required' => false, 'placeholder' => 'Gross'],
+                'benefits'        => ['type' => 'textarea', 'label' => 'Benefits', 'required' => false],
+                'probation'       => ['type' => 'textarea', 'label' => 'Probation clause', 'required' => false, 'help' => 'The sentence to print, e.g. "A probation period of 3 (three) months applies from your joining date." Empty: nothing is printed.'],
+                'notes'           => ['type' => 'textarea', 'label' => 'Notes', 'required' => false],
+                'response_days'   => ['type' => 'text', 'label' => 'Days to respond', 'required' => false, 'placeholder' => '3'],
             ],
         ],
         // Dibuat oleh Payroll Suite → BPJS → Letters (bulk, lampiran daftar karyawan); `system` = tidak ada di pilihan Create Letter,
@@ -134,20 +156,106 @@ class LetterTemplates
         ],
     ];
 
+    /** @var array<string, array>|null */
+    private static ?array $merged = null;
+
+    /** Forget the merged list — after a design was saved or deleted. */
+    public static function forget(): void
+    {
+        self::$merged = null;
+    }
+
+    /**
+     * Every template, keyed: the built-in ones with what HR changed in Template Designs laid over them, then the templates
+     * HR made. Without the table (a fresh install, unit tests) it is the built-in list.
+     *
+     * @return array<string, array>
+     */
+    public static function all(): array
+    {
+        if (self::$merged !== null) {
+            return self::$merged;
+        }
+
+        $all = self::BUILT_IN;
+
+        try {
+            foreach (\App\Models\Letters\LetterTemplateDef::orderBy('id')->get() as $def) {
+                $base = self::BUILT_IN[$def->template_key] ?? [];
+                $all[$def->template_key] = [
+                    ...$base,
+                    'label'       => $def->label,
+                    'label_en'    => $def->label_en,
+                    'description' => (string) $def->description,
+                    'employee'    => match ($def->employee) { 'required' => 'required', 'optional' => 'optional', default => false },
+                    'fields'      => self::normalizeFields((array) $def->fields),
+                    'designed'    => true,
+                    'custom'      => !$def->is_system && !isset(self::BUILT_IN[$def->template_key]),
+                ];
+            }
+        } catch (\Throwable) {
+            // no table yet
+        }
+
+        return self::$merged = $all;
+    }
+
+    /**
+     * The wording of a template in a language, with its field definitions, closing and paper — saved on a letter when it is
+     * generated so the letter prints the same even after the template is changed. Null: no wording designed (a system letter
+     * still written in Blade).
+     */
+    public static function designSnapshot(string $key, string $language): ?array
+    {
+        try {
+            $def = \App\Models\Letters\LetterTemplateDef::where('template_key', $key)->first();
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $body = $def?->bodyFor($language);
+        if (!$def || trim(strip_tags((string) $body)) === '') {
+            return null;
+        }
+
+        return [
+            'body'    => $body,
+            'fields'  => self::normalizeFields((array) $def->fields),
+            'closing' => $def->closingFor($language),
+            'page'    => $def->pageStored(),
+        ];
+    }
+
+    /** Field definitions as the rest of the code expects them (every key present). */
+    public static function normalizeFields(array $fields): array
+    {
+        $out = [];
+        foreach ($fields as $name => $field) {
+            $out[$name] = [
+                ...$field,
+                'type'     => isset(LetterBody::FIELD_TYPES[$field['type'] ?? '']) ? $field['type'] : 'text',
+                'label'    => (string) ($field['label'] ?? $name),
+                'required' => (bool) ($field['required'] ?? false),
+            ];
+        }
+
+        return $out;
+    }
+
     public static function exists(?string $key): bool
     {
-        return isset(self::TEMPLATES[$key]);
+        return isset(self::all()[$key]);
     }
 
     public static function get(string $key): array
     {
-        return self::TEMPLATES[$key];
+        return self::all()[$key];
     }
 
     /** @return array<string, string> [key => label] of the templates, without the custom letter */
     public static function labels(): array
     {
-        return array_map(fn (array $template) => $template['label'], self::TEMPLATES);
+        return array_map(fn (array $template) => $template['label'], self::all());
     }
 
     /** @return array<string, string> every letter type of the hub: the templates plus the custom letter */
@@ -163,7 +271,7 @@ class LetterTemplates
 
     public static function needsEmployee(string $key): bool
     {
-        return (self::TEMPLATES[$key]['employee'] ?? false) === 'required';
+        return (self::get($key)['employee'] ?? false) === 'required';
     }
 
     /** Validation rules of a template's own fields, under `fields.*`. */
@@ -184,6 +292,12 @@ class LetterTemplates
                     "fields.{$name}.*.name" => ['nullable', 'string', 'max:255'],
                     "fields.{$name}.*.qty"  => ['nullable', 'string', 'max:50'],
                     "fields.{$name}.*.note" => ['nullable', 'string', 'max:255'],
+                ],
+                // Amounts arrive as typed, with thousands separators; cleanFields() turns them into numbers.
+                'lines'    => $rules += [
+                    "fields.{$name}"          => [$presence, 'array'],
+                    "fields.{$name}.*.name"   => ['nullable', 'string', 'max:255'],
+                    "fields.{$name}.*.amount" => ['nullable', 'string', 'max:30'],
                 ],
                 default    => $rules["fields.{$name}"] = [$presence, 'string', 'max:255'],
             };
@@ -242,15 +356,20 @@ class LetterTemplates
                     'qty'  => trim((string) ($row['qty'] ?? '')),
                     'note' => trim((string) ($row['note'] ?? '')),
                 ], (array) $value), fn ($row) => $row['name'] !== ''));
+            } elseif ($field['type'] === 'lines') {
+                $value = array_values(array_filter(array_map(fn ($row) => [
+                    'name'   => trim((string) ($row['name'] ?? '')),
+                    'amount' => (float) (preg_replace('/\D/', '', preg_replace('/,\d{1,2}$/', '', trim((string) ($row['amount'] ?? '')))) ?: 0),
+                ], (array) $value), fn ($row) => $row['name'] !== '' && $row['amount'] > 0));
             } elseif ($field['type'] === 'money') {
                 $value = $value === null || $value === '' ? null : (float) $value;
             } else {
                 $value = is_string($value) ? trim($value) : $value;
             }
 
-            if ($field['type'] === 'items' && $field['required'] && $value === []) {
+            if (in_array($field['type'], ['items', 'lines'], true) && $field['required'] && $value === []) {
                 throw \Illuminate\Validation\ValidationException::withMessages([
-                    "fields.{$name}" => 'Enter at least one item in ' . mb_strtolower($field['label']) . '.',
+                    "fields.{$name}" => 'Enter at least one ' . ($field['type'] === 'lines' ? 'line (name and amount)' : 'item') . ' in ' . mb_strtolower($field['label']) . '.',
                 ]);
             }
 

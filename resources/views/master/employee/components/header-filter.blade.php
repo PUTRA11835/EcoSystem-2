@@ -26,8 +26,8 @@
         <span>{{ $label }}</span>
         <button type="button" data-ehf-btn="{{ $key }}" onclick="ehfToggle(event, '{{ $key }}')"
             class="relative p-1 rounded-md hover:bg-gray-200/70 transition-all text-gray-400 hover:text-gray-600"
-            title="Filter {{ $label }}" aria-label="Filter {{ $label }}" aria-haspopup="true">
-            <i class="fas fa-filter text-[10px]"></i>
+            title="{{ $type === 'search' ? 'Search' : 'Filter' }} {{ $label }}" aria-label="{{ $type === 'search' ? 'Search' : 'Filter' }} {{ $label }}" aria-haspopup="true">
+            <i class="fas {{ ['search' => 'fa-magnifying-glass', 'options' => 'fa-caret-down', 'checkboxes' => 'fa-list-check'][$type] ?? 'fa-filter' }} text-[10px]"></i>
             <span data-ehf-dot class="hidden absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ring-2 ring-white" style="background: var(--primary-color);"></span>
         </button>
     </div>

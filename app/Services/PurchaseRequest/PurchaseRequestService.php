@@ -1430,6 +1430,7 @@ class PurchaseRequestService
                 Notification::create([
                     'employee_id' => $employeeId,
                     'type'        => 'purchase_request_pending_approval',
+                    'from_employee_id' => $request->employee_id,   // the requester: "X sent a ... for your approval"
                     'preview'     => $message,
                     'link'        => '/general/approvals',
                 ]);

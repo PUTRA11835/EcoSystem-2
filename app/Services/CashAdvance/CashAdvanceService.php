@@ -9,6 +9,7 @@ use App\Models\CashAdvance\CashAdvanceApprovalStep;
 use App\Models\CashAdvance\CashAdvanceSetting;
 use App\Models\DeliveryProject;
 use App\Models\Employee;
+use App\Support\CashAdvance\SignatureColumn;
 use App\Models\EmployeeRole;
 use App\Models\Notification;
 use App\Models\ReportingPeriod;
@@ -660,87 +661,25 @@ class CashAdvanceService
     }
 
     /**
-     * Kolom tanda tangan pada cetakan — EMPAT, dan sumbernya berbeda-beda.
-     *
-     * Requester   dari dokumen
-     * Accounting  dari setelan
-     * Cashier     dari setelan
-     * Approved by 🔴 dari orang yang BENAR-BENAR menyetujui pada langkah
-     *             ber-actor_role = approver TERAKHIR (Keputusan D129 & D137)
-     *
-     * Kolom keempat sengaja TIDAK diambil dari setelan. Menyimpan penanda tangan
-     * di dua tempat hanya melahirkan satu kelas kesalahan baru: setelan berkata
-     * A, riwayat persetujuan berkata B, dan yang tercetak adalah kertas yang
-     * ditandatangani orang sungguhan.
+     * Kolom tanda tangan pada cetakan — EMPAT: Requester dari dokumen; Accounting, Cashier dan Approved by dari alur persetujuan,
+     * yaitu orang yang BENAR-BENAR bertindak pada langkah ber-actor tersebut (lihat App\Support\CashAdvance\SignatureColumn).
      *
      * @return array<int, array{title: string, name: string, pending: bool}>
      */
     public function signatureColumns(CashAdvance $request): array
     {
         $settings = CashAdvanceSetting::current();
+        $column = fn (string $actor, string $title, ?Employee $legacy = null) => SignatureColumn::build(
+            $request->approvals, $actor, $title, CashAdvanceApproval::STATUS_APPROVED, CashAdvanceApproval::STATUS_SKIPPED,
+            fn (?Employee $e) => $this->nameOf($e), $legacy
+        );
 
-        $columns = [[
-            'title'   => 'Requester',
-            'name'    => $this->nameOf($request->employee),
-            'pending' => false,
-        ], [
-            'title'   => 'Accounting',
-            'name'    => $this->nameOf($settings->accountingSigner),
-            'pending' => false,
-        ], [
-            'title'   => 'Cashier',
-            'name'    => $this->nameOf($settings->cashierSigner),
-            'pending' => false,
-        ]];
-
-        $columns[] = $this->approverSignatureColumn($request);
-
-        return $columns;
-    }
-
-    /**
-     * Kolom "Approved by," — isinya bergantung keadaan dokumen.
-     *
-     * Langkah berstatus `skipped` DILEWATI: dokumen yang dibatalkan atau ditolak
-     * tidak boleh mencetak nama orang yang tidak akan pernah bertindak.
-     *
-     * @return array{title: string, name: string, pending: bool}
-     */
-    private function approverSignatureColumn(CashAdvance $request): array
-    {
-        $approverSteps = $request->approvals
-            ->where('actor_role', CashAdvanceApprovalStep::ACTOR_APPROVER)
-            ->where('status', '!=', CashAdvanceApproval::STATUS_SKIPPED);
-
-        // Yang TERAKHIR menyetujui, bukan yang pertama: pada alur berjenjang,
-        // nama yang pantas tercetak di "Approved by" adalah pemutus akhir.
-        $acted = $approverSteps->where('status', CashAdvanceApproval::STATUS_APPROVED)
-                               ->sortByDesc('order_seq')
-                               ->first();
-
-        if ($acted) {
-            return [
-                'title'   => 'Approved by',
-                'name'    => $this->nameOf($acted->actor),
-                'pending' => false,
-            ];
-        }
-
-        // Belum ada yang menyetujui. Bila kandidatnya tunggal, namanya tetap
-        // dicetak (abu, lewat flag `pending`) supaya pembaca dokumen tahu siapa
-        // yang sedang ditunggu. Bila kandidatnya banyak, kolomnya dikosongkan —
-        // menebak satu nama dari beberapa akan mencetak orang yang salah.
-        $waiting = $approverSteps->sortBy('order_seq')->first();
-        $name    = '';
-
-        if ($waiting) {
-            $ids  = array_map('intval', $waiting->approver_employee_ids ?? []);
-            $name = count($ids) === 1
-                ? $this->nameOf(Employee::with('basicData')->find($ids[0]))
-                : '';
-        }
-
-        return ['title' => 'Approved by', 'name' => $name, 'pending' => true];
+        return [
+            ['title' => 'Requester', 'name' => $this->nameOf($request->employee), 'pending' => false],
+            $column(CashAdvanceApprovalStep::ACTOR_ACCOUNTING, 'Accounting', $settings->accountingSigner),
+            $column(CashAdvanceApprovalStep::ACTOR_CASHIER, 'Cashier', $settings->cashierSigner),
+            $column(CashAdvanceApprovalStep::ACTOR_APPROVER, 'Approved by'),
+        ];
     }
 
     /**
@@ -1331,6 +1270,7 @@ class CashAdvanceService
                 Notification::create([
                     'employee_id' => $employeeId,
                     'type'        => 'cash_advance_pending_approval',
+                    'from_employee_id' => $request->employee_id,   // the requester: "X sent a ... for your approval"
                     'preview'     => $message,
                     'link'        => '/general/approvals',
                 ]);

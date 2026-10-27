@@ -14,6 +14,10 @@ use App\Models\LetterTypeSetting;
 use App\Services\Letters\LetterMailer;
 use App\Services\Letters\LetterNumberService;
 use App\Services\Letters\LetterService;
+use App\Models\Letters\LetterTemplateDef;
+use App\Support\Contracts\ContractHtmlSanitizer;
+use App\Support\Contracts\PageSettings;
+use App\Support\Letters\LetterBody;
 use App\Support\Letters\LetterTemplates;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -189,7 +193,7 @@ class LetterComposeController extends Controller
             ];
         });
 
-        $activeTemplates = collect(LetterTemplates::TEMPLATES)
+        $activeTemplates = collect(LetterTemplates::all())
             ->filter(fn ($template, $key) => empty($template['system']) || $letter?->template_key === $key)
             ->filter(fn ($template, $key) => ($typeSettings[$key]->is_active ?? true) || $letter?->template_key === $key || $letterRequest?->template_key === $key);
 
@@ -200,6 +204,12 @@ class LetterComposeController extends Controller
                 : ($letterRequest ? ($letterRequest->usesTemplate() ? 'template' : 'custom') : ($request->query('mode') === 'custom' ? 'custom' : 'template')),
             'templates'      => $activeTemplates,
             'customActive'   => $typeSettings[LetterTemplates::CUSTOM]->is_active ?? true,
+            // Custom letter: the wording each template starts from, the blank one, and the paper of the letter being edited.
+            'designBodies'   => LetterTemplateDef::whereIn('template_key', $activeTemplates->keys())->get()
+                ->mapWithKeys(fn (LetterTemplateDef $d) => [$d->template_key => ['id' => $d->bodyFor('id'), 'en' => $d->bodyFor('en')]]),
+            'offerComponentNames' => \App\Models\Recruitment\OfferComponent::ordered()->pluck('name'),
+            'blankBodies'    => ['id' => LetterBody::blank('id'), 'en' => LetterBody::blank('en')],
+            'letterheadUri'  => Letterhead::forLetter(LetterTemplates::CUSTOM)?->backgroundDataUri(),
             'typeDefaults'   => $typeDefaults,
             'codes'          => LetterCode::ordered()->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $letter?->letter_code_id))->get(),
             'employees'      => LetterService::employeeOptions(),
@@ -270,12 +280,27 @@ class LetterComposeController extends Controller
             $rules += LetterTemplates::rules($key);
             $attributes += LetterTemplates::attributes($key) + ['employee_id' => 'employee'];
         } else {
+            // A custom letter: its own text, written in the editor — optionally starting from a template's wording and fields.
+            $base = $request->input('base_template');
+            if ($base && (!LetterTemplates::exists($base) || !empty(LetterTemplates::get($base)['system']))) {
+                throw ValidationException::withMessages(['base_template' => 'Pick a template from the list, or start from a blank letter.']);
+            }
+            $m = 'nullable|numeric|min:' . PageSettings::MARGIN_MIN_CM . '|max:' . PageSettings::MARGIN_MAX_CM;
             $rules += [
-                'subject'      => 'required|string|max:255',
-                'counterparty' => 'nullable|string|max:255',
-                'body'         => 'required|string|max:20000',
+                'subject'          => 'required|string|max:255',
+                'counterparty'     => 'nullable|string|max:255',
+                'base_template'    => 'nullable|string|max:60',
+                'body_html'        => 'required|string|max:300000',
+                'employee_id'      => 'nullable|integer|exists:employee,employee_id',
+                'page_size'        => ['nullable', Rule::in(array_keys(PageSettings::SIZES))],
+                'page_orientation' => ['nullable', Rule::in(['portrait', 'landscape'])],
+                'margin_top' => $m, 'margin_right' => $m, 'margin_bottom' => $m, 'margin_left' => $m,
             ];
-            $attributes += ['counterparty' => 'recipient', 'body' => 'letter text'];
+            $attributes += ['counterparty' => 'recipient', 'body_html' => 'letter text', 'employee_id' => 'employee'];
+            if ($base) {
+                $rules += LetterTemplates::rules($base);
+                $attributes += LetterTemplates::attributes($base);
+            }
         }
 
         $input = $request->validate($rules, ['signatory_employee_id.in' => 'Pick a signatory allowed in Document Identity → Signers.'], $attributes);
@@ -300,25 +325,52 @@ class LetterComposeController extends Controller
                 'template_key'   => $key,
                 'employee_id'    => $employee?->employee_id,
                 'subject'        => $input['language'] === LetterTypeSetting::LANGUAGE_ENGLISH ? $template['label_en'] : $template['label'],
-                'counterparty'   => $snapshot['name'] ?? ($fields['received_from'] ?? null),
+                'counterparty'   => $snapshot['name'] ?? ($fields['received_from'] ?? $fields['candidate_name'] ?? null),
                 // A letter about an employee goes to their work email unless another address was typed.
-                'recipient_email'=> ($common['recipient_email'] ?? null) ?: Letter::workEmailOf($employee?->employee_id),
+                'recipient_email'=> ($common['recipient_email'] ?? null) ?: Letter::workEmailOf($employee?->employee_id) ?: (filter_var($fields['candidate_email'] ?? null, FILTER_VALIDATE_EMAIL) ?: null),
                 'use_letterhead' => true,
-                'fields'         => [...$fields, 'employee' => $snapshot, 'company' => $settings->company_name, 'city' => $settings->signing_city],
+                'fields'         => [
+                    ...$fields, 'employee' => $snapshot, 'company' => $settings->company_name, 'city' => $settings->signing_city,
+                    // The wording as it is now: the letter keeps printing it however the template changes later.
+                    ...(($design = LetterTemplates::designSnapshot($key, $input['language'])) ? ['_design' => $design] : []),
+                ],
             ];
             $type = $key;
         } else {
+            $base = $input['base_template'] ?? null;
+            $fieldDefs = $base ? LetterTemplates::normalizeFields(LetterTemplates::get($base)['fields']) : [];
+            $fields = $base ? LetterTemplates::cleanFields($base, (array) ($input['fields'] ?? [])) : [];
+
+            $body = ContractHtmlSanitizer::clean($input['body_html']);
+            if (trim(strip_tags($body)) === '') {
+                throw ValidationException::withMessages(['body_html' => 'The letter text cannot be empty.']);
+            }
+            if ($unknown = LetterBody::unknown($body, $fieldDefs)) {
+                throw ValidationException::withMessages(['body_html' => 'Unknown field in the letter text: {{' . implode('}}, {{', $unknown) . '}}. Use the Fields menu.']);
+            }
+
+            // A custom letter answering an employee's request is about that employee.
+            $employeeId = $letterRequest?->employee_id ?? ($input['employee_id'] ?? null) ?: $letter?->employee_id;
+            $employee = $employeeId ? Employee::with('basicData')->find($employeeId) : null;
+            $closing = $base ? LetterTemplateDef::where('template_key', $base)->first()?->closingFor($input['language']) : null;
+            $page = PageSettings::store($input['page_size'] ?? null, $input['page_orientation'] ?? null, [
+                'top' => $input['margin_top'] ?? null, 'right' => $input['margin_right'] ?? null, 'bottom' => $input['margin_bottom'] ?? null, 'left' => $input['margin_left'] ?? null,
+            ]);
+
             $data = [
                 ...$common,
                 'source'         => Letter::SOURCE_CUSTOM,
                 'template_key'   => null,
-                // A custom letter answering an employee's request is about that employee.
-                'employee_id'    => $letterRequest?->employee_id ?? $letter?->employee_id,
+                'employee_id'    => $employee?->employee_id,
                 'subject'        => $input['subject'],
                 'counterparty'   => $input['counterparty'] ?? null,
-                'recipient_email'=> ($common['recipient_email'] ?? null) ?: Letter::workEmailOf($letterRequest?->employee_id),
+                'recipient_email'=> ($common['recipient_email'] ?? null) ?: Letter::workEmailOf($employee?->employee_id),
                 'use_letterhead' => $request->boolean('use_letterhead'),
-                'fields'         => ['body' => $input['body'], 'company' => $settings->company_name, 'city' => $settings->signing_city],
+                'fields'         => [
+                    ...$fields, 'employee' => LetterTemplates::employeeSnapshot($employee), 'company' => $settings->company_name, 'city' => $settings->signing_city,
+                    '_base'   => $base ?: null,
+                    '_design' => ['body' => $body, 'fields' => $fieldDefs, 'closing' => $closing, 'page' => $page],
+                ],
             ];
             $type = LetterTemplates::CUSTOM;
         }

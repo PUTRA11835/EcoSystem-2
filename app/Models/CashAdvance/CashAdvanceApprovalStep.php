@@ -97,12 +97,20 @@ class CashAdvanceApprovalStep extends Model
     // ── Peran pelaku (kolom ACTOR pada editor acuan) ────────────────────────
 
     public const ACTOR_VERIFICATOR = 'verificator';
+    public const ACTOR_ACCOUNTING  = 'accounting';
+    public const ACTOR_CASHIER     = 'cashier';
     public const ACTOR_APPROVER    = 'approver';
 
-    public const ACTOR_ROLES = [self::ACTOR_VERIFICATOR, self::ACTOR_APPROVER];
+    public const ACTOR_ROLES = [self::ACTOR_VERIFICATOR, self::ACTOR_ACCOUNTING, self::ACTOR_CASHIER, self::ACTOR_APPROVER];
 
+    /**
+     * Accounting and Cashier act like a Verificator (they check, they do not finish the document) and in addition fill their column
+     * of the printed document with their name — the same as "Signs as" in the Reimbursement workflow. Only the Approver closes it.
+     */
     public const ACTOR_LABELS = [
         self::ACTOR_VERIFICATOR => 'Verificator',
+        self::ACTOR_ACCOUNTING  => 'Accounting',
+        self::ACTOR_CASHIER     => 'Cashier',
         self::ACTOR_APPROVER    => 'Approver',
     ];
 

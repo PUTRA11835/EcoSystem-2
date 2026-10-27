@@ -152,7 +152,7 @@
             }
             $iconBg     = $notif->is_read ? 'bg-gray-100' : ($leColor ? $leColor['bg'] : 'bg-red-100');
             $iconColor  = $notif->is_read ? 'text-gray-400' : ($leColor ? $leColor['icon'] : 'text-red-600');
-            $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : 'fa-at');
+            $iconClass  = $leInfo ? $leInfo['icon'] : ($notif->type === 'timesheet_submitted' ? 'fa-file-alt' : ($notif->type === 'mention' ? 'fa-at' : 'fa-bell'));
         @endphp
         <div class="flex gap-4 px-5 py-4 {{ !$notif->is_read ? 'bg-red-50' : '' }} hover:bg-gray-50 transition-colors group" id="notif-{{ $notif->id }}" data-ticket-id="{{ $notif->ticket_id }}">
             <div class="w-9 h-9 rounded-full {{ $iconBg }} flex items-center justify-center shrink-0 mt-0.5">
@@ -190,8 +190,8 @@
                             @elseif($notif->type === 'leave_permit_revision')
                                 Revision requested for your Leave/Permit request
                             @else
-                                {{ $notif->from_name ?? 'Someone' }} mentioned you
-                                @if($notif->ticket_id)
+                                {{ $notif->title }}
+                                @if($notif->type === 'mention' && $notif->ticket_id)
                                     in <a href="{{ $navLink ?? ('/ticket/' . $notif->ticket_id) }}" class="text-red-700 hover:underline">Ticket</a>
                                 @endif
                             @endif

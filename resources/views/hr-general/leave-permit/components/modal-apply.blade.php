@@ -129,8 +129,13 @@
                 </div>
             </div>
 
+            <p class="text-[11px] text-gray-500 -mt-2 flex items-start gap-1.5">
+                <i class="fas fa-info-circle mt-0.5 text-gray-400"></i>
+                <span>Only weekdays (Mon–Fri) are counted. Saturdays and Sundays in the selected range are not deducted from your quota.</span>
+            </p>
+
             <div id="daysCountBadge" class="p-3 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-between text-xs hidden">
-                <span class="font-semibold text-gray-600">Calculated Business Days:</span>
+                <span class="font-semibold text-gray-600">Calculated Business Days <span class="font-normal text-gray-400">(weekends excluded)</span>:</span>
                 <span class="font-bold primary-text text-sm" id="daysCountValue">0 days</span>
             </div>
 
@@ -170,6 +175,31 @@
 </div>
 
 <script>
+    // Weekdays (Mon–Fri) between two yyyy-mm-dd strings, inclusive. Mirrors the server's diffInDaysFiltered(!isWeekend)
+    // so the preview/quota check match what is actually saved. Parsed as local dates to avoid timezone shifts.
+    function countBusinessDays(startStr, endStr) {
+        const [sy, sm, sd] = startStr.split('-').map(Number);
+        const [ey, em, ed] = endStr.split('-').map(Number);
+        const cur = new Date(sy, sm - 1, sd);
+        const end = new Date(ey, em - 1, ed);
+        let days = 0;
+        while (cur <= end) {
+            const dow = cur.getDay();
+            if (dow !== 0 && dow !== 6) days++;
+            cur.setDate(cur.getDate() + 1);
+        }
+        return days > 0 ? days : 1; // server treats a weekend-only range as 1 day
+    }
+
+    // Quota-left hint text, always naming the selected leave type so it is clear the balance is per type, not overall.
+    function quotaHintFor(qItem) {
+        const label = `${qItem.type_name} (${qItem.type_code})`;
+        const scope = qItem.is_monthly_reset ? 'this month only' : 'this leave type only';
+        return qItem.remaining_quota <= 0
+            ? `⚠️ Quota for ${label} is exhausted (${scope}).`
+            : `Remaining quota for ${label}: ${qItem.remaining_quota} day(s) — ${scope}, other leave types have their own balance.`;
+    }
+
     function validateAttachmentSize(input) {
         if (input.files && input.files[0]) {
             const file = input.files[0];

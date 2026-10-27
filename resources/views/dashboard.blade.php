@@ -1942,6 +1942,7 @@
             });
         })();
     </script>
+    <script src="{{ asset('js/filter-icons.js') }}?v={{ @filemtime(public_path('js/filter-icons.js')) }}" defer></script>
     @stack('scripts')
 
     {{-- ==================== GLOBAL SELECT ENHANCER ====================
@@ -2248,7 +2249,20 @@
                     };
                     var DEFAULT_CFG = { bg: '#fee2e2', color: '#b91c1c', fa: 'fa-at' };
 
+                    /* Approval-workflow and other system notices: an icon for what happened. Only a real mention gets the @. */
+                    function cfgByOutcome(type) {
+                        type = type || '';
+                        if (type === 'mention') return DEFAULT_CFG;
+                        if (/_approved$|_verified$|_paid$|_signed$|_released$|_done$/.test(type)) return { bg: '#dcfce7', color: '#16a34a', fa: 'fa-circle-check' };
+                        if (/_rejected$|_returned$|_reversed$/.test(type)) return { bg: '#fee2e2', color: '#dc2626', fa: 'fa-circle-xmark' };
+                        if (/_pending_approval$|_pending_verification$|_sign_request$|_proposed$|_new$/.test(type)) return { bg: '#fef9c3', color: '#ca8a04', fa: 'fa-hourglass-half' };
+                        if (/_progressed$|_forwarded$/.test(type)) return { bg: '#dbeafe', color: '#2563eb', fa: 'fa-forward' };
+                        return { bg: '#e5e7eb', color: '#4b5563', fa: 'fa-bell' };
+                    }
+
                     function getTitle(n) {
+                        // The server's headline (Notification::titleFor): the same text as the Notifications page and push.
+                        if (n.title) return n.title;
                         switch (n.type) {
                             case 'timesheet_submitted': return (n.from_name || 'Consultant') + ' submitted a timesheet';
                             case 'late_exception_submitted': return 'Late Access Request from ' + (n.from_name || 'Employee');
@@ -2292,7 +2306,7 @@
                     /* ---- build one notification item using createElement (no Tailwind dependency) ---- */
                     function buildItem(n) {
                         var isUnread = !n.is_read;
-                        var cfg = TYPE_CFG[n.type] || DEFAULT_CFG;
+                        var cfg = TYPE_CFG[n.type] || cfgByOutcome(n.type);
 
                         /* outer <a> */
                         var a = document.createElement('a');

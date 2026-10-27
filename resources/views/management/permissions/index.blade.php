@@ -177,6 +177,7 @@
     </div>
 </div>
 
+<script src="{{ asset('js/permission-sync.js') }}?v={{ @filemtime(public_path('js/permission-sync.js')) }}"></script>
 <script>
 const CAN_GRANT = @json($canGrant);
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -190,6 +191,14 @@ async function loadData() {
     menusFlat = (await res.json()).data || [];
     menuTree = buildTree(menusFlat, null);
     menuTree.forEach(n => expandedSet.add(n.slug));
+    renderList();
+}
+// Reload the list (and every role count in it) without touching which rows are open.
+async function refreshList() {
+    const res = await fetch('/api/menus/all', { headers: { 'Accept': 'application/json' }, credentials: 'same-origin' });
+    if (!res.ok) return;
+    menusFlat = (await res.json()).data || [];
+    menuTree = buildTree(menusFlat, null);
     renderList();
 }
 function buildTree(items, parentId) {
@@ -460,8 +469,9 @@ async function confirmApply() {
     closeReview();
     const id = acc.menu.id;
     lastUndo = { menuId: id, ids: r.json.change_ids || [] };
+    PermissionSync.publish({ roleIds: [...new Set((planned.rows || []).map(x => x.role_id))], menuIds: [id], all: scope === 'subtree' });
     await loadAccess(id);
-    syncListCount(id);
+    await refreshList();                 // a sub-tree save touches many menus: refresh every count, not only this menu's
     if (lastUndo.ids.length) showSnack(`Saved: ${r.json.summary.grant} granted, ${r.json.summary.revoke} removed, ${r.json.summary.change} changed.`);
     else showNotification('No changes to save.', 'info');
     if (tab === 'history') loadHistory();
@@ -483,7 +493,9 @@ async function undoLast() {
     const r = await api(`/api/menus/${menuId}/access/undo`, { method: 'POST', body: JSON.stringify({ change_ids: ids }) });
     if (!r.ok) { showNotification(r.json.message || 'Could not undo.', 'error'); return; }
     lastUndo = null; showNotification('Change undone.', 'success');
-    if (acc && acc.menu.id === menuId) { await loadAccess(menuId); syncListCount(menuId); if (tab === 'history') loadHistory(); }
+    PermissionSync.publish({ menuIds: [menuId], all: true });
+    await refreshList();
+    if (acc && acc.menu.id === menuId) { await loadAccess(menuId); if (tab === 'history') loadHistory(); }
 }
 function setTab(t) {
     tab = t; $('paneAccess').classList.toggle('hidden', t !== 'access'); $('paneHistory').classList.toggle('hidden', t !== 'history');
@@ -515,8 +527,27 @@ async function undoOne(id) {
     const r = await api(`/api/menus/${acc.menu.id}/access/undo`, { method: 'POST', body: JSON.stringify({ change_ids: [id] }) });
     if (!r.ok) { showNotification(r.json.message || 'Could not undo.', 'error'); return; }
     showNotification('Change undone.', 'success');
-    await loadAccess(acc.menu.id); syncListCount(acc.menu.id); loadHistory();
+    PermissionSync.publish({ menuIds: [acc.menu.id], all: true });
+    await loadAccess(acc.menu.id); await refreshList(); loadHistory();
 }
+
+// ── in step with the other permission screens ───────────────────────────────
+// Access changed on another screen (a role's Menu Access page, another tab): reload the counts, and the open drawer too — unless it holds
+// changes that were not saved yet, which are never replaced silently.
+function showStale() {
+    if ($('accStale')) return;
+    $('accNotices').insertAdjacentHTML('beforeend', `<p id="accStale" class="text-xs rounded-lg px-3 py-2 bg-amber-50 text-amber-800 border border-amber-200"><i class="fas fa-rotate mr-1.5"></i>Access for this menu was changed on another screen. Your unsaved changes are kept.
+        <button type="button" class="font-semibold underline underline-offset-2 ml-1" onclick="reloadLatest()">Load the latest (drops my changes)</button></p>`);
+}
+async function reloadLatest() { if (acc) { await loadAccess(acc.menu.id); if (tab === 'history') loadHistory(); } }
+async function resync(menuIds, all) {
+    await refreshList();
+    if (!acc) return;
+    if (!all && !(menuIds || []).includes(acc.menu.id)) return;
+    if (pendingCount() === 0) { await loadAccess(acc.menu.id); if (tab === 'history') loadHistory(); } else { showStale(); }
+}
+PermissionSync.subscribe((m) => resync(m.menuIds, m.all));
+PermissionSync.onStale(() => resync([], true));
 
 loadData();
 </script>
