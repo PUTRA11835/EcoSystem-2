@@ -181,6 +181,16 @@
             background: rgb(var(--primary-rgb));
         }
         
+        /* Sidebar nav: track ikut warna sidebar (merah gelap), thumb lebih terang agar tetap terlihat */
+        #sidebarNavScroll { scrollbar-color: rgba(255,255,255,0.45) rgba(var(--primary-dark-rgb), 0.85); }
+        #sidebarNavScroll::-webkit-scrollbar-track { background: rgba(var(--primary-dark-rgb), 0.85); }
+        #sidebarNavScroll::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.45);
+            border: 1px solid transparent;
+            background-clip: padding-box;
+        }
+        #sidebarNavScroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.7); background-clip: padding-box; }
+
         /* Navbar animation */
         @keyframes slideIn {
             from {
@@ -1308,6 +1318,12 @@
                             <span class="nav-text text-sm">Two-Factor Enforcement</span>
                         </a>
                         @endif
+                        @if($can('control-center.user-guide'))
+                        <a href="{{ route('admin.user-guide.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/user-guide*') ? 'bg-white/15 text-white font-medium' : 'text-white/70 hover:bg-white/10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-book text-xs"></i></span>
+                            <span class="nav-text text-sm">User Guide Editor</span>
+                        </a>
+                        @endif
                     </div>
                 </div>
                 @endif
@@ -1581,6 +1597,14 @@
                         <span class="nav-text font-medium">Settings</span>
                     </a>
                 </div>
+                <div class="mb-2">
+                    <a href="{{ route('user-guide.index') }}" class="nav-link flex items-center gap-3 px-4 py-3 rounded-xl {{ Request::is('user-guide*') ? 'active bg-white/20 text-white font-semibold' : 'text-white/80 hover:bg-white/10 hover:text-white' }} transition-all">
+                        <span class="nav-icon w-5 h-5 flex items-center justify-center">
+                            <i class="fas fa-book-open"></i>
+                        </span>
+                        <span class="nav-text font-medium">User Guide</span>
+                    </a>
+                </div>
             </nav>
             @endif
             </div>
@@ -1690,6 +1714,10 @@
                                 <a href="{{ route('settings.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
                                     <i class="fas fa-cog w-5 text-center text-gray-500"></i>
                                     <span>Settings</span>
+                                </a>
+                                <a href="{{ route('user-guide.index') }}" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
+                                    <i class="fas fa-book-open w-5 text-center text-gray-500"></i>
+                                    <span>User Guide</span>
                                 </a>
                                 <a href="#" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
                                     <i class="fas fa-question-circle w-5 text-center text-gray-500"></i>
