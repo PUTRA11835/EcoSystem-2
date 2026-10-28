@@ -44,6 +44,16 @@ class Ticket extends Model
             }
         });
 
+        // "Last Update" (= last_message_at) must also move when the status changes
+        // (closed, reopened, etc.), not only on chat messages. Doing it here covers
+        // every code path that changes status. A caller that sets last_message_at
+        // explicitly in the same save keeps its own value.
+        static::updating(function (Ticket $ticket) {
+            if ($ticket->isDirty('status') && !$ticket->isDirty('last_message_at')) {
+                $ticket->last_message_at = now();
+            }
+        });
+
         // Re-snapshot the deliverable document checklist whenever the ticket
         // gets its type for the first time or is reclassified — see
         // TicketDeliverableRequirementSync. Deliberately NOT run on every
