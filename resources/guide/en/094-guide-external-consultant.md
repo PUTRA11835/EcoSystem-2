@@ -25,7 +25,7 @@ External consultants. Your menus are `Home`, `AI Research`, `Ticket` and `Calend
 1. Open `Ticket`. The cards at the top count tickets by status, and `Reset Filter` clears your filters. Pick a ticket to open it.
 2. Reply to the customer or write an `Internal Note` when there is progress. An internal note is seen only by the team, and a reply is seen by the customer, so check which one you use.
 3. Keep the status true to the work, for example `Wait Customer` while you wait for an answer.
-4. `AI Summarize` and the AI research button on a ticket can help with a long conversation.
+4. `AI Summarize` and the AI research button on a ticket can help with a long conversation. See [[ticket-ai-tools]].
 
 ### Propose mandays
 

@@ -26,7 +26,7 @@ Delivery Support heads, and others whose role includes reporting periods or the 
 2. **Timesheets**: in `Calendar` › `Timesheets`, approve or reject your team's entries, also several at once. See [[calendar-timesheet]].
 3. **Late access**: a request waits at `Pending Head` before it goes to RPMO.
 4. **Mandays proposals**: review, edit, send to the customer or cancel them from the ticket.
-5. **Incoming tickets**: in `Ticket Validation`, approve real requests and reject the rest with a reason.
+5. **Incoming tickets**: in `Ticket Validation`, approve real requests and reject the rest with a reason. See [[ticket-validation]].
 
 ### Keep an eye on the work
 

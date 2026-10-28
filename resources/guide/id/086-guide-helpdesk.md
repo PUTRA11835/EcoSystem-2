@@ -22,7 +22,7 @@ Staf Helpdesk. Menu Anda mencakup `Ticket`, `Ticket Validation`, `Consultant Wor
 
 ### Validasi tiket masuk
 
-Permintaan baru dari customer menunggu di `Ticket Validation` sampai Anda memutuskan. Angka di samping menu menunjukkan berapa yang menunggu.
+Permintaan baru dari customer menunggu di `Ticket Validation` sampai Anda memutuskan. Angka di samping menu menunjukkan berapa yang menunggu. Alur lengkapnya ada di [[ticket-validation]].
 
 1. Buka `Ticket Validation`. Daftar `Pending Validation` menampilkan permintaan dengan pengirim, subjek, prioritas, kanal, dan tanggal kirim. Pakai `View Rejected` untuk melihat yang sudah ditolak.
 2. Pilih sebuah permintaan untuk membacanya. Bagian atas menampilkan `From`, `Date` dan `Subject`, dan `AI Ticket Analyzer` dapat menyarankan klasifikasi. Periksa sarannya sebelum Anda mengandalkannya.

@@ -26,7 +26,7 @@ Kepala Delivery Support, serta orang lain yang rolenya mencakup periode pelapora
 2. **Timesheets**: di `Calendar` › `Timesheets`, setujui atau tolak entri tim Anda, juga beberapa sekaligus. Lihat [[calendar-timesheet]].
 3. **Akses terlambat**: permintaan menunggu di `Pending Head` sebelum diteruskan ke RPMO.
 4. **Proposal mandays**: tinjau, ubah, kirim ke customer, atau batalkan dari ticket.
-5. **Ticket masuk**: di `Ticket Validation`, setujui permintaan yang sah dan tolak sisanya disertai alasan.
+5. **Ticket masuk**: di `Ticket Validation`, setujui permintaan yang sah dan tolak sisanya disertai alasan. Lihat [[ticket-validation]].
 
 ### Memantau pekerjaan
 

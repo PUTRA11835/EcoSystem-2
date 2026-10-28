@@ -24,7 +24,7 @@ Delivery Support managers. Some actions, such as approving timesheets, belong to
 ### A suggested routine
 
 1. Open the `All Tickets` tab and look for tickets that are not moving or are close to their SLA limit.
-2. Open `Ticket Validation` and handle incoming tickets: approve real requests, reject the rest with a reason.
+2. Open `Ticket Validation` and handle incoming tickets: approve real requests, reject the rest with a reason. See [[ticket-validation]].
 3. Give owners to unassigned tickets. Check `Consultant Workload` first so the work is shared fairly. See [[ticket-assignment]].
 4. Review proposals: `Review Mandays Proposal` for Customer Mandays and `Review Resolution Days` for the internal estimate. See [[ticket-mandays]].
 5. Follow `SLA` › `SLA Report`, and open the SLA log of a ticket when you need to trace a gap.

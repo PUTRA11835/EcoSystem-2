@@ -24,7 +24,7 @@ Manager Delivery Support. Beberapa aksi, seperti menyetujui timesheet, justru mi
 ### Rutinitas yang disarankan
 
 1. Buka tab `All Tickets` dan cari ticket yang tidak bergerak atau mendekati batas SLA.
-2. Buka `Ticket Validation` dan proses ticket masuk: setujui permintaan yang sah, tolak sisanya disertai alasan.
+2. Buka `Ticket Validation` dan proses ticket masuk: setujui permintaan yang sah, tolak sisanya disertai alasan. Lihat [[ticket-validation]].
 3. Beri pemilik pada ticket yang belum bertuan. Periksa dulu `Consultant Workload` agar pekerjaan terbagi adil. Lihat [[ticket-assignment]].
 4. Tinjau proposal: `Review Mandays Proposal` untuk Customer Mandays dan `Review Resolution Days` untuk estimasi internal. Lihat [[ticket-mandays]].
 5. Ikuti `SLA` › `SLA Report`, dan buka log SLA sebuah ticket bila perlu menelusuri selisih.

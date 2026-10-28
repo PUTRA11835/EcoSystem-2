@@ -43,7 +43,7 @@ Konsultan dengan role Delivery Support User. Yang dapat Anda lakukan bergantung 
 - `Internal Note` hanya dilihat tim Anda. Balasan ke customer dilihat customer, jadi periksa dulu mana yang Anda pakai sebelum mengirim.
 - Atur status sesuai kenyataan, misalnya `Wait Customer` saat menunggu customer. Status yang benar menjaga SLA tetap adil.
 - Pakai `Team Members` untuk mengajak rekan yang perlu membantu.
-- `AI Summarize` dan `Ask AI` dapat merangkum percakapan panjang. Jangan memasukkan credential ke dalamnya.
+- `AI Summarize` dan `Ask AI` dapat merangkum percakapan panjang. Jangan memasukkan credential ke dalamnya. Lihat [[ticket-ai-tools]].
 
 ### Mengusulkan mandays
 
