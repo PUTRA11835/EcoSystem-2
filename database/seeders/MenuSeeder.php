@@ -234,6 +234,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'control-center.seasonal-theme', 'name' => 'Seasonal Theme',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.seasonal-theme',     'icon' => null,                   'order_seq' => 9],
             ['slug' => 'control-center.ai-usage',      'name' => 'AI Usage',                'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-usage',           'icon' => null,                   'order_seq' => 11],
             ['slug' => 'control-center.two-factor-enforcement', 'name' => 'Two-Factor Enforcement', 'type' => 'page', 'parent_slug' => 'control-center', 'route_name' => 'admin.two-factor-enforcement', 'icon' => null,               'order_seq' => 10],
+            ['slug' => 'control-center.user-guide',    'name' => 'User Guide Editor',       'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.user-guide.index',   'icon' => null,                   'order_seq' => 12],
 
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
@@ -434,6 +435,7 @@ class MenuSeeder extends Seeder
             'control-center.ai-usage'      => [self::ADMIN=>$v],
             'control-center.seasonal-theme' => [self::ADMIN=>$v],
             'control-center.two-factor-enforcement' => [self::ADMIN=>$v],
+            'control-center.user-guide'   => [self::ADMIN=>$v],
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],

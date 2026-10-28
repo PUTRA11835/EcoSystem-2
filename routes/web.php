@@ -241,6 +241,16 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/audit-log', [AuditLogController::class, 'index'])->name('audit-log')->middleware('menu:control-center.audit-log');
         Route::get('/login-log', [LoginLogController::class, 'index'])->name('login-log')->middleware('menu:control-center.login-log');
         Route::get('/security-center', [\App\Http\Controllers\SecurityCenterController::class, 'index'])->name('security-center')->middleware('menu:control-center.security');
+        Route::prefix('user-guide')->name('user-guide.')->middleware('menu:control-center.user-guide')->group(function () {
+            $c = \App\Http\Controllers\UserGuideAdminController::class;
+            Route::get('/', [$c, 'index'])->name('index');
+            Route::get('/create', [$c, 'create'])->name('create');
+            Route::post('/', [$c, 'store'])->name('store');
+            Route::post('/preview', [$c, 'preview'])->name('preview');
+            Route::get('/{key}', [$c, 'edit'])->name('edit')->where('key', '[a-z0-9\-]+');
+            Route::put('/{key}', [$c, 'update'])->name('update')->where('key', '[a-z0-9\-]+');
+            Route::delete('/{key}', [$c, 'destroy'])->name('destroy')->where('key', '[a-z0-9\-]+');
+        });
         Route::get('/sessions', [AdminSessionController::class, 'page'])->name('sessions')->middleware('menu:control-center.sessions');
         Route::get('/failed-jobs', [AdminJobController::class, 'page'])->name('failed-jobs')->middleware('menu:control-center.failed-jobs');
         Route::get('/schedule-monitor', [\App\Http\Controllers\ScheduleMonitorController::class, 'page'])->name('schedule-monitor')->middleware('menu:control-center.schedule-monitor');
@@ -284,6 +294,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         Route::get('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'index'])->name('two-factor-enforcement')->middleware('menu:control-center.two-factor-enforcement');
         Route::post('/two-factor-enforcement', [\App\Http\Controllers\TwoFactorEnforcementSettingsController::class, 'update'])->name('two-factor-enforcement.update')->middleware('menu:control-center.two-factor-enforcement');
     });
+
+    // ==================== USER GUIDE ====================
+    // User Guide: semua pengguna yang masuk; isi disaring di server menurut izin menu (lihat UserGuideController).
+    Route::get('/user-guide', [\App\Http\Controllers\UserGuideController::class, 'index'])->name('user-guide.index');
+    Route::get('/user-guide/pdf', [\App\Http\Controllers\UserGuideController::class, 'pdf'])->name('user-guide.pdf')->middleware('throttle:20,1');
 
     // ==================== SLA ====================
     Route::get('/sla/config', [SlaController::class, 'configPage'])->name('sla.config')->middleware('menu:sla.config');
