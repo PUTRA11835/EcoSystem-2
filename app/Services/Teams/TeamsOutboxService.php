@@ -138,6 +138,62 @@ class TeamsOutboxService
     }
 
     /**
+     * Masukkan balasan karyawan ke customer ke antrean kirim.
+     *
+     * Jalur masuk KEEMPAT ke outbox, pasangan queueCustomerMessage(): dengan
+     * keduanya, tim di group chat melihat percakapan dengan customer dari dua
+     * arah tanpa membuka tiket (permintaan 28 Okt 2026). Seperti jalur customer,
+     * sengaja tidak menumpang shouldSend() — aturan "hanya internal note" tetap
+     * benar untuk jalur note.
+     *
+     * Balasan yang emailnya GAGAL tidak diteruskan: customer tidak menerimanya,
+     * jadi menampilkannya di grup sebagai "balasan ke customer" menyesatkan.
+     * Balasan tanpa penerima email (status null, channel web) tetap diteruskan —
+     * customer masih melihatnya di portal Jarvies.
+     *
+     * Tidak ada risiko gema, alasannya sama dengan queueCustomerMessage().
+     */
+    public function queueAgentReply(TicketMessage $message): ?TeamsOutboxItem
+    {
+        if (!$this->isEnabled()) {
+            return null;
+        }
+
+        if ($message->is_internal_note || $message->sender_type !== 'employee' || $message->is_deleted) {
+            return null;
+        }
+
+        if ($message->email_status === 'failed') {
+            return null;
+        }
+
+        $chat = TicketTeamsChat::where('ticket_id', $message->ticket_id)->first();
+
+        if (!$chat || !$chat->sync_enabled) {
+            return null;
+        }
+
+        if (TeamsOutboxItem::where('ticket_message_id', $message->id)->exists()) {
+            return null;
+        }
+
+        if ($this->plainBody($message) === '') {
+            return null;
+        }
+
+        return TeamsOutboxItem::create([
+            'ticket_id'         => $message->ticket_id,
+            'chat_id'           => $chat->chat_id,
+            'ticket_message_id' => $message->id,
+            'payload'           => $this->buildPayload(
+                $message,
+                $chat,
+                ($message->sender_name ?: 'EcoSystem') . ' · Reply to Customer'
+            ),
+        ]);
+    }
+
+    /**
      * Antre pesan customer yang belum masuk outbox — jaring pengaman untuk
      * pesan yang tidak melewati hook queueCustomerMessage().
      *
@@ -407,6 +463,8 @@ class TeamsOutboxService
         //   Putra Palampang Tarung · EcoSystem        From Customer (a@b.co.id)
         //   -----------------------------------       -------------------------
         //   Oke baik Pak                              Oke baik Pak
+        //
+        // Balasan ke customer memakai header "Nama · Reply to Customer".
         $text = $header . "\n" . self::DIVIDER . "\n" . $this->plainBody($message);
 
         $links = $this->attachmentLinks($message);

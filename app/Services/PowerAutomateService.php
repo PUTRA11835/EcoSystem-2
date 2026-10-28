@@ -252,7 +252,7 @@ class PowerAutomateService
             'channel'      => $ticket->channel,
             'customer'     => $this->customerName($ticket->customer_id),
             'end_customer' => $this->customerName($ticket->end_customer_id),
-            'module'       => $ticket->module,
+            'module'       => $this->moduleName($ticket->module, $ticket->module_id),
             'module_id'    => $ticket->module_id ? (int) $ticket->module_id : null,
             'submitted_by' => [
                 'name'  => $ticket->submitted_by_name ?? $ticket->name,
@@ -1009,6 +1009,24 @@ class PowerAutomateService
         return DB::table('customer_basic_data')
             ->where('customer_id', $customerId)
             ->value('name_1');
+    }
+
+    /**
+     * Kebanyakan tiket hanya menyimpan module_id; kolom teks `module` sering
+     * kosong. Tanpa fallback ini kartu Teams menampilkan Modul kosong.
+     */
+    private function moduleName(?string $module, $moduleId): ?string
+    {
+        $module = trim((string) $module);
+        if ($module !== '') {
+            return $module;
+        }
+
+        if (!$moduleId) {
+            return null;
+        }
+
+        return DB::table('modules')->where('id', $moduleId)->value('name');
     }
 
     /** @return list<string> */
