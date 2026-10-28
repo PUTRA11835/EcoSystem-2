@@ -59,6 +59,9 @@ class UserGuideRoleTest extends TestCase
         }
         // Topik administrasi mengikuti izin menu masing-masing.
         $this->assertSame(['control-center.user-guide'], $en['user-guide-editor']['requires']);
+        $this->assertSame(['control-center.ai-settings'], $en['ai-settings']['requires']);
+        $this->assertSame(['tickets.staging'], $en['ticket-validation']['requires']);
+        $this->assertSame(['ui.ticket.btn-ai-summarize', 'ui.ticket.btn-ai-research'], $en['ticket-ai-tools']['requires']);
         $this->assertCount(3, $en['delivery-types']['requires']);
         // Satu panduan untuk seluruh keluarga role Sales dan Marketing.
         $this->assertCount(5, $en['guide-sales']['requires']);
