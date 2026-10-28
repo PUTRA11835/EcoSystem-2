@@ -5,6 +5,7 @@
     Gaya garis (fill none, stroke currentColor) diatur di CSS .sb-ico pada partials/sidebar.blade.php.
 --}}
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+<symbol id="ti-book" viewBox="0 0 24 24"><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></symbol>
 <symbol id="ti-activity" viewBox="0 0 24 24"><path d="M3 12h4l3 8l4 -16l3 8h4" /></symbol>
 <symbol id="ti-address-book" viewBox="0 0 24 24"><path d="M20 6v12a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2" />
   <path d="M10 16h6" />

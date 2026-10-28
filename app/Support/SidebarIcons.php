@@ -128,6 +128,7 @@ final class SidebarIcons
         'fa-chart-line' => 'chart-line',
         'fa-chart-bar' => 'chart-bar',
         'fa-cog' => 'settings',
+        'fa-book-open' => 'book',
         'fa-briefcase' => 'briefcase',
         'fa-tasks' => 'checklist',
         'fa-folder' => 'folder',

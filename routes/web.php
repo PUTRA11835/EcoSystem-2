@@ -440,6 +440,9 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     Route::get('/staging-tickets/rejected', [StagingTicketController::class, 'viewRejected'])->name('staging.rejected');
     Route::get('/staging-email-attachments/{stagingId}', [StagingTicketController::class, 'proxyEmailAttachment'])
         ->name('staging.email-attachment.proxy');
+    // User Guide: semua pengguna yang masuk; isi disaring di server menurut izin menu (lihat UserGuideController).
+    Route::get('/user-guide', [\App\Http\Controllers\UserGuideController::class, 'index'])->name('user-guide.index');
+    Route::get('/user-guide/pdf', [\App\Http\Controllers\UserGuideController::class, 'pdf'])->name('user-guide.pdf')->middleware('throttle:20,1');
     Route::get('/my-profile', [ProfileController::class, 'myProfile'])->name('profile.my');
     Route::get('/my-profile/photo', [ProfileController::class, 'myPhoto'])->name('profile.photo');
     Route::get('/my-profile/onboarding-progress', [ProfileController::class, 'myOnboardingProgress'])->name('profile.onboarding-progress');

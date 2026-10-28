@@ -1721,10 +1721,10 @@
                                     <i class="fas fa-cog w-5 text-center text-gray-500"></i>
                                     <span>Settings</span>
                                 </a>
-                                <a href="#"
+                                <a href="{{ route('user-guide.index') }}"
                                     class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 text-gray-900 text-sm transition-all font-medium">
-                                    <i class="fas fa-question-circle w-5 text-center text-gray-500"></i>
-                                    <span>Help & Support</span>
+                                    <i class="fas fa-book-open w-5 text-center text-gray-500"></i>
+                                    <span>User Guide</span>
                                 </a>
                                 <hr class="my-2 border-gray-200">
                                 <button type="button" onclick="handleLogout(this)"
