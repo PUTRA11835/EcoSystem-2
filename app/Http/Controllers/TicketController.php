@@ -1539,6 +1539,19 @@ class TicketController extends Controller
 
 
     /**
+     * Ticket id yang terhubung ke delivery support dimana employee menjadi Co PM.
+     */
+    private function coPmTicketIds($employeeId)
+    {
+        return DB::table('delivery_support_activities')
+            ->whereIn('delivery_support_id', DB::table('delivery_support')->where('co_pm_id', $employeeId)->select('id'))
+            ->whereNotNull('ticket_id')
+            ->pluck('ticket_id')
+            ->unique()
+            ->values();
+    }
+
+    /**
      * Get my tickets (for customer and employee)
      */
     public function myTickets(Request $request)
@@ -1593,7 +1606,10 @@ class TicketController extends Controller
 
                     $query = Ticket::with(['customer.basicData', 'endCustomer.basicData', 'ticketLead.basicData', 'members.basicData', 'sla.policy', 'modules'])
                         ->whereNull('ticket.is_hidden')
-                        ->whereIn('ticket.ticket_id', $managedTicketIds);
+                        ->where(function ($q) use ($managedTicketIds, $employeeId) {
+                            $q->whereIn('ticket.ticket_id', $managedTicketIds)
+                                ->orWhereIn('ticket.ticket_id', $this->coPmTicketIds($employeeId));
+                        });
                 } else {
                     // DS User scope (default fallback juga, untuk role custom tanpa permission eksplisit):
                     // tiket dimana employee jadi PIC atau member.
@@ -1605,7 +1621,8 @@ class TicketController extends Controller
                             $q->where('ticket.ticket_lead_id', $employeeId)
                                 ->orWhereHas('members', function ($inner) use ($employeeId) {
                                     $inner->where('ticket_member.employee_id', $employeeId);
-                                });
+                                })
+                                ->orWhereIn('ticket.ticket_id', $this->coPmTicketIds($employeeId));
                         });
                 }
             }
@@ -1841,12 +1858,17 @@ class TicketController extends Controller
                         ->unique()
                         ->values();
 
-                    $scopedQuery = Ticket::whereNull('is_hidden')->whereIn('ticket_id', $managedTicketIds);
+                    $scopedQuery = Ticket::whereNull('is_hidden')
+                        ->where(function ($query) use ($managedTicketIds, $employeeId) {
+                            $query->whereIn('ticket_id', $managedTicketIds)
+                                ->orWhereIn('ticket_id', $this->coPmTicketIds($employeeId));
+                        });
                 } else {
                     $scopedQuery = Ticket::whereNull('is_hidden')
                         ->where(function ($query) use ($employeeId) {
                             $query->where('ticket.ticket_lead_id', $employeeId)
-                                ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId));
+                                ->orWhereHas('members', fn ($inner) => $inner->where('ticket_member.employee_id', $employeeId))
+                                ->orWhereIn('ticket.ticket_id', $this->coPmTicketIds($employeeId));
                         });
                 }
             }
@@ -3028,6 +3050,12 @@ class TicketController extends Controller
                 if (array_key_exists('ticket_lead_id', $updateData) && !array_key_exists('man_days', $updateData)) {
                     $ticket->refreshPlaceholderManDays();
                     $ticket->syncDraftResolutionMembers();
+                }
+
+                // Priority/scale/type menentukan SLA policy — tanpa ini ticket_slas tetap
+                // menunjuk policy lama (mis. target 24 jam padahal sekarang Medium/Medium = 48).
+                if ($ticket->wasChanged(['ticket_priority', 'scale', 'ticket_type'])) {
+                    app(\App\Services\SlaService::class)->syncPolicy($ticket, null, null, true);
                 }
 
                 // Jalur kedua penetapan PIC (edit tiket / Take This Ticket), sejajar
