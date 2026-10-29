@@ -382,6 +382,13 @@ mengulang nama grup, dan tautannya tampil sebagai URL mentah yang panjang. Blok
 customer, pesan sistem/SLA, dan internal note yang berasal dari Teams
 (`direction='in'`). Hanya internal note yang ditulis manusia di EcoSystem.
 
+> Aturan ini berlaku untuk jalur **internal note** (`queue()`). Belakangan dua
+> pintu terpisah ditambahkan: pesan customer lewat `queueCustomerMessage()`
+> (19 Okt 2026, header `From Customer (email)`) dan balasan karyawan ke customer
+> lewat `queueAgentReply()` (28 Okt 2026, header `Nama · Reply to Customer`;
+> balasan yang emailnya gagal tidak diteruskan). Keduanya memakai payload yang
+> sama dengan note, jadi flow 7 tidak berubah.
+
 ### Pengecualian: jadwal meeting (ditambahkan 17 Sep 2026)
 
 Permintaan menyusul: jadwal meeting yang dibuat di EcoSystem juga diumumkan ke
