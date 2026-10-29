@@ -896,6 +896,7 @@
 
     // Initialize
     document.addEventListener('DOMContentLoaded', function() {
+        addrLoadRegions();   // siapkan daftar provinsi untuk form "New"
         loadAddresses();
     });
 
