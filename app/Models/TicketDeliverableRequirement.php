@@ -7,9 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Per-ticket deliverable-document requirement, set from the "Deliverable
- * Documents" window on the ticket page. A row marks a document type as
- * mandatory (is_mandatory) or optional for that one ticket; a document type
- * with no row is optional.
+ * Documents" window on the ticket page. It overrides the default of the
+ * ticket's type (deliverable_document_type_ticket_types): a ticket with no rows
+ * follows the default, a ticket with rows uses exactly them (is_mandatory
+ * true/false per active document type). Rows are dropped when the ticket's
+ * type changes.
  */
 class TicketDeliverableRequirement extends Model
 {

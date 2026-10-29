@@ -9387,13 +9387,21 @@ async function _loadLogShiftingData() {
         </div>
 
         {{-- Daftar semua tipe dokumen aktif (master Document Type): status
-             Mandatory/Optional untuk tiket ini (bisa diubah kecuali oleh member
-             tiket) dan jumlah dokumen yang sudah diupload per tipe. --}}
+             Mandatory/Optional untuk tiket ini (default sesuai ticket type, bisa
+             diubah per tiket kecuali oleh member tiket) dan apakah dokumennya
+             sudah diupload. --}}
         <div id="delivChecklist" class="hidden px-6 py-4 border-b border-gray-100 shrink-0">
             <div class="flex items-center justify-between mb-3">
-                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Document Types</span>
+                <div class="min-w-0">
+                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Document Types</span>
+                    <span id="delivReqSource" class="block text-[11px] text-gray-400 mt-0.5"></span>
+                </div>
                 <div class="flex items-center gap-2">
                     <span id="delivChecklistBadge" class="hidden items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"></span>
+                    <button id="delivReqResetBtn" type="button" onclick="resetDeliverableRequirements()"
+                        class="hidden items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                        Reset to Default
+                    </button>
                     <button id="delivReqEditBtn" type="button" onclick="setDelivReqEditing(true)"
                         class="hidden items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
                         Edit Requirement
@@ -9596,7 +9604,9 @@ async function _loadLogShiftingData() {
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
 let deliverableData = [];
-let delivMandatoryTypes = [];   // doc_type mandatory untuk tiket ini
+let delivMandatoryTypes = [];   // doc_type mandatory yang berlaku untuk tiket ini
+let delivIsCustomized = false;  // true = tiket punya pengaturan sendiri (bukan default ticket type)
+let delivTicketType = null;     // ticket type, untuk keterangan "Default for ..."
 let delivReqEditing = false;    // mode edit Requirement aktif
 let delivCanConfigure = false;  // member tiket tidak boleh mengubah
 let deliverableFolderUrl = null;
@@ -9707,6 +9717,8 @@ async function loadDeliverables() {
         if (!json.success) throw new Error(json.message);
         deliverableData = json.data ?? [];
         delivMandatoryTypes = json.mandatory_types ?? [];
+        delivIsCustomized = !!json.is_customized;
+        delivTicketType = json.ticket_type ?? null;
         delivCanConfigure = !!json.can_configure;
         renderDeliverableTable(deliverableData);
         renderDeliverableChecklist(deliverableData);
@@ -9908,6 +9920,11 @@ async function renderDeliverableChecklist(data) {
         el.classList.toggle('hidden', !on);
         el.classList.toggle('inline-flex', on);
     };
+    const source = document.getElementById('delivReqSource');
+    source.textContent = delivIsCustomized
+        ? 'Customized for this ticket'
+        : (delivTicketType ? `Default for ${delivTicketType}` : 'No ticket type set');
+    show('delivReqResetBtn',  delivCanConfigure && delivIsCustomized && !delivReqEditing);
     show('delivReqEditBtn',   delivCanConfigure && !delivReqEditing);
     show('delivReqCancelBtn', delivCanConfigure && delivReqEditing);
     show('delivReqSaveBtn',   delivCanConfigure && delivReqEditing);
@@ -9936,7 +9953,35 @@ async function saveDeliverableRequirements() {
         });
         const json = await res.json();
         if (!res.ok || !json.success) throw new Error(json.message || 'Failed to save requirement.');
-        delivMandatoryTypes = json.mandatory_types ?? mandatory;
+        applyDelivRequirementsPayload(json, mandatory);
+        delivReqEditing = false;
+    } catch (e) {
+        if (typeof showToast === 'function') showToast(e.message, 'error');
+    }
+    renderDeliverableChecklist(deliverableData);
+}
+
+// Respons simpan/reset membawa kondisi terbaru (mandatory berlaku, apakah customized).
+function applyDelivRequirementsPayload(json, fallbackMandatory) {
+    delivMandatoryTypes = json.mandatory_types ?? fallbackMandatory ?? [];
+    delivIsCustomized = !!json.is_customized;
+    if (json.ticket_type !== undefined) delivTicketType = json.ticket_type;
+}
+
+// Buang pengaturan tiket ini; kembali mengikuti default ticket type-nya.
+async function resetDeliverableRequirements() {
+    const label = delivTicketType ? `the default for ${delivTicketType}` : 'the default';
+    if (!await showConfirm(`Reset this ticket's document requirements to ${label}?`, 'Reset to Default', 'primary')) return;
+
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/requirements/reset`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Failed to reset requirement.');
+        applyDelivRequirementsPayload(json);
         delivReqEditing = false;
     } catch (e) {
         if (typeof showToast === 'function') showToast(e.message, 'error');
