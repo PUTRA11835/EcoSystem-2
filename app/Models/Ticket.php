@@ -32,6 +32,16 @@ class Ticket extends Model
 
     protected static function booted(): void
     {
+        // Default mandatory document types depend on ticket_type, so a type change
+        // drops the ticket's own deliverable requirements and it falls back to the
+        // new type's default (see App\Support\DeliverableRequirements). Creation
+        // needs nothing: a new ticket has no own rows and follows the default.
+        static::saved(function (Ticket $ticket) {
+            if ($ticket->wasChanged('ticket_type')) {
+                $ticket->deliverableRequirements()->delete();
+            }
+        });
+
         // Ticket list endpoints sort by last_message_at directly (not
         // COALESCE(last_message_at, created_at)) so the index on that column
         // stays usable. Any creation path that forgets to set it (e.g. bulk
@@ -524,7 +534,7 @@ class Ticket extends Model
             ->orderBy('created_at', 'asc');
     }
 
-    /** Per-ticket mandatory/optional deliverable document types. */
+    /** Own mandatory/optional deliverable document types of this ticket (overrides the type default). */
     public function deliverableRequirements()
     {
         return $this->hasMany(TicketDeliverableRequirement::class, 'ticket_id', 'ticket_id');

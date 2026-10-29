@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\DeliverableDocumentType;
 use App\Models\Ticket;
 use App\Models\TicketDeliverable;
+use App\Support\DeliverableRequirements;
 use App\Support\TicketTeamAccess;
 use App\Models\TicketMessage;
 use App\Services\MessageHtmlSanitizerService;
@@ -44,16 +45,31 @@ class TicketDeliverableController extends Controller
             'folder_state'   => $state,           // no_customer | ready
             'folder_message' => $message,
             'folder_url'     => $ticket->onedrive_folder_url,
-            // doc_type yang ditandai mandatory untuk tiket ini; sisanya optional.
-            'mandatory_types'  => $ticket->deliverableRequirements()->where('is_mandatory', true)->pluck('doc_type')->values(),
-            'can_configure'    => TicketTeamAccess::canConfigureDeliverableRequirements((int) ($user['id'] ?? 0), $ticket),
-        ]);
+            'can_configure'  => TicketTeamAccess::canConfigureDeliverableRequirements((int) ($user['id'] ?? 0), $ticket),
+        ] + $this->requirementsPayload($ticket));
+    }
+
+    /**
+     * Mandatory yang berlaku untuk tiket ini: default tipenya, atau pengaturan
+     * tiket itu sendiri bila sudah pernah diubah (is_customized).
+     */
+    private function requirementsPayload(Ticket $ticket): array
+    {
+        $req = DeliverableRequirements::forTicket($ticket);
+
+        return [
+            'mandatory_types'         => $req['mandatory'],
+            'default_mandatory_types' => $req['default'],
+            'is_customized'           => $req['customized'],
+            'ticket_type'             => $ticket->ticket_type,
+        ];
     }
 
     /**
      * POST /api/tickets/{id}/deliverables/requirements (POST, bukan PUT, agar tidak diblok WAF)
-     * Body: { mandatory: ["RCA", ...] }. Mengganti seluruh daftar doc type
-     * mandatory untuk tiket ini; yang tidak disebut menjadi optional.
+     * Body: { mandatory: ["RCA", ...] }. Menyimpan pengaturan tiket ini: tiap doc
+     * type aktif disimpan eksplisit (mandatory atau optional), sehingga tiket
+     * berhenti mengikuti default tipenya, bahkan bila semuanya dijadikan optional.
      * Dilarang untuk member tiket (lihat TicketTeamAccess).
      */
     public function updateRequirements(Request $request, $ticketId)
@@ -69,22 +85,46 @@ class TicketDeliverableController extends Controller
             return response()->json(['success' => false, 'message' => 'Ticket members cannot change document requirements.'], 403);
         }
 
+        $active = DeliverableRequirements::activeTypeNames();
+
         $validated = $request->validate([
             'mandatory'   => ['present', 'array'],
-            'mandatory.*' => ['string', 'distinct', 'exists:deliverable_document_types,name'],
+            'mandatory.*' => ['string', 'distinct', \Illuminate\Validation\Rule::in($active)],
         ]);
 
-        DB::transaction(function () use ($ticket, $validated) {
+        DB::transaction(function () use ($ticket, $validated, $active) {
             $ticket->deliverableRequirements()->delete();
-            foreach ($validated['mandatory'] as $docType) {
-                $ticket->deliverableRequirements()->create(['doc_type' => $docType, 'is_mandatory' => true]);
+            foreach ($active as $docType) {
+                $ticket->deliverableRequirements()->create([
+                    'doc_type'     => $docType,
+                    'is_mandatory' => in_array($docType, $validated['mandatory'], true),
+                ]);
             }
         });
 
-        return response()->json([
-            'success'         => true,
-            'mandatory_types' => array_values($validated['mandatory']),
-        ]);
+        return response()->json(['success' => true] + $this->requirementsPayload($ticket));
+    }
+
+    /**
+     * POST /api/tickets/{id}/deliverables/requirements/reset
+     * Hapus pengaturan tiket ini; kembali mengikuti default ticket type-nya.
+     */
+    public function resetRequirements($ticketId)
+    {
+        $user = session('user');
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $ticket = Ticket::where('ticket_id', $ticketId)->firstOrFail();
+
+        if (!TicketTeamAccess::canConfigureDeliverableRequirements((int) ($user['id'] ?? 0), $ticket)) {
+            return response()->json(['success' => false, 'message' => 'Ticket members cannot change document requirements.'], 403);
+        }
+
+        $ticket->deliverableRequirements()->delete();
+
+        return response()->json(['success' => true] + $this->requirementsPayload($ticket));
     }
 
     /**
