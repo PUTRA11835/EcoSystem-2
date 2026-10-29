@@ -7,16 +7,18 @@ summary: Open and close the monthly reporting period, control each team's part o
 requires: [rpmo.periods]
 updated: 2026-10-28
 ---
-Period Management controls the monthly reporting periods in which people can fill their timesheets. What you can do on the page depends on your role.
+Period Management controls the monthly reporting periods in which people can fill their timesheets. What you can do on the page depends on the permissions your role has in Menu Access.
 
 ## Who uses this
 
-| Role | What you can do |
-|---|---|
-| Delivery RPMO Head | Create a period, open and close it globally, force close a team's part, decide late access requests at the RPMO step, read the `Audit Log` |
-| Delivery Project Head, Delivery Support Head | Open and close your own team's part (Project or Support), decide late access requests at the first step, read the `Audit Log` |
-| EC Administrator | All of the above |
-| Other roles that can open the page | Read-only view with the `Audit Log` |
+| Permission in Menu Access | What you can do | Given by default to |
+|---|---|---|
+| `Period Management` (the page) | Open the page: read-only view with the `Audit Log` | Several roles |
+| `Manage Global` | Create a period, edit its dates, delete it, open and close it globally, force close a team's part, decide late access requests at the RPMO step | EC Administrator, Delivery RPMO Head |
+| `Manage Project Domain` | Open and close the Project part, decide late access requests of the Project team at the first step | EC Administrator, Delivery Project Head |
+| `Manage Support Domain` | Open and close the Support part, decide late access requests of the Support team at the first step | EC Administrator, Delivery Support Head |
+
+An administrator can give or remove each permission for any role in `Control Center` › `Menu Access`. A person with both domain permissions gets buttons for both parts.
 
 ## Before you start
 
@@ -88,7 +90,7 @@ The employee is notified of the decision. Once both the Head and RPMO have appro
 
 ## Common questions
 
-**I cannot see `New Period`.** Only the Delivery RPMO Head and administrators can create periods.
+**I cannot see `New Period`.** Creating periods needs the `Manage Global` permission. Ask your administrator.
 
 **`Close Period Globally` is grey.** The Project and Support parts must both be closed first.
 

@@ -11,7 +11,7 @@ This guide is for the Delivery Support Section Head role. You lead a section of 
 
 ## Who uses this
 
-Delivery Support Section Heads. Your menus include `Ticket`, `Consultant Workload`, `Calendar`, `Reporting` (`Ticketing Overview` and `Ticket by Modul`), `Master` (`Employee` and `Business Partner`), `Delivery` › `Support`, `SLA` › `SLA Report` and `Control Center` › `Login Log`.
+Delivery Support Section Heads. Your menus include `Ticket`, `Consultant Workload`, `Calendar`, `Reporting` (`Ticketing Overview` and `Ticket by Modul`), `Master` (`Employee` and `Business Partner`), `Delivery` › `Support`, `SLA` › `SLA Report` and `Control Center` (`Overview`, `Activity Log`, `Active Sessions` and `Login Log`).
 
 ## Before you start
 
@@ -46,8 +46,6 @@ Delivery Support Section Heads. Your menus include `Ticket`, `Consultant Workloa
 Approved items move on and the person who asked is notified. Rejected items return to them with your reason.
 
 ## Common questions
-
-**A menu opens a page that says `Forbidden`.** Your role has the menu, but not the permission for that page, for example `Ticket Validation`, `Overview`, `Activity Log` or `Active Sessions`. Ask your administrator.
 
 **I cannot see a button described here.** It is not part of your role.
 

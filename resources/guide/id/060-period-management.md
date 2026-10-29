@@ -7,16 +7,18 @@ summary: Buka dan tutup periode pelaporan bulanan, atur bagian tiap tim, dan put
 requires: [rpmo.periods]
 updated: 2026-10-28
 ---
-Period Management mengatur periode pelaporan bulanan tempat orang boleh mengisi timesheet. Yang dapat Anda lakukan di halaman ini bergantung pada role Anda.
+Period Management mengatur periode pelaporan bulanan tempat orang boleh mengisi timesheet. Yang dapat Anda lakukan di halaman ini bergantung pada izin yang dimiliki role Anda di Menu Access.
 
 ## Siapa yang menggunakan
 
-| Role | Yang dapat Anda lakukan |
-|---|---|
-| Delivery RPMO Head | Membuat periode, membuka dan menutupnya secara global, menutup paksa bagian sebuah tim, memutuskan permintaan akses terlambat pada langkah RPMO, membaca `Audit Log` |
-| Delivery Project Head, Delivery Support Head | Membuka dan menutup bagian tim Anda sendiri (Project atau Support), memutuskan permintaan akses terlambat pada langkah pertama, membaca `Audit Log` |
-| EC Administrator | Semua hal di atas |
-| Role lain yang dapat membuka halaman | Tampilan hanya baca dengan `Audit Log` |
+| Izin di Menu Access | Yang dapat Anda lakukan | Diberikan secara bawaan kepada |
+|---|---|---|
+| `Period Management` (halamannya) | Membuka halaman: tampilan hanya baca dengan `Audit Log` | Beberapa role |
+| `Manage Global` | Membuat periode, mengubah tanggalnya, menghapusnya, membuka dan menutupnya secara global, menutup paksa bagian sebuah tim, memutuskan permintaan akses terlambat pada langkah RPMO | EC Administrator, Delivery RPMO Head |
+| `Manage Project Domain` | Membuka dan menutup bagian Project, memutuskan permintaan akses terlambat tim Project pada langkah pertama | EC Administrator, Delivery Project Head |
+| `Manage Support Domain` | Membuka dan menutup bagian Support, memutuskan permintaan akses terlambat tim Support pada langkah pertama | EC Administrator, Delivery Support Head |
+
+Administrator dapat memberi atau mencabut tiap izin untuk role mana pun di `Control Center` › `Menu Access`. Orang yang punya kedua izin domain mendapat tombol untuk kedua bagian.
 
 ## Sebelum Anda mulai
 
@@ -88,7 +90,7 @@ Karyawan diberi tahu keputusan Anda. Setelah Head dan RPMO sama-sama menyetujui,
 
 ## Pertanyaan umum
 
-**Saya tidak melihat `New Period`.** Hanya Delivery RPMO Head dan administrator yang dapat membuat periode.
+**Saya tidak melihat `New Period`.** Membuat periode membutuhkan izin `Manage Global`. Tanyakan kepada administrator.
 
 **`Close Period Globally` berwarna abu-abu.** Bagian Project dan Support harus ditutup lebih dulu.
 

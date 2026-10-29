@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 
 /**
  * StagingTicketController
@@ -33,6 +34,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class StagingTicketController extends Controller
 {
+    use ChecksMenuAccess;
+
     /**
      * Ambang "terlantar" untuk klaim ai_analysis_status='pending' — lihat
      * docblock analyze(). Margin di atas set_time_limit(630) (~10.5 menit)
@@ -52,9 +55,8 @@ class StagingTicketController extends Controller
     {
         $user = SessionUser::fromSession(session('user'));
 
-        // Admin, Helpdesk, dan Head of Support yang boleh akses
-        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
-        if (!$user || !$user->hasAnyRole($allowed)) {
+        // Siapa yang boleh akses ditentukan Menu Access (tickets.staging), bukan daftar role di kode.
+        if (!$user || !$this->canManageStagingTicket(null)) {
             abort(403, 'Unauthorized');
         }
 
@@ -91,8 +93,7 @@ class StagingTicketController extends Controller
     {
         $user = SessionUser::fromSession(session('user'));
 
-        $allowed = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP);
-        if (!$user || !$user->hasAnyRole($allowed)) {
+        if (!$user || !$this->canManageStagingTicket(null)) {
             abort(403, 'Unauthorized');
         }
 
@@ -128,7 +129,7 @@ class StagingTicketController extends Controller
 
         $isCustomerViewer = RoleId::EC_USER->value === $roleId;
 
-        if (in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP), true)) {
+        if ($isCustomerViewer || $this->canManageStagingTicket($roleId)) {
             $query = StagingTicket::query();
         } else {
             Log::warning('StagingTicketController@index: forbidden — role not allowed', [
@@ -207,8 +208,7 @@ class StagingTicketController extends Controller
         // dengan menebak angka di URL.
         $roleId = $sessionUser['role']['id'] ?? null;
         $isCustomerViewer = RoleId::EC_USER->value === $roleId;
-        $allowedRoles = array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value, RoleId::EC_USER->value], RoleId::STAGING_GROUP);
-        if (!in_array($roleId, $allowedRoles, true)) {
+        if (!$isCustomerViewer && !$this->canManageStagingTicket($roleId)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -386,7 +386,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        if (!$this->canManageStagingTicket($roleId)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
@@ -1023,10 +1023,8 @@ class StagingTicketController extends Controller
      */
     private function canManageStagingTicket(?int $roleId): bool
     {
-        return in_array($roleId, array_merge(
-            [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value],
-            RoleId::STAGING_GROUP,
-        ), true);
+        // $roleId dipertahankan agar pemanggil lama tetap jalan; izin kini murni dari Menu Access.
+        return $this->menuAllowed('tickets.staging');
     }
 
     /**
@@ -1131,7 +1129,7 @@ class StagingTicketController extends Controller
         }
 
         $roleId = $sessionUser['role']['id'];
-        if (!in_array($roleId, array_merge([RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_SUPPORT_USER->value], RoleId::STAGING_GROUP), true)) {
+        if (!$this->canManageStagingTicket($roleId)) {
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 

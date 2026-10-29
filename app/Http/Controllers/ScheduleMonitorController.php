@@ -6,12 +6,15 @@ use App\Enums\RoleId;
 use App\Services\ScheduleMonitorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 
 class ScheduleMonitorController extends Controller
 {
+    use ChecksMenuAccess;
+
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
+        return $this->menuAllowed('control-center.schedule-monitor');
     }
 
     public function page()

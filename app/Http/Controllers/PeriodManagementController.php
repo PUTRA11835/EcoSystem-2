@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 use App\Models\Employee;
 use App\Models\Notification;
 use App\Models\PeriodAuditLog;
@@ -15,7 +16,53 @@ use Illuminate\Http\Request;
 
 class PeriodManagementController extends Controller
 {
+    use ChecksMenuAccess;
+
+    /**
+     * Izin Period Management seluruhnya lewat Menu Access (tidak ada RoleId di sini):
+     *  - rpmo.periods                          : boleh membuka halaman (tanpa izin lain = hanya baca + audit log)
+     *  - rpmo.periods.manage-global            : buat/ubah/hapus periode, buka/tutup global, force close, putusan akses terlambat tingkat RPMO
+     *  - rpmo.periods.manage-project / -support: buka/tutup bagian domain itu dan putusan akses terlambat tingkat Head untuk domain itu
+     * Domain karyawan yang MENGAJUKAN akses terlambat tetap dari perannya (getDomainForRole): itu data tim, bukan izin.
+     */
+    private const PERM_PAGE   = 'rpmo.periods';
+    private const PERM_GLOBAL = 'rpmo.periods.manage-global';
+    private const PERM_DOMAIN = [
+        PeriodService::DOMAIN_PROJECT => 'rpmo.periods.manage-project',
+        PeriodService::DOMAIN_SUPPORT => 'rpmo.periods.manage-support',
+    ];
+
     public function __construct(private PeriodService $svc) {}
+
+    private function canManageGlobal(): bool
+    {
+        return $this->menuAllowed(self::PERM_GLOBAL);
+    }
+
+    /**
+     * Role yang memegang sebuah izin menu, untuk menentukan siapa yang diberi tahu. Administrator tidak ikut
+     * diberi tahu (ia memegang semua izin dan akan kebanjiran pesan), jadi penerima = pemegang izin yang bekerja di alurnya.
+     *
+     * @return int[]
+     */
+    private function roleIdsHolding(string $slug): array
+    {
+        return \DB::table('role_menu as rm')
+            ->join('menu as m', 'm.id', '=', 'rm.menu_id')
+            ->where('m.slug', $slug)
+            ->where('m.is_active', 1)
+            ->where('rm.can_view', 1)
+            ->where('rm.role_id', '!=', RoleId::EC_ADMINISTRATOR->value)
+            ->pluck('rm.role_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /** Domain yang boleh dikelola aktor ini ('project', 'support', atau keduanya). @return string[] */
+    private function managedDomains(): array
+    {
+        return array_values(array_filter(array_keys(self::PERM_DOMAIN), fn (string $d) => $this->menuAllowed(self::PERM_DOMAIN[$d])));
+    }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -32,11 +79,6 @@ class PeriodManagementController extends Controller
     private function actorRoleId(): int
     {
         return (int) ($this->sessionUser()['role']['id'] ?? 0);
-    }
-
-    private function authorizeRoles(array $allowed): bool
-    {
-        return in_array($this->actorRoleId(), $allowed, true);
     }
 
     private function unauthorized(string $msg = 'Unauthorized.'): JsonResponse
@@ -92,14 +134,14 @@ class PeriodManagementController extends Controller
 
     public function index()
     {
-        if (!$this->authorizeRoles(RoleId::PERIOD_MANAGEMENT_GROUP)) {
-            abort(403, 'Access denied. You do not have permission to manage periods.');
+        if (!$this->menuAllowed(self::PERM_PAGE)) {
+            abort(403, 'Access denied. You do not have permission to open period management.');
         }
 
-        $roleId  = $this->actorRoleId();
+        $canManageGlobal = $this->canManageGlobal();
+        $manageDomains   = $this->managedDomains();
         $periods = ReportingPeriod::orderBy('year', 'desc')->orderBy('month', 'desc')->get();
         $active  = ReportingPeriod::getActive();
-        $domain  = $this->svc->getDomainForRole($roleId);
 
         // Period created but not yet opened globally (waiting for RPMO to open)
         $pending = ReportingPeriod::where('global_status', 'not_open')
@@ -107,43 +149,30 @@ class PeriodManagementController extends Controller
             ->orderBy('month', 'desc')
             ->first();
 
-        // For heads: get eligible employees for their domain's late exceptions
-        // Admin gets all delivery employees (both domains)
-        $domainEmployees = collect();
-        if ($roleId === RoleId::EC_ADMINISTRATOR->value) {
-            $domainEmployees = Employee::withAnyRole([
-                    RoleId::DELIVERY_SUPPORT_USER->value,
-                    RoleId::DELIVERY_PROJECT_USER->value,
-                ])
-                ->with('basicData')
-                ->orderBy('employee_id')
-                ->get(['employee_id']);
-        } elseif (in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
-            $domainRoleId    = ($domain === PeriodService::DOMAIN_PROJECT)
-                ? RoleId::DELIVERY_PROJECT_USER->value
-                : RoleId::DELIVERY_SUPPORT_USER->value;
-            $domainEmployees = Employee::withRole($domainRoleId)
-                ->with('basicData')
-                ->orderBy('employee_id')
-                ->get(['employee_id']);
+        // Karyawan yang bisa diberi akses terlambat: anggota domain yang dikelola aktor ini.
+        $domainRoleIds = [];
+        if (in_array(PeriodService::DOMAIN_PROJECT, $manageDomains, true)) {
+            $domainRoleIds[] = RoleId::DELIVERY_PROJECT_USER->value;
         }
+        if (in_array(PeriodService::DOMAIN_SUPPORT, $manageDomains, true)) {
+            $domainRoleIds[] = RoleId::DELIVERY_SUPPORT_USER->value;
+        }
+        $domainEmployees = $domainRoleIds
+            ? Employee::withAnyRole($domainRoleIds)->with('basicData')->orderBy('employee_id')->get(['employee_id'])
+            : collect();
 
-        return view('rpmo.periods.index', compact('periods', 'active', 'pending', 'roleId', 'domain', 'domainEmployees'));
+        return view('rpmo.periods.index', compact('periods', 'active', 'pending', 'canManageGlobal', 'manageDomains', 'domainEmployees'));
     }
 
     // ── Superadmin check ──────────────────────────────────────────────────────
 
-    private function isAdmin(): bool
-    {
-        return $this->actorRoleId() === RoleId::EC_ADMINISTRATOR->value;
-    }
 
     // ── API: Create period (RPMO / Admin) ─────────────────────────────────────
 
     public function store(Request $request): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can create periods.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to create periods.');
         }
 
         $data = $request->validate([
@@ -176,8 +205,8 @@ class PeriodManagementController extends Controller
 
     public function openGlobal(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can open periods globally.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to open periods globally.');
         }
 
         try {
@@ -196,8 +225,8 @@ class PeriodManagementController extends Controller
 
     public function closeGlobal(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can close periods globally.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to close periods globally.');
         }
 
         try {
@@ -216,8 +245,8 @@ class PeriodManagementController extends Controller
 
     public function forceCloseDomain(Request $request, ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can force-close domains.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to force-close domains.');
         }
 
         $data = $request->validate(['domain' => 'required|in:project,support']);
@@ -239,20 +268,16 @@ class PeriodManagementController extends Controller
     public function openDomain(Request $request, ReportingPeriod $period): JsonResponse
     {
         $roleId  = $this->actorRoleId();
-        $isAdmin = $this->isAdmin();
+        $domains = $this->managedDomains();
 
-        if (!$isAdmin && !in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
-            return $this->unauthorized('Only Project Head, Support Head, or EC Administrator can open domain periods.');
+        if (!$domains) {
+            return $this->unauthorized('You do not have permission to open domain periods.');
         }
 
-        // Admin has no inherent domain — domain must be provided in request body
-        if ($isAdmin) {
-            $domain = $request->input('domain');
-            if (!in_array($domain, [PeriodService::DOMAIN_PROJECT, PeriodService::DOMAIN_SUPPORT])) {
-                return $this->invalid('Domain parameter must be "project" or "support".');
-            }
-        } else {
-            $domain = $this->svc->getDomainForRole($roleId);
+        // Satu domain: dipakai langsung. Dua domain: domain wajib dikirim dan harus salah satu yang dikelola.
+        $domain = count($domains) === 1 ? $domains[0] : $request->input('domain');
+        if (!in_array($domain, $domains, true)) {
+            return $this->invalid('Domain parameter must be "project" or "support".');
         }
 
         try {
@@ -272,20 +297,16 @@ class PeriodManagementController extends Controller
     public function closeDomain(Request $request, ReportingPeriod $period): JsonResponse
     {
         $roleId  = $this->actorRoleId();
-        $isAdmin = $this->isAdmin();
+        $domains = $this->managedDomains();
 
-        if (!$isAdmin && !in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value])) {
-            return $this->unauthorized('Only Project Head, Support Head, or EC Administrator can close domain periods.');
+        if (!$domains) {
+            return $this->unauthorized('You do not have permission to close domain periods.');
         }
 
-        // Admin has no inherent domain — domain must be provided in request body
-        if ($isAdmin) {
-            $domain = $request->input('domain');
-            if (!in_array($domain, [PeriodService::DOMAIN_PROJECT, PeriodService::DOMAIN_SUPPORT])) {
-                return $this->invalid('Domain parameter must be "project" or "support".');
-            }
-        } else {
-            $domain = $this->svc->getDomainForRole($roleId);
+        // Satu domain: dipakai langsung. Dua domain: domain wajib dikirim dan harus salah satu yang dikelola.
+        $domain = count($domains) === 1 ? $domains[0] : $request->input('domain');
+        if (!in_array($domain, $domains, true)) {
+            return $this->invalid('Domain parameter must be "project" or "support".');
         }
 
         try {
@@ -304,7 +325,7 @@ class PeriodManagementController extends Controller
 
     public function auditLogs(ReportingPeriod $period): JsonResponse
     {
-        if (!$this->authorizeRoles(RoleId::PERIOD_MANAGEMENT_GROUP)) {
+        if (!$this->menuAllowed(self::PERM_PAGE)) {
             return $this->unauthorized();
         }
 
@@ -335,8 +356,8 @@ class PeriodManagementController extends Controller
 
     public function updateDates(Request $request, ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can edit period dates.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to edit period dates.');
         }
 
         $data = $request->validate([
@@ -372,8 +393,8 @@ class PeriodManagementController extends Controller
 
     public function destroy(ReportingPeriod $period): JsonResponse
     {
-        if (!in_array($this->actorRoleId(), [RoleId::EC_ADMINISTRATOR->value, RoleId::DELIVERY_RPMO_HEAD->value])) {
-            return $this->unauthorized('Only RPMO Head or EC Administrator can delete periods.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to delete periods.');
         }
 
         $label = $period->getLabel();
@@ -450,12 +471,8 @@ class PeriodManagementController extends Controller
             $periodLabel = $period?->getLabel() ?? "Period #{$data['period_id']}";
             $senderName  = $this->actorName();
             $domainLabel = ucfirst($domain);
-            $headRole    = $domain === PeriodService::DOMAIN_PROJECT
-                ? RoleId::DELIVERY_PROJECT_HEAD->value
-                : RoleId::DELIVERY_SUPPORT_HEAD->value;
-
             $this->notifyRoles(
-                [$headRole],
+                $this->roleIdsHolding(self::PERM_DOMAIN[$domain]),
                 'late_exception_submitted',
                 $senderName,
                 "{$senderName} submitted a late access request for {$periodLabel} ({$domainLabel} domain). Notes: {$data['notes']}",
@@ -494,12 +511,10 @@ class PeriodManagementController extends Controller
 
     public function listExceptionRequests(Request $request): JsonResponse
     {
-        $roleId  = $this->actorRoleId();
-        $isAdmin = $this->isAdmin();
-        $isRpmo  = $roleId === RoleId::DELIVERY_RPMO_HEAD->value;
-        $isHead  = in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value]);
+        $isGlobal = $this->canManageGlobal();
+        $domains  = $this->managedDomains();
 
-        if (!$isAdmin && !$isRpmo && !$isHead) {
+        if (!$isGlobal && !$domains) {
             return $this->unauthorized();
         }
 
@@ -507,16 +522,18 @@ class PeriodManagementController extends Controller
             'period', 'employee.basicData', 'head.basicData', 'rpmo.basicData', 'rejectedBy.basicData',
         ]);
 
-        // Head sees only their domain's pending_head requests
-        if ($isHead && !$isAdmin) {
-            $domain = $this->svc->getDomainForRole($roleId);
-            $query->where('domain', $domain)->where('status', 'pending_head');
+        // Pengelola global dan semua domain melihat semuanya. Selain itu: tingkat RPMO melihat
+        // pending_rpmo, tingkat Head melihat pending_head pada domain yang dikelolanya.
+        if (!($isGlobal && count($domains) === count(self::PERM_DOMAIN))) {
+            $query->where(function ($w) use ($isGlobal, $domains) {
+                if ($isGlobal) {
+                    $w->orWhere('status', 'pending_rpmo');
+                }
+                if ($domains) {
+                    $w->orWhere(fn ($h) => $h->whereIn('domain', $domains)->where('status', 'pending_head'));
+                }
+            });
         }
-        // RPMO sees only pending_rpmo
-        elseif ($isRpmo && !$isAdmin) {
-            $query->where('status', 'pending_rpmo');
-        }
-        // Admin sees all
 
         $requests = $query->orderBy('created_at', 'desc')
             ->get()
@@ -530,19 +547,15 @@ class PeriodManagementController extends Controller
     public function headDecideRequest(Request $request, PeriodLateExceptionRequest $exRequest): JsonResponse
     {
         $roleId  = $this->actorRoleId();
-        $isAdmin = $this->isAdmin();
-        $isHead  = in_array($roleId, [RoleId::DELIVERY_PROJECT_HEAD->value, RoleId::DELIVERY_SUPPORT_HEAD->value]);
+        $domains = $this->managedDomains();
 
-        if (!$isAdmin && !$isHead) {
-            return $this->unauthorized('Only Head or Admin can approve at Level 1.');
+        if (!$domains) {
+            return $this->unauthorized('You do not have permission to decide at Level 1.');
         }
 
-        // Head can only decide on their domain's requests
-        if ($isHead && !$isAdmin) {
-            $domain = $this->svc->getDomainForRole($roleId);
-            if ($exRequest->domain !== $domain) {
-                return $this->unauthorized('This request does not belong to your domain.');
-            }
+        // Hanya permintaan pada domain yang dikelola aktor ini
+        if (!in_array($exRequest->domain, $domains, true)) {
+            return $this->unauthorized('This request does not belong to your domain.');
         }
 
         $data = $request->validate([
@@ -572,7 +585,7 @@ class PeriodManagementController extends Controller
 
                 // Notify all RPMO
                 $this->notifyRoles(
-                    [RoleId::DELIVERY_RPMO_HEAD->value],
+                    $this->roleIdsHolding(self::PERM_GLOBAL),
                     'late_exception_pending_rpmo',
                     $headName,
                     "{$empName}'s late access request for {$periodLabel} was approved by Head {$headName}. Your review is needed.",
@@ -606,12 +619,10 @@ class PeriodManagementController extends Controller
 
     public function rpmoDecideRequest(Request $request, PeriodLateExceptionRequest $exRequest): JsonResponse
     {
-        $roleId  = $this->actorRoleId();
-        $isAdmin = $this->isAdmin();
-        $isRpmo  = $roleId === RoleId::DELIVERY_RPMO_HEAD->value;
+        $roleId = $this->actorRoleId();
 
-        if (!$isAdmin && !$isRpmo) {
-            return $this->unauthorized('Only RPMO or Admin can approve at Level 2.');
+        if (!$this->canManageGlobal()) {
+            return $this->unauthorized('You do not have permission to decide at Level 2.');
         }
 
         $data = $request->validate([

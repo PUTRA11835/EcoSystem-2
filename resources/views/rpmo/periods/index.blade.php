@@ -16,15 +16,17 @@
 
 @section('content')
 @php
-    $isRpmo           = $roleId === 7;
-    $isProjectHead    = $roleId === 4;
-    $isSupportHead    = $roleId === 5;
-    $isAdmin          = $roleId === 1;
-    $isHead           = $isProjectHead || $isSupportHead;
-    $headDomain       = $isProjectHead ? 'project' : ($isSupportHead ? 'support' : null);
-    // Superadmin gates
-    $canManageGlobal  = $isRpmo || $isAdmin;   // create period, open/close global, force-close
-    $canManageDomains = $isHead || $isAdmin;   // open/close domain, late exceptions
+    // Semua izin datang dari Menu Access lewat controller (rpmo.periods.manage-global / -project / -support).
+    $canManageGlobal  = $canManageGlobal ?? false;      // create period, open/close global, force-close, RPMO step
+    $manageDomains    = $manageDomains ?? [];           // domain yang boleh dikelola: 'project' dan/atau 'support'
+    $canManageDomains = !empty($manageDomains);         // open/close domain, late exceptions (Head step)
+    $manageBoth       = count($manageDomains) > 1;
+    $headDomain       = count($manageDomains) === 1 ? $manageDomains[0] : null;
+    $isRpmo           = $canManageGlobal;               // memutuskan di langkah RPMO
+    $isHead           = $canManageDomains && !$manageBoth; // mengelola tepat satu domain: tombol domainnya sendiri
+    $isAdmin          = $manageBoth;                    // mengelola kedua domain: tombol untuk masing-masing
+    $isProjectHead    = in_array('project', $manageDomains, true);
+    $isSupportHead    = in_array('support', $manageDomains, true);
     $MONTHS           = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
 @endphp
 
@@ -39,8 +41,9 @@
         <div>
             <h2 class="text-2xl font-bold text-gray-900">Period Management</h2>
             <p class="text-sm text-gray-500 mt-0.5">
-                @if($isAdmin) Full period lifecycle control (EC Administrator)
-                @elseif($isRpmo) Full period lifecycle control (RPMO)
+                @if($canManageGlobal && $manageBoth) Full period lifecycle control
+                @elseif($canManageGlobal) Global period control and late access decisions
+                @elseif($manageBoth) Project and Support domain control & late exceptions
                 @elseif($isProjectHead) Project domain control & late exceptions
                 @elseif($isSupportHead) Support domain control & late exceptions
                 @else Read-only view with audit logs

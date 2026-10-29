@@ -16,7 +16,7 @@ Delivery RPMO Administrators. Your menus include `Calendar`, `Reporting`, `Maste
 ## Before you start
 
 - You work with personal data and contract information. Use it only for your task and never copy it into chat or email.
-- Running the monthly reporting periods is done by the Delivery RPMO Head.
+- Running the monthly reporting periods needs the `Manage Global` permission, which the Delivery RPMO Head has by default. Without it you can read `Period Management`.
 
 ## Step by step
 
@@ -52,9 +52,7 @@ Records you save appear on the pages that use them. Reports update from live dat
 
 ## Common questions
 
-**A menu opens a page that says `Forbidden`.** Your role has the menu, but not the permission for that page, for example `Period Management` or `Resolution Days`. Ask your administrator.
-
-**I cannot open or close a reporting period.** That is done by the Delivery RPMO Head.
+**I cannot open or close a reporting period.** `Period Management` shows you the periods and the `Audit Log`. Changing them needs the `Manage Global` permission, which the Delivery RPMO Head has by default. Ask your administrator.
 
 ## Related topics
 

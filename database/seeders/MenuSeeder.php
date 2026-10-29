@@ -129,6 +129,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'reporting.validation',         'name' => 'MD Validation',           'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting',                    'icon' => null,                   'order_seq' => 1],
             ['slug' => 'reporting.export-excel',       'name' => 'Export Excel',            'type' => 'function', 'parent_slug' => 'reporting.validation', 'route_name' => null,                 'icon' => null,                   'order_seq' => 1],
             ['slug' => 'reporting.close-period',       'name' => 'Close Period',            'type' => 'function', 'parent_slug' => 'reporting.validation', 'route_name' => null,                 'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'reporting.validation.view-all', 'name' => 'MD Validation: View All Employees', 'type' => 'function', 'parent_slug' => 'reporting.validation', 'route_name' => null,          'icon' => null,                   'order_seq' => 20],
             ['slug' => 'reporting.md-recap',           'name' => 'MD Recap',                'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.md-recap',           'icon' => null,                   'order_seq' => 2],
             ['slug' => 'reporting.collection-outlook', 'name' => 'Collection Outlook',      'type' => 'page',     'parent_slug' => 'reporting',   'route_name' => 'reporting.collection-outlook', 'icon' => null,                   'order_seq' => 3],
             ['slug' => 'reporting.collection-outlook.edit', 'name' => 'Edit Payment Status', 'type' => 'function', 'parent_slug' => 'reporting.collection-outlook', 'route_name' => null,           'icon' => null,                   'order_seq' => 1],
@@ -245,6 +246,9 @@ class MenuSeeder extends Seeder
             ['slug' => 'rpmo',                         'name' => 'RPMO',                    'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-building',          'order_seq' => 14],
             ['slug' => 'rpmo.overview',                'name' => 'Overview',                'type' => 'page',     'parent_slug' => 'rpmo',        'route_name' => 'rpmo',                         'icon' => null,                   'order_seq' => 1],
             ['slug' => 'rpmo.periods',                 'name' => 'Period Management',       'type' => 'page',     'parent_slug' => 'rpmo',        'route_name' => 'rpmo.periods.index',           'icon' => null,                   'order_seq' => 2],
+            ['slug' => 'rpmo.periods.manage-global',   'name' => 'Period Management: Manage Global (create, open, close, force close, RPMO decisions)', 'type' => 'function', 'parent_slug' => 'rpmo.periods', 'route_name' => null, 'icon' => null, 'order_seq' => 10],
+            ['slug' => 'rpmo.periods.manage-project',  'name' => 'Period Management: Manage Project Domain', 'type' => 'function', 'parent_slug' => 'rpmo.periods', 'route_name' => null, 'icon' => null, 'order_seq' => 11],
+            ['slug' => 'rpmo.periods.manage-support',  'name' => 'Period Management: Manage Support Domain', 'type' => 'function', 'parent_slug' => 'rpmo.periods', 'route_name' => null, 'icon' => null, 'order_seq' => 12],
 
             // ── Legal ─────────────────────────────────────────────────────────────
             ['slug' => 'legal',                        'name' => 'Legal',                   'type' => 'page',     'parent_slug' => null,          'route_name' => 'legal',                        'icon' => 'fa-balance-scale',     'order_seq' => 15],
@@ -343,6 +347,7 @@ class MenuSeeder extends Seeder
             'reporting.validation'        => [self::ADMIN=>$vced, self::EMPLOYEE=>$v,   self::HOP=>$v,      self::HOS=>$vce,  self::HELPDESK=>$v,   self::RPMO=>$v],
             'reporting.export-excel'      => [self::ADMIN=>$v,    self::HOS=>$v],
             'reporting.close-period'      => [self::ADMIN=>$v,    self::HOS=>$v],
+            'reporting.validation.view-all' => [self::ADMIN=>$v,  self::HOS=>$v],
             'reporting.md-recap'          => [self::ADMIN=>$vced, self::HOS=>$vce],
             'reporting.collection-outlook' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
             'reporting.collection-outlook.edit' => [self::ADMIN=>$v, self::HOP=>$v, self::RPMO=>$v],
@@ -444,6 +449,9 @@ class MenuSeeder extends Seeder
             'rpmo'                        => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
             'rpmo.overview'               => [self::ADMIN=>$v,    self::RPMO=>$v],
             'rpmo.periods'                => [self::ADMIN=>$v,    self::HOP=>$v,        self::HOS=>$v,      self::RPMO=>$v],
+            'rpmo.periods.manage-global'  => [self::ADMIN=>$v,    self::RPMO=>$v],
+            'rpmo.periods.manage-project' => [self::ADMIN=>$v,    self::HOP=>$v],
+            'rpmo.periods.manage-support' => [self::ADMIN=>$v,    self::HOS=>$v],
             // Legal
             'legal'                       => [self::ADMIN=>$v],
             // Manajemen

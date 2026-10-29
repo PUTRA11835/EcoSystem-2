@@ -77,8 +77,6 @@ An approved request appears in `Ticket` with its lead and team, and the customer
 
 **The list is empty but the number on the menu is not.** Select `Refresh` and check the status filter.
 
-**The menu opens a page that says `Forbidden`.** Your role has the menu but not the permission to handle incoming requests. Ask your administrator.
-
 **I rejected a request by mistake.** A request that already has a decision cannot be processed again. Ask the customer to submit it again, or create the ticket from the `Ticket` page if your role allows it.
 
 <!-- sources: routes/web.php, app/Http/Controllers/StagingTicketController.php, resources/views/staging/index.blade.php, resources/views/staging/rejected.blade.php -->
