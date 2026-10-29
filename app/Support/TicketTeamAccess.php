@@ -69,6 +69,24 @@ final class TicketTeamAccess
     }
 
     /**
+     * Siapa boleh mengatur dokumen deliverable mandatory/optional di tiket ini:
+     * semua orang yang melihat tiket KECUALI member tiket ini. Ticket Lead
+     * tetap boleh walau juga tercatat sebagai member (multi-role).
+     */
+    public static function canConfigureDeliverableRequirements(?int $employeeId, Ticket $ticket): bool
+    {
+        if (!$employeeId) {
+            return false;
+        }
+
+        if ((int) $ticket->ticket_lead_id === (int) $employeeId) {
+            return true;
+        }
+
+        return !$ticket->members()->wherePivot('employee_id', $employeeId)->exists();
+    }
+
+    /**
      * Apakah employee ini jadi Module Lead di module mana pun.
      */
     public static function isModuleLead(?int $employeeId): bool

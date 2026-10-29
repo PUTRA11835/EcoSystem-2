@@ -87,7 +87,7 @@ Entri yang ditolak menampilkan alasannya: perbaiki lalu kirim ulang. Permintaan 
 
 ## Pertanyaan umum
 
-**Saya tidak dapat membuat timesheet untuk bulan lalu.** Periodenya kemungkinan sudah ditutup. Gunakan `Request Late Access`.
+**Saya tidak dapat membuat timesheet untuk periode yang sudah lewat.** Periodenya sudah ditutup. Bila Anda memang harus mengisinya, gunakan `Request Late Access`, termasuk untuk bulan lalu.
 
 **Bisakah saya mengubah timesheet yang sudah dikirim?** Tidak. Minta orang yang menyetujuinya untuk menolak, lalu perbaiki.
 

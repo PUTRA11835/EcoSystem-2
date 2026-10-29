@@ -23,7 +23,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
 
     private const HEADER_ROW     = 8;
     private const FIRST_DATA_ROW = 9;
-    private const LAST_COL       = 'L';
+    private const LAST_COL       = 'K';
 
     public function __construct(Collection $rows, array $meta = [])
     {
@@ -44,7 +44,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
             array_merge([$this->periodLabel()], array_slice($blank, 1)),
             array_merge([$this->metaLabel()], array_slice($blank, 1)),
             $blank,
-            ['Last Update', 'Ticket', 'Description', 'Start Date', 'Type', 'Status', 'Module', 'Lead & Member', 'PIC', 'Progress (%)', 'Deliverable', 'Notes'],
+            ['Last Update', 'Ticket', 'Description', 'Start Date', 'Type', 'Status', 'Module', 'Lead & Member', 'PIC', 'Progress (%)', 'Notes'],
         ];
 
         foreach ($this->rows as $r) {
@@ -62,21 +62,11 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
                 $r['lead_member'] ?: '—',
                 $r['pic'] ?? '—',
                 isset($r['progress_percentage']) ? number_format((float) $r['progress_percentage'], 0) . '%' : '—',
-                $this->deliverableLabel($r['deliverable_status'] ?? null),
                 $r['notes'] ?? '',
             ];
         }
 
         return $rows;
-    }
-
-    private function deliverableLabel(?string $status): string
-    {
-        return match ($status) {
-            'ok'     => 'OK',
-            'not_ok' => 'Not OK',
-            default  => '—',
-        };
     }
 
     private function periodLabel(): string
@@ -105,8 +95,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
             'H' => 26, // Lead & Member
             'I' => 16, // PIC
             'J' => 11, // Progress (%)
-            'K' => 11, // Deliverable
-            'L' => 35, // Notes
+            'K' => 35, // Notes
         ];
     }
 
@@ -168,7 +157,7 @@ class WeeklyConsolidationExport implements FromArray, WithStyles, WithColumnWidt
                 'borders'   => ['allBorders' => $thinBorder],
                 'alignment' => ['vertical' => Alignment::VERTICAL_TOP, 'wrapText' => true],
             ];
-            foreach (['A', 'D', 'E', 'F', 'G', 'J', 'K'] as $col) {
+            foreach (['A', 'D', 'E', 'F', 'G', 'J'] as $col) {
                 $styles["{$col}{$i}"] = ['alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_TOP]];
             }
         }

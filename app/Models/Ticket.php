@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Auditable;
-use App\Services\TicketDeliverableRequirementSync;
 
 class Ticket extends Model
 {
@@ -51,16 +50,6 @@ class Ticket extends Model
         static::updating(function (Ticket $ticket) {
             if ($ticket->isDirty('status') && !$ticket->isDirty('last_message_at')) {
                 $ticket->last_message_at = now();
-            }
-        });
-
-        // Re-snapshot the deliverable document checklist whenever the ticket
-        // gets its type for the first time or is reclassified — see
-        // TicketDeliverableRequirementSync. Deliberately NOT run on every
-        // save: only a type change should reset the checklist.
-        static::saved(function (Ticket $ticket) {
-            if ($ticket->wasRecentlyCreated || $ticket->wasChanged('ticket_type')) {
-                TicketDeliverableRequirementSync::sync($ticket);
             }
         });
     }
@@ -535,12 +524,7 @@ class Ticket extends Model
             ->orderBy('created_at', 'asc');
     }
 
-    /**
-     * Snapshotted deliverable-document requirements for this ticket — see
-     * App\Services\TicketDeliverableRequirementSync and the `saved` hook in
-     * booted() below, which (re)populates this whenever ticket_type is set
-     * or changed.
-     */
+    /** Per-ticket mandatory/optional deliverable document types. */
     public function deliverableRequirements()
     {
         return $this->hasMany(TicketDeliverableRequirement::class, 'ticket_id', 'ticket_id');

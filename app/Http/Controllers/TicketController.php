@@ -216,6 +216,7 @@ class TicketController extends Controller
         $csvFilter($query, 'ticket.scale', $request->input('scale'));
         $csvFilter($query, 'ticket.status', $request->input('status'));
         $csvFilter($query, 'ticket.ticket_type', $request->input('type'));
+        \App\Support\TicketDocumentStatus::applyFilter($query, $request->input('document_status'));
 
         // Module (comma-separated, multi-select). Lewat relasi modules() (bukan
         // whereIn('module_id', ...) langsung) supaya tiket yang punya modul ini
@@ -696,7 +697,10 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data untuk frontend
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $activityDateMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket) {
+            // Document Status kolom list (Complete/Incomplete), dihitung batch.
+            $documentStatusMap = \App\Support\TicketDocumentStatus::forTickets($tickets->pluck('ticket_id'));
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $activityDateMap, $deliverySupportMap, $readAtMap, $canReadFeature, $confirmationMap, $pausesByTicket, $documentStatusMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -712,6 +716,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'document_status' => $documentStatusMap[$ticket->ticket_id] ?? null,
                     // module_names = semua modul tiket digabung koma (bukan cuma modul
                     // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
                     'module' => $ticket->module_names,
@@ -835,6 +840,8 @@ class TicketController extends Controller
         if ($request->filled('type')) {
             $query->whereIn('ticket_type', explode(',', $request->type));
         }
+        // Document Status (comma-separated untuk multi-select: complete, incomplete, none)
+        \App\Support\TicketDocumentStatus::applyFilter($query, $request->input('document_status'));
         // Module (comma-separated untuk multi-select). Lewat relasi modules()
         // (bukan whereIn('module_id', ...) langsung), supaya tiket yang punya
         // modul ini sebagai salah satu dari beberapa modulnya tetap ketemu,
@@ -1709,7 +1716,10 @@ class TicketController extends Controller
                 ->groupBy('ticket_id');
 
             // ✅ Transform data dengan confirmation info
-            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket, $myConfirmationMap) {
+            // Document Status kolom list (Complete/Incomplete), dihitung batch.
+            $documentStatusMap = \App\Support\TicketDocumentStatus::forTickets($tickets->pluck('ticket_id'));
+
+            $ticketsData = $tickets->map(function($ticket) use ($myProgressMap, $myCustomerMandaysMap, $myReadAtMap, $myCanReadFeature, $myDeliverySupportMap, $myPausesByTicket, $myConfirmationMap, $documentStatusMap) {
                 $myAllProgress = $myProgressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -1728,6 +1738,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'document_status' => $documentStatusMap[$ticket->ticket_id] ?? null,
                     // module_names = semua modul tiket digabung koma (bukan cuma modul
                     // utama) — tiket boleh menyentuh lebih dari satu modul sekarang.
                     'module' => $ticket->module_names,
@@ -2059,7 +2070,10 @@ class TicketController extends Controller
                 ->get()
                 ->groupBy('ticket_id');
 
-            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket, $confirmationMap) {
+            // Document Status kolom list (Complete/Incomplete), dihitung batch.
+            $documentStatusMap = \App\Support\TicketDocumentStatus::forTickets($tickets->pluck('ticket_id'));
+
+            $ticketsData = $tickets->map(function($ticket) use ($progressMap, $customerMandaysMap, $readAtMap, $canReadFeature, $deliverySupportMap, $pausesByTicket, $confirmationMap, $documentStatusMap) {
                 $allProgress = $progressMap[$ticket->ticket_id]
                     ?? (float) ($ticket->progress_percentage ?? 0);
 
@@ -2075,6 +2089,7 @@ class TicketController extends Controller
                     'description' => $ticket->description,
                     'ticket_priority' => $ticket->ticket_priority,
                     'ticket_type' => $ticket->ticket_type,
+                    'document_status' => $documentStatusMap[$ticket->ticket_id] ?? null,
                     'scale' => $ticket->scale,
                     'status' => $ticket->status,
                     'channel' => $ticket->channel,

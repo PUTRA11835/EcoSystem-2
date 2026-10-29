@@ -727,40 +727,8 @@ class WeeklyConsolidationController extends Controller
             'pic'                 => $t->pic,
             'progress_percentage' => $t->progress_percentage,
             'progress_note'       => $t->progress_note,
-            'deliverable_status'  => $this->deliverableStatus($t),
             'notes'               => $notes,
         ];
-    }
-
-    /**
-     * "OK"/"Not OK" dihitung LIVE dari data sistem — reuse sumber kebenaran
-     * yang sama persis dengan checklist modal "Deliverable Documents" di
-     * ticket/show.blade.php (App\Support\DeliverableDocumentRequirements):
-     * semua doc_type MANDATORY untuk tipe tiket ini harus sudah pernah
-     * diupload (ada baris TicketDeliverable dengan doc_type yang cocok).
-     * null = tipe tiket ini tidak punya aturan dokumen (N/A, bukan "Not OK").
-     */
-    private function deliverableStatus(Ticket $t): ?string
-    {
-        $requirements = \App\Support\DeliverableDocumentRequirements::forTicket($t);
-        if (!$requirements) {
-            return null;
-        }
-
-        $mandatoryTypes = collect($requirements)
-            ->where('mandatory', true)
-            ->pluck('doc_type')
-            ->map(fn ($type) => strtoupper(trim($type)));
-
-        if ($mandatoryTypes->isEmpty()) {
-            return 'ok';
-        }
-
-        $uploadedTypes = \App\Models\TicketDeliverable::where('ticket_id', $t->ticket_id)
-            ->pluck('doc_type')
-            ->map(fn ($type) => strtoupper(trim($type)));
-
-        return $mandatoryTypes->every(fn ($type) => $uploadedTypes->contains($type)) ? 'ok' : 'not_ok';
     }
 
     private function fullName($employee): ?string

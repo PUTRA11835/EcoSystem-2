@@ -94,6 +94,6 @@ The employee is notified of the decision. Once both the Head and RPMO have appro
 
 **`Close Period Globally` is grey.** The Project and Support parts must both be closed first.
 
-**Someone cannot submit last month's timesheet.** The period is closed. They need to send `Request Late Access` from `Calendar` › `Timesheets`, and it must be approved by their Head and then by RPMO.
+**Someone cannot submit a closed period's timesheet.** If the case is special, they send `Request Late Access` from `Calendar` › `Timesheets`, and it must be approved by their Head and then by RPMO. The full flow is in [[late-access-request]].
 
 <!-- sources: routes/web.php, app/Http/Controllers/PeriodManagementController.php, app/Services/PeriodService.php, resources/views/rpmo/periods/index.blade.php -->

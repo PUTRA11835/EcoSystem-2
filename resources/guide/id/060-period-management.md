@@ -94,6 +94,6 @@ Karyawan diberi tahu keputusan Anda. Setelah Head dan RPMO sama-sama menyetujui,
 
 **`Close Period Globally` berwarna abu-abu.** Bagian Project dan Support harus ditutup lebih dulu.
 
-**Seseorang tidak dapat mengirim timesheet bulan lalu.** Periodenya sudah ditutup. Ia perlu mengirim `Request Late Access` dari `Calendar` › `Timesheets`, lalu disetujui Head-nya dan kemudian RPMO.
+**Seseorang tidak dapat mengirim timesheet periode yang sudah ditutup.** Bila kondisinya khusus, ia mengirim `Request Late Access` dari `Calendar` › `Timesheets`, lalu disetujui Head-nya dan kemudian RPMO. Alurnya lengkap di [[late-access-request]].
 
 <!-- sources: routes/web.php, app/Http/Controllers/PeriodManagementController.php, app/Services/PeriodService.php, resources/views/rpmo/periods/index.blade.php -->
