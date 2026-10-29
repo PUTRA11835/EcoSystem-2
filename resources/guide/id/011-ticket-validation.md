@@ -77,8 +77,6 @@ Permintaan yang disetujui muncul di `Ticket` bersama lead dan timnya, dan custom
 
 **Daftar kosong tetapi angka di menu tidak.** Pilih `Refresh` dan periksa filter statusnya.
 
-**Menu membuka halaman bertuliskan `Forbidden`.** Role Anda punya menunya, tetapi tidak punya izin untuk menangani permintaan masuk. Tanyakan kepada administrator.
-
 **Saya tidak sengaja menolak sebuah permintaan.** Permintaan yang sudah punya keputusan tidak dapat diproses lagi. Minta customer mengirimnya lagi, atau buat tiketnya dari halaman `Ticket` bila role Anda mengizinkan.
 
 <!-- sources: routes/web.php, app/Http/Controllers/StagingTicketController.php, resources/views/staging/index.blade.php, resources/views/staging/rejected.blade.php -->

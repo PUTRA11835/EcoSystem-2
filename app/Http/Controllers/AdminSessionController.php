@@ -9,12 +9,15 @@ use App\Support\SessionPayloadDecoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 
 class AdminSessionController extends Controller
 {
+    use ChecksMenuAccess;
+
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
+        return $this->menuAllowed('control-center.sessions');
     }
 
     private function decodeSessionUser(?string $payload): ?array

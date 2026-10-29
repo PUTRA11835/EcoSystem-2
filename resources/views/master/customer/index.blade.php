@@ -15,67 +15,13 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         <h2 class="text-2xl font-bold text-gray-900">Business Partner Management</h2>
     </div>
 
-    <!-- Filter Section -->
-    <div class="bg-gray-50 rounded-lg p-5 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Status</label>
-                {{-- Markup custom-dd disamakan persis dengan Employee Management
-                     supaya tampilan & animasi konsisten. Hidden input tetap pakai
-                     id="filterStatus" supaya applyFilters() lama jalan tanpa diubah. --}}
-                <div class="custom-dd relative" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Status</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterStatus" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Status</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="active">Active</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="blocked">Blocked</button>
-                    </div>
-                </div>
-            </div>
-            {{-- Filter Type (Business Partner: Customer / Vendor). Markup custom-dd
-                 disamakan dengan filter Status di atas. --}}
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Type</label>
-                <div class="custom-dd relative" data-onchange="applyFilters">
-                    <button type="button" class="custom-dd-btn w-full flex items-center justify-between px-3 py-2.5 bg-white border border-gray-300 rounded-lg text-sm hover:border-gray-400 transition-all text-left">
-                        <span class="custom-dd-label text-gray-500">All Type</span>
-                        <svg class="custom-dd-arrow w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                    </button>
-                    <input type="hidden" id="filterType" value="">
-                    <div class="custom-dd-panel hidden absolute top-full left-0 right-0 mt-1.5 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 py-1.5 overflow-y-auto" style="max-height:220px;">
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="">All Type</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Customer">Customer</button>
-                        <button type="button" class="custom-dd-item w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors" data-value="Vendor">Vendor</button>
-                    </div>
-                </div>
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Business Partner</label>
-                <input type="text" id="filterCustomer" placeholder="Search by email or company name..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-            <div class="flex flex-col">
-                <label class="text-sm font-semibold text-gray-700 mb-1.5">Customer Group</label>
-                <input type="text" id="filterCustomerGroup" placeholder="Search customer group..." oninput="debouncedApplyFilters()" class="px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent bg-white">
-            </div>
-        </div>
-        <div class="flex gap-3 justify-end">
-            <button onclick="applyFilters()" class="inline-flex items-center px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                Apply
-            </button>
-            <button onclick="resetFilters()" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
-                Reset
-            </button>
-        </div>
-    </div>
-
     <!-- Table Section -->
     <div class="mt-6">
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 class="text-lg font-semibold text-gray-900">Business Partner List</h3>
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900">Business Partner List</h3>
+                <span id="customerShowingText" class="text-xs text-gray-500"></span>
+            </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('master.customer.grouping') }}" class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4 mr-1.5">
@@ -91,18 +37,149 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
             </div>
         </div>
 
-        <div class="overflow-x-auto border border-gray-200 rounded-lg">
-            <table class="w-full">
+        {{-- Wrapper scroll sendiri (overflow-auto + max-height) supaya header kolom, yang berisi
+             filter, tetap menempel di atas saat baris di-scroll, sama dengan Employee Management. --}}
+        <div id="customerTableWrapper" class="overflow-auto border border-gray-200 rounded-lg" style="max-height:75vh;">
+            <table class="w-full" style="border-collapse:separate; border-spacing:0;">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Email</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Company Name</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Type</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Group</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Customer Category</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Industry Sector</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Status</th>
-                        <th class="text-left px-4 py-3.5 text-xs font-semibold text-gray-700 uppercase tracking-wider border-b border-gray-200">Actions</th>
+                        {{-- EMAIL: keyword search filter (panel mengambang, sama dengan ECI / Full Name di Employee Management) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <button type="button" id="emailFilterBtn" onclick="toggleKeywordFilter('email', event)"
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Email</span>
+                                <svg id="emailFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="emailFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search by email</label>
+                                <input type="text" id="filterEmail" placeholder="e.g. name@company.com"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onKeywordFilterInput('email')">
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearKeywordFilter('email')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- COMPANY NAME: keyword search filter (panel mengambang, sama dengan ECI / Full Name di Employee Management) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <button type="button" id="nameFilterBtn" onclick="toggleKeywordFilter('name', event)"
+                                class="w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Company Name</span>
+                                <svg id="nameFilterIcon" class="w-3.5 h-3.5 text-gray-300 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" />
+                                </svg>
+                            </button>
+                            <div id="nameFilterPanel" class="hidden absolute mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] p-3" style="min-width:220px;">
+                                <label class="block text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Search company name</label>
+                                <input type="text" id="filterName" placeholder="e.g. PT Maju..."
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-normal text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400"
+                                    oninput="onKeywordFilterInput('name')">
+                                <div class="flex justify-end gap-2 mt-3">
+                                    <button type="button" onclick="clearKeywordFilter('name')" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- TYPE: column filter dropdown (multi-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <div class="custom-dd relative w-full" id="ddFilterType" data-multi="true" data-fixed="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Type</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <input type="hidden" id="filterType" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] pt-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Type</button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left" data-value="Customer"><span class="custom-dd-item-text">Customer</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left" data-value="Vendor"><span class="custom-dd-item-text">Vendor</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    <div class="sticky bottom-0 bg-white border-t border-gray-100 px-3 py-2 flex justify-end">
+                                        <button type="button" onclick="clearCustomDropdownMulti('filterType'); applyFilters();" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- CUSTOMER GROUP: column filter dropdown (multi-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <div class="custom-dd relative w-full" id="ddFilterCustomerGroup" data-multi="true" data-fixed="true" data-searchable="true" data-search-placeholder="Search group..." data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Customer Group</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <input type="hidden" id="filterCustomerGroup" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] pt-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Customer Group</button>
+                                    @foreach(($groupOptions ?? []) as $opt)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left" data-value="{{ $opt }}"><span class="custom-dd-item-text">{{ $opt }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    @endforeach
+                                    <div class="sticky bottom-0 bg-white border-t border-gray-100 px-3 py-2 flex justify-end">
+                                        <button type="button" onclick="clearCustomDropdownMulti('filterCustomerGroup'); applyFilters();" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- CUSTOMER CATEGORY: column filter dropdown (multi-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <div class="custom-dd relative w-full" id="ddFilterCategory" data-multi="true" data-fixed="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Customer Category</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <input type="hidden" id="filterCategory" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] pt-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Customer Category</button>
+                                    @foreach(($categoryOptions ?? []) as $opt)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left" data-value="{{ $opt }}"><span class="custom-dd-item-text">{{ $opt }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    @endforeach
+                                    <div class="sticky bottom-0 bg-white border-t border-gray-100 px-3 py-2 flex justify-end">
+                                        <button type="button" onclick="clearCustomDropdownMulti('filterCategory'); applyFilters();" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        @if(!empty($industryOptions))
+                        {{-- INDUSTRY SECTOR: column filter dropdown (multi-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <div class="custom-dd relative w-full" id="ddFilterIndustry" data-multi="true" data-fixed="true" data-searchable="true" data-search-placeholder="Search industry..." data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Industry Sector</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <input type="hidden" id="filterIndustry" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] pt-1.5 overflow-y-auto" style="max-height:260px;min-width:200px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Industry Sector</button>
+                                    @foreach(($industryOptions ?? []) as $opt)
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 text-left" data-value="{{ $opt }}"><span class="custom-dd-item-text">{{ $opt }}</span><svg class="custom-dd-check w-4 h-4 text-red-800 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg></button>
+                                    @endforeach
+                                    <div class="sticky bottom-0 bg-white border-t border-gray-100 px-3 py-2 flex justify-end">
+                                        <button type="button" onclick="clearCustomDropdownMulti('filterIndustry'); applyFilters();" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        @else
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Industry Sector</th>
+                        @endif
+                        {{-- STATUS: column filter dropdown (single-select, sama dengan Employee Management) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                            <div class="custom-dd relative w-full" id="ddFilterStatus" data-fixed="true" data-onchange="applyFilters">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="flex-1 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-400 transition-colors ml-auto shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 011 1v1.586a1 1 0 01-.293.707l-4.121 4.121A1 1 0 0012 12.121V15.5l-4 1.5v-4.879a1 1 0 00-.293-.707L3.586 7.293A1 1 0 013.293 6.586L3 5z" clip-rule="evenodd" /></svg>
+                                </button>
+                                <input type="hidden" id="filterStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] pt-1.5 overflow-y-auto" style="max-height:220px;min-width:170px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All Status</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="active">Active</button>
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="blocked">Blocked</button>
+                                    <div class="flex justify-end gap-2 px-3 py-2 border-t border-gray-100">
+                                        <button type="button" onclick="setCustomDropdownValue('filterStatus', ''); applyFilters();" class="px-3 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-md hover:bg-gray-50">Clear</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </th>
+                        {{-- ACTIONS: no filter --}}
+                        <th class="text-center px-3 py-2 text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap border-b border-gray-200 sticky top-0 bg-gray-50 z-10">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="customerTableBody" class="bg-white divide-y divide-gray-100">
@@ -112,7 +189,7 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         </div>
 
         <!-- Pagination -->
-        <div id="customerPagination" class="flex items-center justify-between mt-4 px-1 min-h-[36px]"></div>
+        <div id="customerPagination" class="flex items-center justify-end mt-4 px-1 min-h-[36px]"></div>
     </div>
 </div>
 
@@ -506,12 +583,20 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
 
     function renderPagination() {
         const el = document.getElementById('customerPagination');
+        const showingEl = document.getElementById('customerShowingText');
         if (!el || !paginationMeta) return;
 
         const { total, per_page, current_page, last_page, from, to } = paginationMeta;
 
+        // Teks "Showing ..." ada di bawah judul list, sama dengan Employee Management.
+        if (showingEl) {
+            showingEl.textContent = last_page <= 1
+                ? `Showing ${total} business partner${total !== 1 ? 's' : ''}`
+                : `Showing ${from}-${to} of ${total} business partners`;
+        }
+
         if (last_page <= 1) {
-            el.innerHTML = `<span class="text-xs text-gray-500">Showing ${total} business partner${total !== 1 ? 's' : ''}</span>`;
+            el.innerHTML = '';
             return;
         }
 
@@ -548,7 +633,6 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         ).join('');
 
         el.innerHTML = `
-            <span class="text-xs text-gray-500">Showing ${from}–${to} of ${total} business partners</span>
             <div class="flex items-center gap-1">
                 ${btn('&lsaquo;', current_page - 1, current_page === 1)}
                 ${pageButtons}
@@ -568,6 +652,10 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         if (event.target.closest('.action-buttons')) {
             return; // Jangan navigate jika klik tombol action
         }
+
+        // Simpan filter + halaman aktif: dipulihkan lagi kalau user balik dari halaman detail
+        // (lihat DOMContentLoaded handler di bawah). Sama dengan Employee Management.
+        saveCustomerFilterState();
         
         // Navigate ke halaman detail
         window.location.href = `/master/customer/${customerId}`;
@@ -1087,13 +1175,26 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         }
     }
 
+    // Key = nama parameter di /api/customers, value = id hidden input masing-masing filter kolom.
+    // Dropdown multi-select mengirim nilai dipisah koma (sama dengan Employee Management).
+    const FILTER_INPUTS = {
+        status: 'filterStatus',
+        email: 'filterEmail',
+        name: 'filterName',
+        type: 'filterType',
+        customer_group: 'filterCustomerGroup',
+        customer_category: 'filterCategory',
+        industry_sector: 'filterIndustry',
+    };
+    const MULTI_FILTER_INPUTS = ['filterType', 'filterCustomerGroup', 'filterCategory', 'filterIndustry'];
+
     function getCurrentFilters() {
-        return {
-            status: document.getElementById('filterStatus').value,
-            type: document.getElementById('filterType').value,
-            customer: document.getElementById('filterCustomer').value,
-            customer_group: document.getElementById('filterCustomerGroup').value,
-        };
+        const filters = {};
+        Object.entries(FILTER_INPUTS).forEach(([param, id]) => {
+            // filterIndustry tidak dirender bila belum ada opsi industry sector sama sekali.
+            filters[param] = document.getElementById(id)?.value || '';
+        });
+        return filters;
     }
 
     function applyFilters() {
@@ -1101,27 +1202,96 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
         fetchCustomers(getCurrentFilters());
     }
 
-    let _customerSearchTimer;
-    function debouncedApplyFilters() {
-        clearTimeout(_customerSearchTimer);
-        _customerSearchTimer = setTimeout(applyFilters, 400);
+    const CUST_FILTER_STORAGE_KEY = 'customerManagementFilters';
+
+    function saveCustomerFilterState() {
+        sessionStorage.setItem(CUST_FILTER_STORAGE_KEY, JSON.stringify({
+            ...getCurrentFilters(),
+            page: currentPage,
+        }));
     }
 
-    function resetFilters() {
-        if (typeof setCustomDropdownValue === 'function') {
-            setCustomDropdownValue('filterStatus', '');
-            setCustomDropdownValue('filterType', '');
-        } else {
-            document.getElementById('filterStatus').value = '';
-            document.getElementById('filterType').value = '';
+    // ── Column Header Filters: Email & Company Name (keyword, debounced) ───────
+    // Pola yang sama dengan ECI / Full Name di Employee Management: tombol di <th>
+    // yang membuka panel mengambang berisi satu input keyword.
+    const KEYWORD_FILTERS = {
+        email: { btn: 'emailFilterBtn', panel: 'emailFilterPanel', input: 'filterEmail', icon: 'emailFilterIcon' },
+        name:  { btn: 'nameFilterBtn',  panel: 'nameFilterPanel',  input: 'filterName',  icon: 'nameFilterIcon' },
+    };
+    const _keywordTimers = {};
+
+    function closeKeywordFilters(exceptKey = null) {
+        Object.entries(KEYWORD_FILTERS).forEach(([key, cfg]) => {
+            if (key !== exceptKey) document.getElementById(cfg.panel)?.classList.add('hidden');
+        });
+    }
+
+    function toggleKeywordFilter(key, ev) {
+        ev?.stopPropagation();
+        const cfg = KEYWORD_FILTERS[key];
+        const panel = document.getElementById(cfg.panel);
+        const btn = document.getElementById(cfg.btn);
+        const open = !panel.classList.contains('hidden');
+        closeKeywordFilters(key);
+        // Tutup juga dropdown filter kolom yang sedang terbuka (sistem `.custom-dd` terpisah).
+        if (typeof _closeAllDropdowns === 'function') _closeAllDropdowns();
+        if (open) {
+            panel.classList.add('hidden');
+            return;
         }
-        document.getElementById('filterCustomer').value = '';
-        document.getElementById('filterCustomerGroup').value = '';
-        currentPage = 1;
-        fetchCustomers({});
+        // Pindah ke body supaya lolos dari stacking context <th> sticky dan klik tetap jalan.
+        if (panel.parentElement !== document.body) document.body.appendChild(panel);
+        positionPanelUnder(btn, panel);
+        panel.classList.remove('hidden');
+        document.getElementById(cfg.input)?.focus();
     }
 
+    function onKeywordFilterInput(key) {
+        updateKeywordFilterIndicator(key);
+        clearTimeout(_keywordTimers[key]);
+        _keywordTimers[key] = setTimeout(applyFilters, 400);
+    }
 
+    function clearKeywordFilter(key) {
+        const input = document.getElementById(KEYWORD_FILTERS[key].input);
+        if (input) input.value = '';
+        updateKeywordFilterIndicator(key);
+        applyFilters();
+    }
+
+    function updateKeywordFilterIndicator(key) {
+        const cfg = KEYWORD_FILTERS[key];
+        const kw = (document.getElementById(cfg.input)?.value || '').trim();
+        const icon = document.getElementById(cfg.icon);
+        if (icon) {
+            icon.classList.toggle('text-red-500', kw !== '');
+            icon.classList.toggle('text-gray-300', kw === '');
+        }
+    }
+
+    // Panel mengambang tepat di bawah tombol header (wrapper tabel punya overflow:auto).
+    function positionPanelUnder(btn, panel) {
+        const rect = btn.getBoundingClientRect();
+        panel.style.position = 'fixed';
+        panel.style.top = (rect.bottom + 4) + 'px';
+        panel.style.left = rect.left + 'px';
+    }
+
+    // Tutup panel keyword saat klik di luar / Escape / tabel di-scroll, dan saat dropdown kolom dibuka.
+    document.addEventListener('click', (e) => {
+        Object.values(KEYWORD_FILTERS).forEach(cfg => {
+            const panel = document.getElementById(cfg.panel);
+            const btn = document.getElementById(cfg.btn);
+            if (panel && !panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target)) {
+                panel.classList.add('hidden');
+            }
+        });
+        if (e.target.closest('.custom-dd-btn')) closeKeywordFilters();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeKeywordFilters();
+    });
+    document.getElementById('customerTableWrapper')?.addEventListener('scroll', () => closeKeywordFilters());
 
     // Close modal on Escape key
     document.addEventListener('keydown', function(e) {
@@ -1137,10 +1307,37 @@ const canCustomerAction = {{ $can('master.customer.action') ? 'true' : 'false' }
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
+        // Filter + halaman dipulihkan HANYA kalau user datang dari halaman detail BP
+        // (tombol back); selain itu mulai bersih. Sama dengan Employee Management.
+        const cameFromDetail = /\/master\/customer\/\d+(?:[/?].*)?$/.test(document.referrer);
+        let restored = null;
+        if (cameFromDetail) {
+            try { restored = JSON.parse(sessionStorage.getItem(CUST_FILTER_STORAGE_KEY) || 'null'); } catch (e) { restored = null; }
+        } else {
+            sessionStorage.removeItem(CUST_FILTER_STORAGE_KEY);
+        }
+
+        // Isi hidden input SEBELUM initCustomDropdowns() supaya dropdown multi-select
+        // langsung ke-sync label dan centangnya saat init.
+        if (restored) {
+            Object.entries(FILTER_INPUTS).forEach(([param, id]) => {
+                const el = document.getElementById(id);
+                if (el && restored[param]) el.value = restored[param];
+            });
+            if (restored.page) currentPage = restored.page;
+        }
+        Object.keys(KEYWORD_FILTERS).forEach(updateKeywordFilterIndicator);
+
         if (typeof initCustomDropdowns === 'function') {
             initCustomDropdowns();
         }
-        fetchCustomers();
+
+        // Status single-select: label perlu di-set eksplisit (tidak auto-sync saat init).
+        if (restored && restored.status && typeof setCustomDropdownValue === 'function') {
+            setCustomDropdownValue('filterStatus', restored.status);
+        }
+
+        fetchCustomers(getCurrentFilters(), currentPage);
     });
 
     let _custMenuId = null;

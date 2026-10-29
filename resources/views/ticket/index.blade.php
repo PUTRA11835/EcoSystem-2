@@ -80,14 +80,14 @@
 
         @if($can('ui.ticket.btn-create'))
         <button onclick="openCreateTicketModal()"
-            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 primary-gradient text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-all">
-            <i class="fas fa-plus text-xs"></i>Create Ticket
+            class="inline-flex items-center justify-center px-5 py-2.5 primary-gradient text-white text-xs font-semibold rounded-xl whitespace-nowrap hover:opacity-90 transition-all">
+            Create Ticket
         </button>
         @endif
 
         @if($can('ticket.export'))
         <button onclick="exportWithFilters()"
-            class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all">
+            class="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-gray-200 text-gray-600 text-xs font-semibold rounded-xl whitespace-nowrap hover:bg-gray-50 hover:border-gray-300 transition-all">
             <i class="fas fa-file-excel text-green-600 text-xs"></i>Export
         </button>
         @endif
@@ -99,70 +99,73 @@
 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-9 gap-2 mb-4">
     <div id="filterAll" onclick="filterTickets('all')"
         class="stat-card active-filter bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
-        <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2">Total</p>
+        <div class="stat-card-label">
+            <span class="w-1.5 h-1.5 rounded-full bg-gray-700"></span>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Total</p>
+        </div>
         <p class="text-2xl font-bold text-gray-700 leading-none" id="totalCount">0</p>
     </div>
     <div id="filterOpen" onclick="filterTickets('open')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-blue-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Open</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Open</p>
         </div>
         <p class="text-2xl font-bold text-blue-600 leading-none" id="openCount">0</p>
     </div>
     <div id="filterInprocess" onclick="filterTickets('inprocess')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-yellow-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">In Progress</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">In Progress</p>
         </div>
         <p class="text-2xl font-bold text-yellow-600 leading-none" id="inprocessCount">0</p>
     </div>
     <div id="filterWaitingCustomer" onclick="filterTickets('waiting_on_customer')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-amber-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait Customer</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Wait Customer</p>
         </div>
         <p class="text-2xl font-bold text-amber-600 leading-none" id="waitingCustomerCount">0</p>
     </div>
     <div id="filterWaiting3rd" onclick="filterTickets('waiting_on_3rd_party')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-indigo-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait 3rd Party</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Wait 3rd Party</p>
         </div>
         <p class="text-2xl font-bold text-indigo-600 leading-none" id="waiting3rdCount">0</p>
     </div>
     <div id="filterWaitingConfirm" onclick="filterTickets('waiting_to_confirmation')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-teal-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Wait Confirm</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Wait Confirm</p>
         </div>
         <p class="text-2xl font-bold text-teal-600 leading-none" id="waitingConfirmCount">0</p>
     </div>
     <div id="filterHold" onclick="filterTickets('hold')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-orange-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Hold</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Hold</p>
         </div>
         <p class="text-2xl font-bold text-orange-600 leading-none" id="holdCount">0</p>
     </div>
     <div id="filterCancelled" onclick="filterTickets('cancelled')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-gray-300">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Cancelled</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Cancelled</p>
         </div>
         <p class="text-2xl font-bold text-gray-500 leading-none" id="cancelledCount">0</p>
     </div>
     <div id="filterClosed" onclick="filterTickets('closed')"
         class="stat-card bg-white rounded-xl border border-gray-200 px-4 py-3.5 cursor-pointer select-none transition-all duration-200 hover:shadow-md hover:border-green-200">
-        <div class="flex items-center gap-1.5 mb-2">
+        <div class="stat-card-label">
             <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Closed</p>
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-tight">Closed</p>
         </div>
         <p class="text-2xl font-bold text-green-600 leading-none" id="closedCount">0</p>
     </div>
@@ -504,6 +507,30 @@
                                 </div>
                             </div>
                         </th>
+                        {{-- DOCUMENT STATUS: column filter dropdown (multi-select) --}}
+                        <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:150px;">
+                            <div class="custom-dd relative w-full" id="ddColFilterDocStatus" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
+                                <button type="button" class="custom-dd-btn w-full flex items-center gap-1.5 px-3 py-2.5 cursor-pointer hover:bg-gray-100 transition-colors">
+                                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-widest whitespace-nowrap">Document Status</span>
+                                    <svg class="custom-dd-arrow w-3.5 h-3.5 text-gray-500 transition-all duration-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                                <input type="hidden" id="colFilterDocStatus" value="">
+                                <div class="custom-dd-panel hidden absolute top-full left-0 mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 z-[9999] py-1.5 overflow-y-auto" style="max-height:220px;min-width:190px;">
+                                    <button type="button" class="custom-dd-item w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="">All</button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="complete"><span class="custom-dd-item-text">Complete</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="incomplete"><span class="custom-dd-item-text">Incomplete</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                    <button type="button" class="custom-dd-item w-full flex items-center justify-between gap-2 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" data-value="none"><span class="custom-dd-item-text">No Mandatory Document</span><svg class="custom-dd-check w-4 h-4 text-red-500 opacity-0 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                                        </svg></button>
+                                </div>
+                            </div>
+                        </th>
                         {{-- MODULE: column filter dropdown --}}
                         <th class="p-0 text-left whitespace-nowrap border-b border-gray-200 bg-gray-50" style="min-width:130px;">
                             <div class="custom-dd relative w-full" id="ddColFilterModule" data-fixed="true" data-multi="true" data-onchange="applyColFilter">
@@ -781,7 +808,7 @@
                         class="inline-flex items-center px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all duration-200">Cancel</button>
                     <button type="submit" id="btnCreateTicket"
                         class="inline-flex items-center gap-2 px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all duration-200">
-                        <i class="fas fa-plus text-xs"></i>Create Ticket
+                        Create Ticket
                     </button>
                 </div>
             </form>
@@ -857,6 +884,25 @@
         color: #111827;
         font-weight: 700;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+    }
+
+    /* Stat cards: tinggi seragam, label di atas (boleh 2 baris), angka selalu
+       rata di bawah, supaya angka antar card sejajar. */
+    .stat-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 0.5rem;
+        min-height: 5.5rem;
+    }
+    .stat-card-label {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.375rem;
+    }
+    .stat-card-label > span {
+        flex-shrink: 0;
+        margin-top: 3px;
     }
 
     /* Stat cards active state */
@@ -1040,6 +1086,7 @@
                 colFilterType: document.getElementById('colFilterType')?.value || '',
                 colFilterModule: document.getElementById('colFilterModule')?.value || '',
                 colFilterDelivery: document.getElementById('colFilterDelivery')?.value || '',
+                colFilterDocStatus: document.getElementById('colFilterDocStatus')?.value || '',
                 dateFilterFrom: document.getElementById('dateFilterFrom')?.value || '',
                 dateFilterTo: document.getElementById('dateFilterTo')?.value || '',
                 ticketFilterInput: document.getElementById('ticketFilterInput')?.value || '',
@@ -1082,7 +1129,7 @@
         }
 
         // Multi-select custom dropdowns — set value mentah lalu sync checkmark + label
-        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule', 'colFilterDelivery'].forEach(id => {
+        ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterDocStatus', 'colFilterModule', 'colFilterDelivery'].forEach(id => {
             if (!state[id]) return;
             const hidden = document.getElementById(id);
             if (!hidden) return;
@@ -1178,6 +1225,7 @@
         const colType = document.getElementById('colFilterType')?.value || '';
         const colModule = document.getElementById('colFilterModule')?.value || '';
         const colDelivery = document.getElementById('colFilterDelivery')?.value || '';
+        const colDocStatus = document.getElementById('colFilterDocStatus')?.value || '';
         if (colStatus) params.set('status', colStatus);
         if (colCustomer) params.set('customer_id', colCustomer);
         if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
@@ -1186,6 +1234,7 @@
         if (colType) params.set('type', colType);
         if (colModule) params.set('module', colModule);
         if (colDelivery) params.set('delivery_support_id', colDelivery);
+        if (colDocStatus) params.set('document_status', colDocStatus);
 
         // Date range
         const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
@@ -1283,6 +1332,7 @@
             const colType = document.getElementById('colFilterType')?.value || '';
             const colModule = document.getElementById('colFilterModule')?.value || '';
             const colDelivery = document.getElementById('colFilterDelivery')?.value || '';
+            const colDocStatus = document.getElementById('colFilterDocStatus')?.value || '';
             if (colCustomer) params.set('customer_id', colCustomer);
             if (colPic) params.set('pic_id', colPic === '__unassigned__' ? 'unassigned' : colPic);
             if (colPriority) params.set('priority', colPriority);
@@ -1291,6 +1341,7 @@
             if (colType) params.set('type', colType);
             if (colModule) params.set('module', colModule);
             if (colDelivery) params.set('delivery_support_id', colDelivery);
+            if (colDocStatus) params.set('document_status', colDocStatus);
 
             const dateFrom = document.getElementById('dateFilterFrom')?.value || '';
             const dateTo = document.getElementById('dateFilterTo')?.value || '';
@@ -1717,6 +1768,12 @@
             </td>
             {{-- Type --}}
             ${cell(ticket.ticket_type ? badge(typeLabel, typeCls) : '<span class="text-gray-300 text-xs">—</span>')}
+            {{-- Document Status --}}
+            ${cell(ticket.document_status === 'complete'
+                ? badge('Complete', 'bg-green-100 text-green-700')
+                : ticket.document_status === 'incomplete'
+                    ? badge('Incomplete', 'bg-amber-100 text-amber-700')
+                    : '<span class="text-gray-300 text-xs">-</span>')}
             {{-- Module --}}
             ${cell(ticket.module ? `<span class="text-sm text-gray-700">${ticket.module}</span>` : '<span class="text-gray-300 text-xs">—</span>')}
             {{-- Assign Delivery --}}
@@ -2011,6 +2068,7 @@
             'ddColFilterType': 'colFilterType',
             'ddColFilterModule': 'colFilterModule',
             'ddColFilterDelivery': 'colFilterDelivery',
+            'ddColFilterDocStatus': 'colFilterDocStatus',
         };
         Object.entries(colDdMap).forEach(([ddId, inputId]) => {
             updateColFilterActive(ddId, document.getElementById(inputId)?.value || '');
@@ -2271,8 +2329,8 @@
 
     function resetFilters() {
         const colFilterIds = ['colFilterCustomer', 'colFilterPic'];
-        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterModule', 'colFilterDelivery'];
-        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType', 'ddColFilterModule', 'ddColFilterDelivery'];
+        const colFilterMultiIds = ['colFilterPriority', 'colFilterScale', 'colFilterStatus', 'colFilterType', 'colFilterDocStatus', 'colFilterModule', 'colFilterDelivery'];
+        const colDdIds = ['ddColFilterCustomer', 'ddColFilterPic', 'ddColFilterPriority', 'ddColFilterScale', 'ddColFilterStatus', 'ddColFilterType', 'ddColFilterDocStatus', 'ddColFilterModule', 'ddColFilterDelivery'];
         if (typeof setCustomDropdownValue === 'function') {
             colFilterIds.forEach(id => setCustomDropdownValue(id, ''));
         } else {
@@ -2323,6 +2381,7 @@
         type: 'colFilterType',
         module: 'colFilterModule',
         delivery: 'colFilterDelivery',
+        docstatus: 'colFilterDocStatus',
     };
 
     function updateColFilterIndicators() {
@@ -2504,7 +2563,7 @@
         const btn = document.getElementById('btnCreateTicket');
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            btn.innerHTML = 'Create Ticket';
         }
         if (adminQuillEditor) {
             adminQuillEditor.setContents([]);
@@ -2526,7 +2585,7 @@
             errEl.textContent = 'Customer is required.';
             errEl.classList.remove('hidden');
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            btn.innerHTML = 'Create Ticket';
             return;
         }
 
@@ -2535,7 +2594,7 @@
             errEl.textContent = 'Ticket Type is required.';
             errEl.classList.remove('hidden');
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            btn.innerHTML = 'Create Ticket';
             return;
         }
 
@@ -2582,13 +2641,13 @@
                 errEl.textContent = result.message || 'Failed to create ticket.';
                 errEl.classList.remove('hidden');
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+                btn.innerHTML = 'Create Ticket';
             }
         } catch (error) {
             errEl.textContent = 'Network error: ' + error.message;
             errEl.classList.remove('hidden');
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-plus text-xs"></i>Create Ticket';
+            btn.innerHTML = 'Create Ticket';
         }
     }
 
@@ -3026,6 +3085,11 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
 <div id="ticketContextMenu"
     class="hidden fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl py-1 min-w-[190px]"
     style="pointer-events:auto;">
+    <button type="button" id="ctxDetail"
+        class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
+        <i class="fas fa-circle-info text-gray-400 w-3.5"></i>
+        Detail
+    </button>
     <button type="button" id="ctxOpenNewTab"
         class="w-full flex items-center gap-2.5 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors text-left">
         <i class="fas fa-external-link-alt text-gray-400 w-3.5"></i>
@@ -3049,6 +3113,8 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
     @endif
 </div>
 
+@include('ticket.partials.detail-panel')
+
 <script>
     (function() {
         let _ctxTicketId = null;
@@ -3065,7 +3131,7 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             const vw = window.innerWidth,
                 vh = window.innerHeight;
             const mw = 180,
-                mh = 44;
+                mh = 160;
             let x = e.clientX,
                 y = e.clientY;
             if (x + mw > vw) x = vw - mw - 8;
@@ -3075,6 +3141,13 @@ $customDdVer = file_exists($customDdPath) ? filemtime($customDdPath) : time();
             menu.style.top = y + 'px';
             menu.classList.remove('hidden');
         };
+
+        document.getElementById('ctxDetail').addEventListener('click', function() {
+            if (_ctxTicketId && typeof openTicketDetailPanel === 'function') openTicketDetailPanel(_ctxTicketId);
+            menu.classList.add('hidden');
+            _ctxTicketId = null;
+            _ctxTicketNum = null;
+        });
 
         document.getElementById('ctxOpenNewTab').addEventListener('click', function() {
             if (_ctxTicketId) window.open('/ticket/' + _ctxTicketId, '_blank');

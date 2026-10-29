@@ -48,8 +48,6 @@ Keputusan yang Anda ambil pada proyek dan pengaturan berlaku bagi semua orang ya
 
 ## Pertanyaan umum
 
-**Sebuah menu membuka halaman bertuliskan `Forbidden`.** Role Anda punya menunya, tetapi tidak punya izin untuk halaman itu. Tanyakan kepada administrator, dan sebutkan nama menunya.
-
 **Saya tidak menemukan sebuah laporan.** Hanya laporan di menu `Reporting` Anda yang menjadi bagian dari role Anda.
 
 ## Topik terkait

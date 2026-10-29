@@ -6,9 +6,12 @@ use App\Enums\RoleId;
 use App\Models\LoginActivity;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 
 class ActivityLogController extends Controller
 {
+    use ChecksMenuAccess;
+
     /**
      * Admin-only: render the activity log page.
      */
@@ -16,7 +19,7 @@ class ActivityLogController extends Controller
     {
         $user = session('user');
 
-        if (($user['role']['id'] ?? 0) !== RoleId::EC_ADMINISTRATOR->value) {
+        if (!$this->menuAllowed('control-center.activity-log')) {
             abort(403, 'Access denied.');
         }
 
@@ -33,7 +36,7 @@ class ActivityLogController extends Controller
     {
         $user = session('user');
 
-        if (($user['role']['id'] ?? 0) !== RoleId::EC_ADMINISTRATOR->value) {
+        if (!$this->menuAllowed('control-center.activity-log')) {
             return response()->json(['success' => false, 'message' => 'Access denied.'], 403);
         }
 

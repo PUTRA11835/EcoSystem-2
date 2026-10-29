@@ -152,11 +152,11 @@ Route::middleware(CheckAuthToken::class)->group(function () {
 
     // ==================== REPORTING ====================
     Route::get('/reporting',                  [\App\Http\Controllers\ReportingController::class, 'index'])->name('reporting')->middleware('menu:reporting.validation');
-    Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export');
+    Route::get('/reporting/export-excel',     [\App\Http\Controllers\ReportingController::class, 'exportExcel'])->name('reporting.export')->middleware('menu:reporting.export-excel');
     Route::get('/reporting/md-recap',         [\App\Http\Controllers\ReportingController::class, 'mdRecapIndex'])->name('reporting.md-recap')->middleware('menu:reporting.md-recap');
-    Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export');
-    Route::get('/reporting/md-recap/export-summary',   [\App\Http\Controllers\ReportingController::class, 'exportMdRecapSummary'])->name('reporting.md-recap.export-summary');
-    Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export');
+    Route::get('/reporting/md-recap/export',           [\App\Http\Controllers\ReportingController::class, 'exportMdRecap'])->name('reporting.md-recap.export')->middleware('menu:reporting.md-recap');
+    Route::get('/reporting/md-recap/export-summary',   [\App\Http\Controllers\ReportingController::class, 'exportMdRecapSummary'])->name('reporting.md-recap.export-summary')->middleware('menu:reporting.md-recap');
+    Route::get('/reporting/resolution-days/export',    [\App\Http\Controllers\ReportingController::class, 'exportResolutionDays'])->name('reporting.resolution-days.export')->middleware('menu:reporting.resolution-days');
     Route::get('/reporting/collection-outlook',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookIndex'])->name('reporting.collection-outlook')->middleware('menu:reporting.collection-outlook');
     Route::get('/reporting/collection-outlook/export', [\App\Http\Controllers\ReportingController::class, 'exportCollectionOutlook'])->name('reporting.collection-outlook.export')->middleware('menu:reporting.collection-outlook');
     Route::get('/reporting/collection-outlook-support',        [\App\Http\Controllers\ReportingController::class, 'collectionOutlookSupportIndex'])->name('reporting.collection-outlook-support')->middleware('menu:reporting.collection-outlook-support');
@@ -234,7 +234,6 @@ Route::middleware(CheckAuthToken::class)->group(function () {
     // ==================== ADMIN ====================
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::get('/', function () {
-            if ((int) session('user.role.id') !== 1) abort(403);
             return view('admin.index');
         })->name('index')->middleware('menu:control-center.overview');
         Route::get('/activity-log', [ActivityLogController::class, 'index'])->name('activity-log')->middleware('menu:control-center.activity-log');

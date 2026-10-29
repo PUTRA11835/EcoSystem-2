@@ -48,8 +48,6 @@ Decisions you take in projects and settings apply to everyone who works with tho
 
 ## Common questions
 
-**A menu opens a page that says `Forbidden`.** Your role has the menu, but not the permission for that page. Ask your administrator, and tell them the menu name.
-
 **I cannot find a report.** Only reports in your `Reporting` menu are part of your role.
 
 ## Related topics

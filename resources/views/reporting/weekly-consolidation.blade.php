@@ -176,12 +176,11 @@
                     <th class="wc-th text-left" data-filter-key="lead_member" style="min-width:160px;">Lead &amp; Member</th>
                     <th class="wc-th text-left" data-filter-key="pic" style="min-width:120px;">PIC</th>
                     <th class="wc-th text-left" data-filter-key="progress" style="min-width:100px;">Progress</th>
-                    <th class="wc-th text-left" data-filter-key="deliverable" style="min-width:110px;">Deliverable</th>
                     <th class="wc-th text-left" data-filter-key="notes" style="min-width:220px;">Notes</th>
                 </tr>
             </thead>
             <tbody id="wcTableBody">
-                <tr><td colspan="12" class="text-center py-10 text-gray-400 text-sm">No tickets loaded yet.</td></tr>
+                <tr><td colspan="11" class="text-center py-10 text-gray-400 text-sm">No tickets loaded yet.</td></tr>
             </tbody>
         </table>
     </div>
@@ -508,7 +507,7 @@ function wcOnSelectionChange() {
     clearTimeout(wcAutoViewTimer);
     if (!hasSelection) {
         document.getElementById('wcResultSummary').textContent = 'Select a module and click View Tickets to see its open tickets.';
-        document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 12);
+        document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 11);
         return;
     }
 
@@ -554,7 +553,7 @@ async function wcViewTickets() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1.5"></i>Loading...';
 
     const body = document.getElementById('wcTableBody');
-    body.innerHTML = wcEmptyRow('Loading...', 12);
+    body.innerHTML = wcEmptyRow('Loading...', 11);
 
     try {
         const res = await fetch(`/api/reporting/weekly-consolidation/preview?${wcBuildModuleParams().toString()}`, {
@@ -576,7 +575,7 @@ async function wcViewTickets() {
     } catch (e) {
         console.error(e);
         wcShowMsg(e.message);
-        body.innerHTML = `<tr><td colspan="12" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fas fa-eye mr-1.5"></i>View Tickets';
@@ -660,7 +659,7 @@ async function wcRefresh() {
 async function wcOpenBatch(id) {
     wcClearMsg();
     const body = document.getElementById('wcTableBody');
-    body.innerHTML = wcEmptyRow('Loading...', 12);
+    body.innerHTML = wcEmptyRow('Loading...', 11);
 
     try {
         const res = await fetch(`/api/reporting/weekly-consolidation/${id}`, {
@@ -674,7 +673,7 @@ async function wcOpenBatch(id) {
     } catch (e) {
         console.error(e);
         wcShowMsg(e.message);
-        body.innerHTML = `<tr><td colspan="12" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="11" class="text-center py-10 text-red-500 text-sm">${escHtml(e.message)}</td></tr>`;
     }
 }
 
@@ -804,7 +803,7 @@ function wcResetToIdle(message) {
     document.getElementById('wcGenerateBar').classList.add('hidden');
     document.getElementById('wcViewBtn').disabled = true;
     document.getElementById('wcResultSummary').textContent = message;
-    document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 12);
+    document.getElementById('wcTableBody').innerHTML = wcEmptyRow('No tickets loaded yet.', 11);
     wcRenderModuleField();
 }
 
@@ -869,7 +868,7 @@ function wcRenderRows(rows, editable) {
 
     if (!rows.length) {
         const msg = wcAllRows.length ? 'No tickets match your filters.' : 'No open tickets found for the selected module(s).';
-        body.innerHTML = wcEmptyRow(msg, 12);
+        body.innerHTML = wcEmptyRow(msg, 11);
         return;
     }
 
@@ -890,7 +889,6 @@ function wcRenderRows(rows, editable) {
                 ${r.progress_percentage !== null && r.progress_percentage !== undefined ? Math.round(r.progress_percentage) + '%' : '—'}
                 ${r.progress_note ? `<div class="wc-progress-note">${escHtml(r.progress_note)}</div>` : ''}
             </td>
-            <td class="wc-td">${wcDeliverableBadge(r.deliverable_status)}</td>
             <td class="wc-td">
                 ${editable ? `
                     <div class="wc-note-wrap">
@@ -917,16 +915,10 @@ function wcAutoResizeNote(el) {
     el.style.height = el.scrollHeight + 'px';
 }
 
-function wcDeliverableBadge(status) {
-    if (status === 'ok') return '<span class="wc-status-badge" style="background:#dcfce7;color:#166534;">OK</span>';
-    if (status === 'not_ok') return '<span class="wc-status-badge" style="background:#fee2e2;color:#991b1b;">Not OK</span>';
-    return '<span class="text-gray-300 italic">—</span>';
-}
-
 // ── Per-column header filters (satu filter teks per kolom, sama pola dengan
 // tabel "Ringkasan per Tiket" di Log Shifting) ──────────────────────────────
 
-const WC_FILTER_KEYS = ['last_update', 'ticket_number', 'description', 'start_date', 'ticket_type', 'status', 'module_name', 'lead_member', 'pic', 'progress', 'deliverable', 'notes'];
+const WC_FILTER_KEYS = ['last_update', 'ticket_number', 'description', 'start_date', 'ticket_type', 'status', 'module_name', 'lead_member', 'pic', 'progress', 'notes'];
 
 function wcInitColumnFilters() {
     document.querySelectorAll('#wcTicketTable thead th[data-filter-key]').forEach(th => {
@@ -1022,7 +1014,6 @@ function wcGetFilterText(row, key) {
         case 'lead_member':   return row.lead_member || '';
         case 'pic':           return row.pic || '';
         case 'progress':      return (row.progress_percentage !== null && row.progress_percentage !== undefined) ? Math.round(row.progress_percentage) + '%' : '';
-        case 'deliverable':   return row.deliverable_status === 'ok' ? 'OK' : (row.deliverable_status === 'not_ok' ? 'Not OK' : '');
         case 'notes':         return row.notes || '';
         default:              return '';
     }
@@ -1100,7 +1091,6 @@ function wcOpenTicketModal(ticketId) {
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Lead &amp; Member</span>${r.lead_member ? escHtml(r.lead_member) : '<span class="text-gray-300 italic">—</span>'}</div>
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">PIC</span>${r.pic ? escHtml(r.pic) : '<span class="text-gray-300 italic">—</span>'}</div>
             <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Progress</span>${r.progress_percentage !== null && r.progress_percentage !== undefined ? Math.round(r.progress_percentage) + '%' : '—'}</div>
-            <div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Deliverable</span>${wcDeliverableBadge(r.deliverable_status)}</div>
         </div>
         ${r.progress_note ? `<div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Progress Note</span>${escHtml(r.progress_note)}</div>` : ''}
         ${r.notes ? `<div><span class="block text-[11px] font-semibold text-gray-400 uppercase">Notes</span>${escHtml(r.notes)}</div>` : ''}
