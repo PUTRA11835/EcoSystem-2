@@ -374,6 +374,18 @@ class TicketMessageController extends Controller
                             link:       '/tickets/' . $ticket->ticket_id,
                         );
                     }
+
+                    // Teruskan balasan ke group chat Teams tiket (non-fatal).
+                    // Lampiran sudah tersimpan di atas, jadi ikut terbawa.
+                    try {
+                        app(\App\Services\Teams\TeamsOutboxService::class)->queueAgentReply($message);
+                    } catch (\Throwable $e) {
+                        Log::warning('TicketMessageController@store: gagal mengantre balasan ke customer ke Teams (non-fatal)', [
+                            'ticket_id'  => $ticketId,
+                            'message_id' => $message->id,
+                            'error'      => $e->getMessage(),
+                        ]);
+                    }
                 }
 
             } else {
@@ -1359,6 +1371,16 @@ class TicketMessageController extends Controller
                 preview:    \Illuminate\Support\Str::limit(strip_tags($messageBody), 100),
                 link:       '/tickets/' . $ticket->ticket_id,
             );
+        }
+
+        try {
+            app(\App\Services\Teams\TeamsOutboxService::class)->queueAgentReply($message);
+        } catch (\Throwable $e) {
+            Log::warning('TicketMessageController@sendLiteReply: gagal mengantre balasan ke customer ke Teams (non-fatal)', [
+                'ticket_id'  => $ticketId,
+                'message_id' => $message->id,
+                'error'      => $e->getMessage(),
+            ]);
         }
 
         try {
