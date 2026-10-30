@@ -25,7 +25,7 @@ Konsultan eksternal. Menu Anda adalah `Home`, `AI Research`, `Ticket` dan `Calen
 1. Buka `Ticket`. Kartu di atas menghitung tiket menurut status, dan `Reset Filter` menghapus filter Anda. Pilih sebuah tiket untuk membukanya.
 2. Balas customer atau tulis `Internal Note` saat ada perkembangan. Catatan internal hanya dilihat tim, dan balasan dilihat customer, jadi pastikan yang Anda pakai.
 3. Jaga status sesuai keadaan sebenarnya, misalnya `Wait Customer` saat menunggu jawaban.
-4. `AI Summarize` dan tombol riset AI pada tiket dapat membantu untuk percakapan yang panjang.
+4. `AI Summarize` dan tombol riset AI pada tiket dapat membantu untuk percakapan yang panjang. Lihat [[ticket-ai-tools]].
 
 ### Usulkan mandays
 

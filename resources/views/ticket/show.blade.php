@@ -9354,7 +9354,7 @@ async function _loadLogShiftingData() {
 
 {{-- ==================== DELIVERABLE MODAL ==================== --}}
 <div id="deliverableModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col relative" style="max-height:90vh">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-7xl mx-4 flex flex-col relative" style="max-height:94vh; min-height:70vh">
 
         {{-- Loading overlay (send to customer) --}}
         <div id="deliverableLoadingOverlay" class="hidden absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl z-20 flex flex-col items-center justify-center gap-3">
@@ -9368,45 +9368,61 @@ async function _loadLogShiftingData() {
 
         {{-- Header --}}
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
-            <div>
+            <div class="min-w-0 pr-4">
                 <h3 class="text-base font-bold text-gray-900">Deliverable Documents</h3>
-                <p class="text-xs text-gray-400 mt-0.5">{{ $ticket->ticket_number }} — {{ Str::limit($ticket->description, 50) }}</p>
+                <p class="text-xs text-gray-400 mt-0.5 break-words">{{ $ticket->ticket_number }} - {{ $ticket->description }}</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3 shrink-0">
                 <button onclick="openNewDocModal()"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-800 text-white text-xs font-semibold rounded-lg transition">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
+                    class="inline-flex items-center justify-center px-5 py-2.5 primary-gradient hover:opacity-90 text-white text-sm font-semibold rounded-lg whitespace-nowrap transition">
                     New Document
                 </button>
                 <button onclick="closeDeliverableModal()"
-                    class="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </button>
             </div>
         </div>
 
-        {{-- Document checklist — mandatory/optional per ticket type, dan status
-             kelengkapannya (lihat App\Support\DeliverableDocumentRequirements).
-             Disembunyikan bila ticket type ini tidak punya aturan. --}}
-        <div id="delivChecklist" class="hidden px-6 py-3 border-b border-gray-100 shrink-0">
-            <div class="flex items-center justify-between mb-2">
-                <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                    Document Checklist — {{ $ticket->ticket_type }}
-                </span>
-                <span id="delivChecklistBadge" class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"></span>
+        {{-- Daftar semua tipe dokumen aktif (master Document Type): status
+             Mandatory/Optional untuk tiket ini (default sesuai ticket type, bisa
+             diubah per tiket kecuali oleh member tiket) dan apakah dokumennya
+             sudah diupload. --}}
+        <div id="delivChecklist" class="hidden px-6 py-4 border-b border-gray-100 shrink-0">
+            <div class="flex items-center justify-between mb-3">
+                <div class="min-w-0">
+                    <span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Document Types</span>
+                    <span id="delivReqSource" class="block text-[11px] text-gray-400 mt-0.5"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="delivChecklistBadge" class="hidden items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"></span>
+                    <button id="delivReqResetBtn" type="button" onclick="resetDeliverableRequirements()"
+                        class="hidden items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                        Reset to Default
+                    </button>
+                    <button id="delivReqEditBtn" type="button" onclick="setDelivReqEditing(true)"
+                        class="hidden items-center gap-1 px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                        Edit Requirement
+                    </button>
+                    <button id="delivReqCancelBtn" type="button" onclick="setDelivReqEditing(false)"
+                        class="hidden items-center px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition">
+                        Cancel
+                    </button>
+                    <button id="delivReqSaveBtn" type="button" onclick="saveDeliverableRequirements()"
+                        class="hidden items-center px-3 py-1.5 text-xs font-semibold text-white primary-gradient rounded-md hover:opacity-90 transition">
+                        Save
+                    </button>
+                </div>
             </div>
-            <div class="overflow-hidden border border-gray-200 rounded-lg">
-                <table class="w-full text-xs border-collapse">
+            <div class="overflow-hidden border border-gray-200 rounded-lg max-h-72 overflow-y-auto">
+                <table class="w-full text-sm border-collapse">
                     <thead>
-                        <tr class="bg-gray-50 border-b border-gray-200">
-                            <th class="px-3 py-1.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Doc Type</th>
-                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Mandatory</th>
-                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-20">Optional</th>
-                            <th class="px-3 py-1.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-16">Ok</th>
+                        <tr class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                            <th class="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Doc Type</th>
+                            <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-32">Requirement</th>
+                            <th class="px-4 py-2.5 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide w-24">Uploaded</th>
                         </tr>
                     </thead>
                     <tbody id="delivChecklistItems" class="divide-y divide-gray-100"></tbody>
@@ -9587,10 +9603,12 @@ async function _loadLogShiftingData() {
 // ==================== DELIVERABLE JS ====================
 const DELIV_TICKET_ID = {{ $ticket->ticket_id }};
 const CSRF = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}';
-// Aturan doc type mandatory/optional untuk ticket type ini — null bila ticket
-// type-nya tidak punya aturan (lihat App\Support\DeliverableDocumentRequirements).
-const DELIV_REQUIREMENTS = @json(\App\Support\DeliverableDocumentRequirements::forTicket($ticket));
 let deliverableData = [];
+let delivMandatoryTypes = [];   // doc_type mandatory yang berlaku untuk tiket ini
+let delivIsCustomized = false;  // true = tiket punya pengaturan sendiri (bukan default ticket type)
+let delivTicketType = null;     // ticket type, untuk keterangan "Default for ..."
+let delivReqEditing = false;    // mode edit Requirement aktif
+let delivCanConfigure = false;  // member tiket tidak boleh mengubah
 let deliverableFolderUrl = null;
 
 async function copyDeliverableFolderLink() {
@@ -9633,7 +9651,7 @@ async function shareDeliverableFolderLink() {
     if (navigator.share) {
         try {
             await navigator.share({
-                title: 'Deliverable Documents — {{ $ticket->ticket_number }}',
+                title: 'Deliverable Documents - {{ $ticket->ticket_number }}',
                 url: deliverableFolderUrl
             });
             return;
@@ -9698,6 +9716,10 @@ async function loadDeliverables() {
         const json = await res.json();
         if (!json.success) throw new Error(json.message);
         deliverableData = json.data ?? [];
+        delivMandatoryTypes = json.mandatory_types ?? [];
+        delivIsCustomized = !!json.is_customized;
+        delivTicketType = json.ticket_type ?? null;
+        delivCanConfigure = !!json.can_configure;
         renderDeliverableTable(deliverableData);
         renderDeliverableChecklist(deliverableData);
 
@@ -9833,61 +9855,138 @@ function renderDeliverableTable(data) {
 }
 
 /**
- * Checklist tabel "Doc Type | Mandatory | Optional | Ok" di atas tabel
- * dokumen, plus badge Complete/Incomplete. Kolom "Ok" menampilkan JUMLAH
- * dokumen dengan doc_type yang sama (case-insensitive); requirement dianggap
- * terpenuhi bila jumlahnya minimal satu — cocok dengan cara dropdown "New Document"
- * mengisi doc_type dari master data. `req.mandatory` menentukan requirement
- * ini masuk kolom Mandatory atau Optional (persis format tabel aturan yang
- * diminta: satu baris per doc type, kolom Mandatory/Optional saling
- * eksklusif, kolom Ok menandai kelengkapan).
+ * Daftar semua tipe dokumen aktif dari master data (Management > Document
+ * Type). Per tiket: kolom "Requirement" = Mandatory/Optional (dropdown bila
+ * boleh diubah, teks bila tidak), "Uploaded" = Yes bila tiket ini punya minimal
+ * satu dokumen dengan doc_type yang sama (case-insensitive), selain itu No.
+ * Badge menghitung kelengkapan mandatory.
  */
-function renderDeliverableChecklist(data) {
+async function renderDeliverableChecklist(data) {
     const section = document.getElementById('delivChecklist');
-    if (!DELIV_REQUIREMENTS || DELIV_REQUIREMENTS.length === 0) {
+    await loadDeliverableDocTypes();
+    if (!deliverableDocTypes.length) {
         section.classList.add('hidden');
         return;
     }
 
+    const key = v => (v || '').trim().toUpperCase();
     const uploadedCounts = {};
     (data || []).forEach(d => {
-        const key = (d.doc_type || '').trim().toUpperCase();
-        uploadedCounts[key] = (uploadedCounts[key] || 0) + 1;
+        const k = key(d.doc_type);
+        uploadedCounts[k] = (uploadedCounts[k] || 0) + 1;
     });
-    const mark = (on, cls) => on
-        ? `<svg class="w-3.5 h-3.5 mx-auto ${cls}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>`
-        : '';
+    const mandatory = new Set(delivMandatoryTypes.map(key));
 
     let mandatoryTotal = 0;
     let mandatoryDone  = 0;
 
-    const rows = DELIV_REQUIREMENTS.map(req => {
-        const count = uploadedCounts[req.doc_type.trim().toUpperCase()] || 0;
-        const ok = count > 0;
-        if (req.mandatory) {
+    document.getElementById('delivChecklistItems').innerHTML = deliverableDocTypes.map(t => {
+        const count = uploadedCounts[key(t.name)] || 0;
+        const isMandatory = mandatory.has(key(t.name));
+        if (isMandatory) {
             mandatoryTotal++;
-            if (ok) mandatoryDone++;
+            if (count > 0) mandatoryDone++;
         }
 
-        return `<tr class="${!ok && req.mandatory ? 'bg-red-50/40' : ''}">
-            <td class="px-3 py-1.5 font-medium text-gray-700">${escHtmlD(req.doc_type)}</td>
-            <td class="px-3 py-1.5 text-center">${mark(req.mandatory, 'text-gray-500')}</td>
-            <td class="px-3 py-1.5 text-center">${mark(!req.mandatory, 'text-gray-400')}</td>
-            <td class="px-3 py-1.5 text-center font-semibold ${ok ? 'text-green-600' : 'text-gray-300'}">${count}</td>
-        </tr>`;
-    });
+        // Default teks biasa; dropdown hanya saat mode edit (tombol Edit Requirement).
+        const requirement = (delivCanConfigure && delivReqEditing)
+            ? `<select class="deliv-req-select px-2 py-1.5 border border-gray-300 rounded-md text-sm bg-white focus:ring-2 focus:ring-red-400 focus:outline-none"
+                    data-doc-type="${escHtmlD(t.name)}">
+                    <option value="optional"${isMandatory ? '' : ' selected'}>Optional</option>
+                    <option value="mandatory"${isMandatory ? ' selected' : ''}>Mandatory</option>
+               </select>`
+            : `<span class="${isMandatory ? 'text-red-700 font-semibold' : 'text-gray-500'}">${isMandatory ? 'Mandatory' : 'Optional'}</span>`;
 
-    document.getElementById('delivChecklistItems').innerHTML = rows.join('');
+        return `<tr class="${isMandatory && count === 0 ? 'bg-red-50/40' : ''}">
+            <td class="px-4 py-2.5 font-medium text-gray-700">${escHtmlD(t.name)}</td>
+            <td class="px-4 py-2.5 text-center">${requirement}</td>
+            <td class="px-4 py-2.5 text-center font-semibold ${count > 0 ? 'text-green-600' : 'text-gray-400'}">${count > 0 ? 'Yes' : 'No'}</td>
+        </tr>`;
+    }).join('');
 
     const badge = document.getElementById('delivChecklistBadge');
-    const isComplete = mandatoryDone === mandatoryTotal;
-    badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold '
-        + (isComplete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800');
-    badge.textContent = isComplete
-        ? 'Complete'
-        : `Incomplete — ${mandatoryDone}/${mandatoryTotal} mandatory`;
+    if (mandatoryTotal === 0) {
+        badge.classList.add('hidden');
+        badge.classList.remove('inline-flex');
+    } else {
+        const complete = mandatoryDone === mandatoryTotal;
+        badge.className = 'inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold '
+            + (complete ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800');
+        badge.textContent = complete ? 'Complete' : `Incomplete: ${mandatoryDone}/${mandatoryTotal} mandatory`;
+    }
+
+    const show = (id, on) => {
+        const el = document.getElementById(id);
+        el.classList.toggle('hidden', !on);
+        el.classList.toggle('inline-flex', on);
+    };
+    const source = document.getElementById('delivReqSource');
+    source.textContent = delivIsCustomized
+        ? 'Customized for this ticket'
+        : (delivTicketType ? `Default for ${delivTicketType}` : 'No ticket type set');
+    show('delivReqResetBtn',  delivCanConfigure && delivIsCustomized && !delivReqEditing);
+    show('delivReqEditBtn',   delivCanConfigure && !delivReqEditing);
+    show('delivReqCancelBtn', delivCanConfigure && delivReqEditing);
+    show('delivReqSaveBtn',   delivCanConfigure && delivReqEditing);
 
     section.classList.remove('hidden');
+}
+
+function setDelivReqEditing(on) {
+    delivReqEditing = on;
+    renderDeliverableChecklist(deliverableData);
+}
+
+// Simpan seluruh pilihan dropdown sekaligus (server mengganti daftar mandatory
+// tiket ini). Jika gagal, tetap di mode edit supaya pilihan tidak hilang.
+async function saveDeliverableRequirements() {
+    const mandatory = [...document.querySelectorAll('#delivChecklistItems .deliv-req-select')]
+        .filter(el => el.value === 'mandatory')
+        .map(el => el.dataset.docType);
+
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/requirements`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ mandatory })
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Failed to save requirement.');
+        applyDelivRequirementsPayload(json, mandatory);
+        delivReqEditing = false;
+    } catch (e) {
+        if (typeof showToast === 'function') showToast(e.message, 'error');
+    }
+    renderDeliverableChecklist(deliverableData);
+}
+
+// Respons simpan/reset membawa kondisi terbaru (mandatory berlaku, apakah customized).
+function applyDelivRequirementsPayload(json, fallbackMandatory) {
+    delivMandatoryTypes = json.mandatory_types ?? fallbackMandatory ?? [];
+    delivIsCustomized = !!json.is_customized;
+    if (json.ticket_type !== undefined) delivTicketType = json.ticket_type;
+}
+
+// Buang pengaturan tiket ini; kembali mengikuti default ticket type-nya.
+async function resetDeliverableRequirements() {
+    const label = delivTicketType ? `the default for ${delivTicketType}` : 'the default';
+    if (!await showConfirm(`Reset this ticket's document requirements to ${label}?`, 'Reset to Default', 'primary')) return;
+
+    try {
+        const res  = await fetch(`/api/tickets/${DELIV_TICKET_ID}/deliverables/requirements/reset`, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.message || 'Failed to reset requirement.');
+        applyDelivRequirementsPayload(json);
+        delivReqEditing = false;
+    } catch (e) {
+        if (typeof showToast === 'function') showToast(e.message, 'error');
+    }
+    renderDeliverableChecklist(deliverableData);
 }
 
 // ── Bulk selection (Send/Delete beberapa dokumen sekaligus) ─────────────────

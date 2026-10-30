@@ -254,6 +254,7 @@ Route::middleware(['web'])->group(function () {
         Route::post('/', [DeliverableDocumentTypeController::class, 'store']);
         Route::get('/{id}', [DeliverableDocumentTypeController::class, 'show']);
         Route::put('/{id}', [DeliverableDocumentTypeController::class, 'update']);
+        Route::post('/{id}/update', [DeliverableDocumentTypeController::class, 'update']);
         Route::delete('/{id}', [DeliverableDocumentTypeController::class, 'destroy']);
         Route::post('/{id}/delete', [DeliverableDocumentTypeController::class, 'destroy']);
     });
@@ -484,6 +485,7 @@ Route::middleware(['web'])->group(function () {
         // Routes with {id} parameter last
         Route::get('/{id}', [TicketController::class, 'show']);
         Route::get('/{id}/mandays-history', [TicketController::class, 'getMandaysHistory']);
+        Route::get('/{id}/timeline', [\App\Http\Controllers\TicketTimelineController::class, 'index']);
         Route::patch('/{id}/hide', [TicketController::class, 'hide']);
         Route::patch('/{id}/unhide', [TicketController::class, 'unhide']);
         Route::post('/{id}/take', [TicketController::class, 'takeTicket']);
@@ -520,6 +522,8 @@ Route::middleware(['web'])->group(function () {
         Route::post('/{id}/deliverables/upload-session', [\App\Http\Controllers\TicketDeliverableController::class, 'createUploadSession']);
         Route::post('/{id}/deliverables', [\App\Http\Controllers\TicketDeliverableController::class, 'store']);
         Route::patch('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'update']);
+        Route::post('/{id}/deliverables/requirements', [\App\Http\Controllers\TicketDeliverableController::class, 'updateRequirements']);
+        Route::post('/{id}/deliverables/requirements/reset', [\App\Http\Controllers\TicketDeliverableController::class, 'resetRequirements']);
         Route::post('/{id}/deliverables/send', [\App\Http\Controllers\TicketDeliverableController::class, 'sendBatch']);
         Route::patch('/{id}/deliverables/{delivId}/send', [\App\Http\Controllers\TicketDeliverableController::class, 'send']);
         Route::delete('/{id}/deliverables/{delivId}', [\App\Http\Controllers\TicketDeliverableController::class, 'destroy']);

@@ -22,7 +22,7 @@ Helpdesk staff. Your menus include `Ticket`, `Ticket Validation`, `Consultant Wo
 
 ### Validate incoming tickets
 
-New requests from customers wait in `Ticket Validation` until you decide. The number next to the menu shows how many are waiting.
+New requests from customers wait in `Ticket Validation` until you decide. The number next to the menu shows how many are waiting. The full flow is in [[ticket-validation]].
 
 1. Open `Ticket Validation`. The `Pending Validation` list shows requests with sender, subject, priority, channel and submit date. Use `View Rejected` to see the ones already rejected.
 2. Select a request to read it. The top part shows `From`, `Date` and `Subject`, and the `AI Ticket Analyzer` can suggest a classification. Check its advice before you rely on it.

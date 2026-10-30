@@ -40,7 +40,7 @@ When you open a period, the teams can log timesheets for it. When you close it, 
 
 ## Common questions
 
-**Why can I not open the Project or Support part?** Those buttons belong to the Project Head and the Support Head. You open the period globally, and you can force close a part in urgent cases.
+**Why can I not open the Project or Support part?** Those buttons need the `Manage Project Domain` or `Manage Support Domain` permission, which the Project Head and the Support Head have by default. You open the period globally, and you can force close a part in urgent cases.
 
 **`Close Period Globally` is grey.** Both parts must be closed first.
 

@@ -29,18 +29,21 @@ Administrator, dan role yang diberi `Management` › `Project Type`, `Support Ty
 
 ### Document Type
 
-![Jendela Add Document Type dengan pilihan kewajiban per tipe tiket](images/guide/document-type-add.png)
+![Jendela Add Document Type](images/guide/document-type-add.png)
 
 *Tangkapan layar dengan data contoh.*
 
-1. Buka `Management` › `Document Type`. Daftar menampilkan tiap tipe beserta tipe tiket yang membutuhkannya dan apakah `Mandatory` atau `Optional`.
+1. Buka `Management` › `Document Type`. Daftar menampilkan tiap tipe beserta deskripsi, tipe tiket yang membutuhkannya dan apakah `Mandatory` atau `Optional`, serta statusnya.
 2. Pilih `Add Document Type`. Isi `Document Type Name` (misalnya IR, RCA, atau CR Form) dan deskripsi.
-3. Di `Ticket Type`, pilih untuk setiap tipe tiket salah satu dari `Not required`, `Optional` atau `Mandatory`. Dokumen yang mandatory diharapkan ada pada tiket bertipe itu.
-4. Pilih `Save`. Pakai `Edit` atau `Delete` pada sebuah baris kemudian.
+3. Di `Ticket Type`, pilih untuk setiap tipe tiket salah satu dari `Not required`, `Optional` atau `Mandatory`. Ini menjadi default untuk tiket bertipe itu.
+4. Atur status menjadi `Active` agar tipe muncul di daftar dokumen tiket.
+5. Pilih `Save`. Pakai `Edit` atau `Delete` pada sebuah baris kemudian.
 
 ## Apa yang terjadi selanjutnya
 
-Nilai baru atau yang diubah muncul di formulir terkait saat seseorang membukanya berikutnya. Tipe dokumen muncul di formulir `New Document` pada tiket, dan kewajiban per tipe tiket menentukan apa yang diharapkan.
+Nilai baru atau yang diubah muncul di formulir terkait saat seseorang membukanya berikutnya. Tipe dokumen yang aktif muncul di formulir `New Document` dan di daftar jendela `Deliverable Documents` pada tiket. Setiap tiket dimulai dengan pilihan `Mandatory` dan `Optional` default dari tipe tiketnya, dan perubahan pada default berlaku ke semua tiket bertipe itu yang belum diubah manual.
+
+Pada tiket, buka `Deliverable Documents` lalu pilih `Edit Requirement` untuk mengubah dokumen mana yang mandatory khusus untuk tiket itu, kemudian `Save`. Member tiket tidak dapat melakukannya. Tiket yang sudah diubah menampilkan `Customized for this ticket`; pilih `Reset to Default` untuk kembali mengikuti tipe tiketnya. Mengganti tipe tiket juga mengembalikan tiket ke default tipe yang baru.
 
 ## Pertanyaan umum
 
@@ -48,6 +51,5 @@ Nilai baru atau yang diubah muncul di formulir terkait saat seseorang membukanya
 
 **Saya tidak sengaja menghapus sebuah tipe.** Tambahkan lagi dengan nama yang sama. Penghapusan tidak dibatalkan otomatis.
 
-**Sebuah tipe dokumen tidak wajib untuk tipe tiket mana pun.** Daftar lalu menampilkan `Not required anywhere`. Atur kewajibannya untuk tipe tiket yang membutuhkannya.
 
 <!-- sources: routes/web.php, app/Http/Controllers/DeliveryProjectTypeController.php, app/Http/Controllers/DeliverySupportTypeController.php, app/Http/Controllers/DeliverableDocumentTypeController.php -->

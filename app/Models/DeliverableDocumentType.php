@@ -31,7 +31,7 @@ class DeliverableDocumentType extends Model
         return $query->where('is_active', true);
     }
 
-    /** Live mandatory/optional config per ticket type — see DeliverableDocumentTypeTicketType. */
+    /** Default mandatory/optional config per ticket type, see DeliverableDocumentTypeTicketType. */
     public function ticketTypeLinks(): HasMany
     {
         return $this->hasMany(DeliverableDocumentTypeTicketType::class, 'document_type_id');

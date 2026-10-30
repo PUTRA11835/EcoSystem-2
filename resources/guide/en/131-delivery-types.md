@@ -29,18 +29,21 @@ Administrators, and roles given `Management` › `Project Type`, `Support Type` 
 
 ### Document Type
 
-![The Add Document Type window with the ticket type requirement options](images/guide/document-type-add.png)
+![The Add Document Type window](images/guide/document-type-add.png)
 
 *Screenshot with sample data.*
 
-1. Open `Management` › `Document Type`. The list shows each type with the ticket types that need it and whether it is `Mandatory` or `Optional`.
+1. Open `Management` › `Document Type`. The list shows each type with its description, the ticket types that require it and whether it is `Mandatory` or `Optional`, and its status.
 2. Select `Add Document Type`. Enter the `Document Type Name` (for example IR, RCA or CR Form) and a description.
-3. Under `Ticket Type`, choose for every ticket type one of `Not required`, `Optional` or `Mandatory`. A mandatory document is expected on tickets of that type.
-4. Select `Save`. Use `Edit` or `Delete` on a row later.
+3. Under `Ticket Type`, choose for every ticket type one of `Not required`, `Optional` or `Mandatory`. This is the default for tickets of that type.
+4. Set the status to `Active` so the type appears in the ticket document list.
+5. Select `Save`. Use `Edit` or `Delete` on a row later.
 
 ## What happens next
 
-The new or changed values appear in the related form the next time someone opens it. Document types show up on the ticket's `New Document` form, and the requirement per ticket type decides what is expected.
+The new or changed values appear in the related form the next time someone opens it. Active document types show up on the ticket's `New Document` form and in the document list of the `Deliverable Documents` window. Every ticket starts with the default `Mandatory` and `Optional` choices of its ticket type, and a change to the default applies to all tickets of that type that were not changed by hand.
+
+On a ticket, open `Deliverable Documents` and select `Edit Requirement` to change which documents are mandatory for that one ticket, then `Save`. Ticket members cannot do this. A ticket you changed shows `Customized for this ticket`; select `Reset to Default` to follow its ticket type again. Changing the ticket type also returns the ticket to the default of the new type.
 
 ## Common questions
 
@@ -48,6 +51,5 @@ The new or changed values appear in the related form the next time someone opens
 
 **I deleted a type by mistake.** Add it again with the same name. Deleting is not undone automatically.
 
-**A document type is not required for any ticket type.** The list then shows `Not required anywhere`. Set the requirement for the ticket types that need it.
 
 <!-- sources: routes/web.php, app/Http/Controllers/DeliveryProjectTypeController.php, app/Http/Controllers/DeliverySupportTypeController.php, app/Http/Controllers/DeliverableDocumentTypeController.php -->

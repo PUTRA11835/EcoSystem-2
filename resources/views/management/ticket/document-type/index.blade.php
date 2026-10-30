@@ -50,16 +50,53 @@
     <div class="mt-3 text-xs text-gray-400" id="typeCount"></div>
 </div>
 
+<style>
+    /* Requirement per ticket type: segmented control. Warna mengikuti tema aplikasi
+       (--card-bg, --text-color, --primary-*) supaya benar di mode terang dan gelap. */
+    .req-card { border: 1px solid rgba(107,114,128,.25); border-radius: .75rem; overflow: hidden; }
+    .req-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .625rem .875rem; transition: background .15s; }
+    .req-row + .req-row { border-top: 1px solid rgba(107,114,128,.15); }
+    .req-row:hover { background: rgba(107,114,128,.06); }
+    .req-name { font-size: .8125rem; font-weight: 600; color: var(--text-color); }
+    .req-seg { display: inline-flex; padding: 2px; border-radius: .5rem; background: rgba(107,114,128,.16); flex-shrink: 0; }
+    .req-seg label { position: relative; cursor: pointer; display: block; }
+    .req-seg input { position: absolute; opacity: 0; pointer-events: none; }
+    .req-seg span { display: block; padding: .3rem .7rem; font-size: .75rem; font-weight: 600; border-radius: .375rem; color: #6b7280; white-space: nowrap; transition: background .15s, color .15s, box-shadow .15s; }
+    .req-seg label:hover span { color: var(--text-color); }
+    .req-seg input:focus-visible + span { outline: 2px solid rgba(var(--primary-rgb), .5); outline-offset: 1px; }
+    .req-seg input[value="none"]:checked + span { background: var(--card-bg); color: var(--text-color); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
+    .req-seg input[value="optional"]:checked + span { background: rgba(37,99,235,.16); color: #2563eb; }
+    .req-seg input[value="mandatory"]:checked + span { background: linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb))); color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .req-summary { display: flex; flex-wrap: wrap; gap: .5rem; padding: .625rem .875rem; border-top: 1px solid rgba(107,114,128,.15); background: rgba(107,114,128,.06); }
+    .req-chip { display: inline-flex; align-items: center; gap: .375rem; padding: .125rem .6rem; border-radius: 9999px; font-size: .6875rem; font-weight: 600; background: rgba(107,114,128,.14); color: #6b7280; }
+    .req-chip b { font-weight: 700; }
+    .req-chip.is-mandatory { background: rgba(var(--primary-rgb), .14); color: rgb(var(--primary-rgb)); }
+    .req-chip.is-optional { background: rgba(37,99,235,.14); color: #2563eb; }
+
+    /* Toggle "Active" */
+    .req-switch-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .875rem; border: 1px solid rgba(107,114,128,.25); border-radius: .75rem; cursor: pointer; }
+    .req-switch { position: relative; width: 2.5rem; height: 1.5rem; flex-shrink: 0; }
+    .req-switch input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; margin: 0; }
+    .req-switch-track { position: absolute; inset: 0; border-radius: 9999px; background: rgba(107,114,128,.4); transition: background .2s; pointer-events: none; }
+    .req-switch-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 1.25rem; height: 1.25rem; border-radius: 9999px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+    .req-switch input:checked + .req-switch-track { background: linear-gradient(135deg, rgb(var(--primary-dark-rgb)), rgb(var(--primary-rgb))); }
+    .req-switch input:checked + .req-switch-track::after { transform: translateX(1rem); }
+    .req-switch input:focus-visible + .req-switch-track { outline: 2px solid rgba(var(--primary-rgb), .5); outline-offset: 2px; }
+</style>
+
 <!-- ── Modal: Create / Edit Document Type ─────────────────────────────────── -->
 <div id="typeModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center p-6 border-b border-gray-100">
-            <h3 id="typeModalTitle" class="text-lg font-bold text-gray-900">Add Document Type</h3>
-            <button onclick="closeModal('typeModal')" class="text-gray-400 hover:text-gray-600 transition-colors">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[92vh] flex flex-col">
+        <div class="flex justify-between items-start gap-4 px-6 py-5 border-b border-gray-100">
+            <div>
+                <h3 id="typeModalTitle" class="text-lg font-bold text-gray-900">Add Document Type</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Name the document and choose which ticket types require it.</p>
+            </div>
+            <button type="button" onclick="closeModal('typeModal')" class="text-gray-400 hover:text-gray-600 transition-colors" aria-label="Close">
                 <i class="fas fa-times text-xl"></i>
             </button>
         </div>
-        <form id="typeForm" onsubmit="submitType(event)" class="p-6 space-y-4 overflow-y-auto">
+        <form id="typeForm" onsubmit="submitType(event)" class="p-6 space-y-5 overflow-y-auto">
             <input type="hidden" id="typeId">
             <div>
                 <label class="block text-sm font-semibold text-gray-700 mb-1.5">Document Type Name <span class="text-red-500">*</span></label>
@@ -73,17 +110,25 @@
                     class="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-800 focus:border-transparent"
                     placeholder="Optional"></textarea>
             </div>
-            <div class="flex items-center gap-2">
-                <input type="checkbox" id="typeActive" checked
-                    class="w-4 h-4 rounded cursor-pointer accent-red-800">
-                <label for="typeActive" class="text-sm text-gray-700 cursor-pointer">Active</label>
-            </div>
+            <label class="req-switch-row" for="typeActive">
+                <span>
+                    <span class="block text-sm font-semibold text-gray-700">Active</span>
+                    <span class="block text-xs text-gray-400 mt-0.5">Inactive types are hidden from the ticket document list.</span>
+                </span>
+                <span class="req-switch">
+                    <input type="checkbox" id="typeActive" checked>
+                    <span class="req-switch-track"></span>
+                </span>
+            </label>
             <div>
-                <label class="block text-sm font-semibold text-gray-700 mb-1.5">Ticket Type</label>
-                <p class="text-xs text-gray-400 mb-2">Set whether this document is required per ticket type.</p>
-                <div id="typeRequirements" class="space-y-1.5 border border-gray-200 rounded-lg p-3"></div>
+                <label class="block text-sm font-semibold text-gray-700">Requirement by Ticket Type</label>
+                <p class="text-xs text-gray-400 mt-0.5 mb-2.5">The default for tickets of each type. A ticket can still change it from its Deliverable Documents window.</p>
+                <div class="req-card">
+                    <div id="typeRequirements"></div>
+                    <div id="typeRequirementSummary" class="req-summary"></div>
+                </div>
             </div>
-            <div class="flex gap-3 justify-end pt-2">
+            <div class="flex gap-3 justify-end pt-1">
                 <button type="button" onclick="closeModal('typeModal')" class="px-4 py-2 bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-all">Cancel</button>
                 <button type="submit" class="px-4 py-2 primary-gradient text-white text-sm font-semibold rounded-lg hover:opacity-90 transition-all">Save</button>
             </div>
@@ -196,22 +241,36 @@ function renderRequirementGrid(existing) {
         const has = Object.prototype.hasOwnProperty.call(byType, type);
         const current = has ? (byType[type] ? 'mandatory' : 'optional') : 'none';
         const safeType = escHtml(type);
-        const radio = (value, label) => `
-            <label class="inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
+        const option = (value, label) => `
+            <label>
                 <input type="radio" name="req_${safeType}" value="${value}" data-ticket-type="${safeType}"
-                    class="req-radio w-3.5 h-3.5 accent-red-800 cursor-pointer" ${current === value ? 'checked' : ''}>
-                ${label}
+                    class="req-radio" ${current === value ? 'checked' : ''}>
+                <span>${label}</span>
             </label>`;
         return `
-            <div class="flex items-center justify-between gap-3 py-1">
-                <span class="text-xs font-medium text-gray-700">${safeType}</span>
-                <div class="flex items-center gap-3">
-                    ${radio('none', 'Not required')}
-                    ${radio('optional', 'Optional')}
-                    ${radio('mandatory', 'Mandatory')}
+            <div class="req-row">
+                <span class="req-name">${safeType}</span>
+                <div class="req-seg" role="radiogroup" aria-label="${safeType}">
+                    ${option('none', 'Not required')}
+                    ${option('optional', 'Optional')}
+                    ${option('mandatory', 'Mandatory')}
                 </div>
             </div>`;
     }).join('');
+
+    updateRequirementSummary();
+}
+
+// Ringkasan di bawah grid: berapa ticket type yang Mandatory / Optional / Not required.
+function updateRequirementSummary() {
+    const counts = { mandatory: 0, optional: 0, none: 0 };
+    document.querySelectorAll('#typeRequirements input.req-radio:checked').forEach(input => {
+        counts[input.value] = (counts[input.value] || 0) + 1;
+    });
+    document.getElementById('typeRequirementSummary').innerHTML = `
+        <span class="req-chip is-mandatory"><b>${counts.mandatory}</b> Mandatory</span>
+        <span class="req-chip is-optional"><b>${counts.optional}</b> Optional</span>
+        <span class="req-chip"><b>${counts.none}</b> Not required</span>`;
 }
 
 // Baca grid balik jadi payload `ticket_type_links` untuk dikirim ke server —
@@ -261,8 +320,9 @@ async function submitType(e) {
         is_active:          document.getElementById('typeActive').checked,
         ticket_type_links:  readRequirementGrid(),
     };
-    const url    = id ? `/api/deliverable-document-types/${id}` : '/api/deliverable-document-types';
-    const method = id ? 'PUT' : 'POST';
+    // Edit juga lewat POST (/{id}/update), bukan PUT: verb non-POST diblokir edge/WAF di production.
+    const url    = id ? `/api/deliverable-document-types/${id}/update` : '/api/deliverable-document-types';
+    const method = 'POST';
 
     try {
         const res  = await fetch(url, { method, headers: jsonHeaders(), body: JSON.stringify(payload) });
@@ -361,6 +421,7 @@ document.addEventListener('keydown', e => {
 });
 
 // Init
+document.getElementById('typeRequirements').addEventListener('change', updateRequirementSummary);
 loadTypes();
 </script>
 @endsection

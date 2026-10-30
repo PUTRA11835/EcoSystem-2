@@ -52,8 +52,21 @@ class CustomerController extends Controller
                 'user_name' => $user['name'] ?? null
             ]);
 
+            // Opsi dropdown filter kolom (Customer Group / Category / Industry Sector),
+            // diambil dari data yang benar-benar ada supaya tiap opsi pasti punya hasil.
+            $distinct = fn (string $column) => \App\Models\CustomerBasicData::query()
+                ->whereNotNull($column)
+                ->where($column, '!=', '')
+                ->distinct()
+                ->orderBy($column)
+                ->pluck($column)
+                ->all();
+
             return view('master.customer.index', [
-                'user' => $user
+                'user' => $user,
+                'groupOptions' => $distinct('customer_group'),
+                'categoryOptions' => $distinct('customer_category'),
+                'industryOptions' => $distinct('industry_sector'),
             ]);
 
         } catch (\Exception $e) {
@@ -188,7 +201,10 @@ class CustomerController extends Controller
                 'status' => $request->get('status'), // Untuk compatibility dengan code lama
                 'customer_group' => $request->get('customer_group'),
                 'customer_category' => $request->get('customer_category'),
-                'type' => $request->get('type'), // Business Partner type: Customer / Vendor
+                'industry_sector' => $request->get('industry_sector'),
+                'email' => $request->get('email'),
+                'name' => $request->get('name'),
+                'type' => $request->get('type'), // Business Partner type: Customer / Vendor (boleh banyak, dipisah koma)
                 'active_only' => $request->get('active_only', false),
                 'sort_field' => $request->get('sort_field', 'created_at'),
                 'sort_order' => $request->get('sort_order', 'desc'),

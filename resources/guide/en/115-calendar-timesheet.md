@@ -87,7 +87,7 @@ A rejected entry shows the reason: correct it and submit again. A late access re
 
 ## Common questions
 
-**I cannot create a timesheet for last month.** The period is probably closed. Use `Request Late Access`.
+**I cannot create a timesheet for a period that has passed.** The period is closed. If you must fill it in, use `Request Late Access`, including for last month.
 
 **Can I change a submitted timesheet?** No. Ask the person who approves it to reject it, then correct it.
 

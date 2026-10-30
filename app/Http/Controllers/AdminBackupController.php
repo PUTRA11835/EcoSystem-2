@@ -10,9 +10,12 @@ use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 
 class AdminBackupController extends Controller
 {
+    use ChecksMenuAccess;
+
     /**
      * Password default untuk akun yang dibuat lewat import employee.
      * Employee login dengan ECI/email + password ini, lalu (karena
@@ -22,7 +25,7 @@ class AdminBackupController extends Controller
 
     private function assertAdmin(): bool
     {
-        return (int) session('user.role.id') === RoleId::EC_ADMINISTRATOR->value;
+        return $this->menuAllowed('control-center.backup');
     }
 
     private function assertHeadOrAdmin(): bool

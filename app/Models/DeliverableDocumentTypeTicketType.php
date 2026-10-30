@@ -6,11 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * Live config row: whether a deliverable document type is mandatory/optional
- * for a given ticket type. Managed from Management > Master Ticket Settings >
- * Document Type. Changing this does NOT retroactively change existing
- * tickets' checklists — see TicketDeliverableRequirement, which snapshots
- * this per ticket.
+ * Default row: whether a deliverable document type is mandatory/optional for a
+ * given ticket type. Managed from Management > Master Ticket Settings >
+ * Document Type. Tickets follow this live until they are customised in their
+ * own Deliverable Documents window (see TicketDeliverableRequirement and
+ * App\Support\DeliverableRequirements).
  */
 class DeliverableDocumentTypeTicketType extends Model
 {

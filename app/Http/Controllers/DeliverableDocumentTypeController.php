@@ -13,12 +13,11 @@ use Illuminate\Http\Request;
  * TicketDeliverableController::DOC_TYPES — dipakai untuk mengisi dropdown
  * "Doc Type" di modal "New Document" pada Deliverable Panel ticket.
  *
- * Halaman ini juga mengelola konfigurasi mandatory/optional per ticket type
- * (deliverable_document_type_ticket_types) — digabung di sini daripada jadi
- * submenu terpisah karena keduanya tidak berguna dipisah: aturan mandatory
- * itu properti dari document type itu sendiri, bukan entitas berdiri
- * sendiri. Lihat App\Services\TicketDeliverableRequirementSync untuk
- * bagaimana aturan ini di-snapshot per tiket.
+ * Halaman ini juga mengelola DEFAULT mandatory/optional per ticket type
+ * (deliverable_document_type_ticket_types), digabung di sini daripada jadi
+ * submenu terpisah karena aturan itu properti dari document type itu sendiri.
+ * Tiap tiket mengikuti default ini sampai seseorang mengubahnya di window
+ * "Deliverable Documents" tiket itu. Lihat App\Support\DeliverableRequirements.
  */
 class DeliverableDocumentTypeController extends Controller
 {
@@ -107,16 +106,15 @@ class DeliverableDocumentTypeController extends Controller
     }
 
     /**
-     * Ganti aturan mandatory/optional per ticket type untuk document type ini
+     * Ganti DEFAULT mandatory/optional per ticket type untuk document type ini
      * (deliverable_document_type_ticket_types). Body opsional:
      * `ticket_type_links` = [{ticket_type, is_mandatory}, ...]. Tidak
-     * mengirim field ini sama sekali membiarkan aturan yang sudah ada — hanya
+     * mengirim field ini sama sekali membiarkan aturan yang sudah ada, hanya
      * array kosong `[]` yang menghapus semuanya.
      *
-     * INI HANYA MENGUBAH KONFIGURASI LIVE. Tiket yang sudah ada TIDAK
-     * terpengaruh — checklist-nya dibaca dari snapshot masing-masing tiket
-     * (ticket_deliverable_requirements), bukan dari tabel ini secara
-     * langsung. Lihat App\Support\DeliverableDocumentRequirements.
+     * Default berlaku live untuk semua tiket tipe itu yang belum diatur
+     * sendiri. Tiket yang sudah di-customize di window Deliverable Documents
+     * tidak terpengaruh. Lihat App\Support\DeliverableRequirements.
      */
     private function syncTicketTypeLinks(DeliverableDocumentType $type, Request $request): void
     {

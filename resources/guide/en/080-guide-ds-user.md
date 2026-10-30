@@ -43,7 +43,7 @@ Consultants with the Delivery Support User role. What you can do depends on your
 - `Internal Note` is seen only by your team. A reply to the customer is seen by the customer, so check which one you are using before you send.
 - Set the status to match reality, for example `Wait Customer` while you wait for the customer. A correct status keeps the SLA fair.
 - Use `Team Members` to bring in a colleague who should help.
-- `AI Summarize` and `Ask AI` can summarise a long conversation. Never put credentials into them.
+- `AI Summarize` and `Ask AI` can summarise a long conversation. Never put credentials into them. See [[ticket-ai-tools]].
 
 ### Propose mandays
 

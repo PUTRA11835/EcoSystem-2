@@ -11,7 +11,7 @@ Panduan ini untuk role Delivery Support Section Head. Anda memimpin satu seksi t
 
 ## Siapa yang menggunakan
 
-Delivery Support Section Head. Menu Anda mencakup `Ticket`, `Consultant Workload`, `Calendar`, `Reporting` (`Ticketing Overview` dan `Ticket by Modul`), `Master` (`Employee` dan `Business Partner`), `Delivery` › `Support`, `SLA` › `SLA Report` dan `Control Center` › `Login Log`.
+Delivery Support Section Head. Menu Anda mencakup `Ticket`, `Consultant Workload`, `Calendar`, `Reporting` (`Ticketing Overview` dan `Ticket by Modul`), `Master` (`Employee` dan `Business Partner`), `Delivery` › `Support`, `SLA` › `SLA Report` dan `Control Center` (`Overview`, `Activity Log`, `Active Sessions` dan `Login Log`).
 
 ## Sebelum Anda mulai
 
@@ -46,8 +46,6 @@ Delivery Support Section Head. Menu Anda mencakup `Ticket`, `Consultant Workload
 Item yang disetujui berlanjut dan pemintanya diberi tahu. Item yang ditolak kembali kepada mereka beserta alasan Anda.
 
 ## Pertanyaan umum
-
-**Sebuah menu membuka halaman bertuliskan `Forbidden`.** Role Anda punya menunya, tetapi tidak punya izin untuk halaman itu, misalnya `Ticket Validation`, `Overview`, `Activity Log` atau `Active Sessions`. Tanyakan kepada administrator.
 
 **Saya tidak melihat tombol yang dijelaskan di sini.** Itu bukan bagian dari role Anda.
 

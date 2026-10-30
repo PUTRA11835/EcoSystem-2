@@ -16,7 +16,7 @@ Delivery RPMO Administrator. Menu Anda mencakup `Calendar`, `Reporting`, `Master
 ## Sebelum Anda mulai
 
 - Anda bekerja dengan data pribadi dan informasi kontrak. Pakai hanya untuk tugas Anda dan jangan pernah menyalinnya ke chat atau email.
-- Menjalankan periode pelaporan bulanan dilakukan oleh Delivery RPMO Head.
+- Menjalankan periode pelaporan bulanan membutuhkan izin `Manage Global`, yang secara bawaan dimiliki Delivery RPMO Head. Tanpa izin itu Anda dapat membaca `Period Management`.
 
 ## Langkah demi langkah
 
@@ -52,9 +52,7 @@ Catatan yang Anda simpan muncul di halaman yang memakainya. Laporan diperbarui d
 
 ## Pertanyaan umum
 
-**Sebuah menu membuka halaman bertuliskan `Forbidden`.** Role Anda punya menunya, tetapi tidak punya izin untuk halaman itu, misalnya `Period Management` atau `Resolution Days`. Tanyakan kepada administrator.
-
-**Saya tidak dapat membuka atau menutup periode pelaporan.** Itu dilakukan oleh Delivery RPMO Head.
+**Saya tidak dapat membuka atau menutup periode pelaporan.** `Period Management` menampilkan periode dan `Audit Log` kepada Anda. Mengubahnya membutuhkan izin `Manage Global`, yang secara bawaan dimiliki Delivery RPMO Head. Tanyakan kepada administrator.
 
 ## Topik terkait
 

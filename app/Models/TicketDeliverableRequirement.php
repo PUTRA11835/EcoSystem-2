@@ -6,11 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * A single ticket's snapshotted deliverable-document requirement — a copy of
- * deliverable_document_type_ticket_types taken when the ticket's type was
- * set (see Ticket::booted() and App\Services\TicketDeliverableRequirementSync).
- * Drives the completeness checklist in the Deliverable Documents modal
- * (resources/views/ticket/show.blade.php).
+ * Per-ticket deliverable-document requirement, set from the "Deliverable
+ * Documents" window on the ticket page. It overrides the default of the
+ * ticket's type (deliverable_document_type_ticket_types): a ticket with no rows
+ * follows the default, a ticket with rows uses exactly them (is_mandatory
+ * true/false per active document type). Rows are dropped when the ticket's
+ * type changes.
  */
 class TicketDeliverableRequirement extends Model
 {

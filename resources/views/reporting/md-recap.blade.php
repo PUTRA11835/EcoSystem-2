@@ -48,11 +48,13 @@
                 <i class="fas fa-file-excel text-green-600 text-sm"></i>
                 Export MD Recap (Summary)
             </button>
+            @if($can('reporting.resolution-days'))
             <button onclick="exportResolutionDays()"
                 class="inline-flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-all duration-200">
                 <i class="fas fa-file-excel text-green-600 text-sm"></i>
                 Export Resolution Days
             </button>
+            @endif
         </div>
     </div>
 

@@ -59,6 +59,13 @@ class UserGuideRoleTest extends TestCase
         }
         // Topik administrasi mengikuti izin menu masing-masing.
         $this->assertSame(['control-center.user-guide'], $en['user-guide-editor']['requires']);
+        $this->assertSame(['control-center.ai-settings'], $en['ai-settings']['requires']);
+        $this->assertSame(['tickets.staging'], $en['ticket-validation']['requires']);
+        // Satu topik untuk setiap submenu Reporting, mengikuti slug menunya.
+        foreach (['report-md-validation' => ['reporting.validation'], 'report-md-recap' => ['reporting.md-recap'], 'report-resolution-days' => ['reporting.resolution-days'], 'report-ticketing-overview' => ['reporting.ticketing-overview'], 'report-ticket-by-module' => ['reporting.ticket-by-module'], 'report-log-shifting' => ['reporting.log-shifting'], 'report-collection-outlook' => ['reporting.collection-outlook', 'reporting.collection-outlook-support'], 'report-consultant-assignment' => ['reporting.consultant-assignment'], 'report-diagram' => ['reporting.diagram-report']] as $key => $slugs) {
+            $this->assertSame($slugs, $en[$key]['requires'], $key);
+        }
+        $this->assertSame(['ui.ticket.btn-ai-summarize', 'ui.ticket.btn-ai-research'], $en['ticket-ai-tools']['requires']);
         $this->assertCount(3, $en['delivery-types']['requires']);
         // Satu panduan untuk seluruh keluarga role Sales dan Marketing.
         $this->assertCount(5, $en['guide-sales']['requires']);

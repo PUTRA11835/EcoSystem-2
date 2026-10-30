@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoleId;
+use App\Http\Controllers\Concerns\ChecksMenuAccess;
 use App\Http\Controllers\Concerns\RequiresStepUpAuth;
 use App\Models\SecurityEvent;
 use App\Services\IpLocationService;
@@ -12,13 +13,14 @@ use Illuminate\Support\Facades\DB;
 
 class SecurityCenterController extends Controller
 {
+    use ChecksMenuAccess;
     use RequiresStepUpAuth;
 
     private function assertAdmin(): ?array
     {
         $user = session('user');
 
-        if (($user['role']['id'] ?? 0) !== RoleId::EC_ADMINISTRATOR->value) {
+        if (!$this->menuAllowed('control-center.security')) {
             return null;
         }
 

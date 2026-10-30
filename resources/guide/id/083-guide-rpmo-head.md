@@ -40,7 +40,7 @@ Saat Anda membuka periode, tim dapat mencatat timesheet untuk periode itu. Saat 
 
 ## Pertanyaan umum
 
-**Mengapa saya tidak dapat membuka bagian Project atau Support?** Tombol itu milik Project Head dan Support Head. Anda membuka periode secara global, dan dapat menutup paksa sebuah bagian dalam kasus mendesak.
+**Mengapa saya tidak dapat membuka bagian Project atau Support?** Tombol itu membutuhkan izin `Manage Project Domain` atau `Manage Support Domain`, yang secara bawaan dimiliki Project Head dan Support Head. Anda membuka periode secara global, dan dapat menutup paksa sebuah bagian dalam kasus mendesak.
 
 **`Close Period Globally` berwarna abu-abu.** Kedua bagian harus ditutup lebih dulu.
 
