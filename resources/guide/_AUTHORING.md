@@ -61,7 +61,8 @@ updated: 2026-10-27            # tanggal terakhir isi diperiksa/diubah (Y-m-d). 
 > Tindakan yang tidak bisa dibatalkan / berdampak ke data orang lain.
 ```
 - Tabel Markdown boleh untuk perbandingan/daftar status (maks. 5 kolom).
-- Dilarang: HTML mentah, gambar, tautan keluar, alamat server, kata sandi/kredensial, istilah teknis internal (nama tabel, slug, nama kelas, SQL).
+- Dilarang: HTML mentah, tautan keluar, alamat server, kata sandi/kredensial, istilah teknis internal (nama tabel, slug, nama kelas, SQL), em dash dan en dash di teks biasa (pakai koma, titik dua, atau titik; tulisan persis di layar yang memuatnya ditulis dalam `kode` dan boleh).
+- Gambar (tangkapan layar) boleh, dengan syarat: berkas lokal `public/images/guide/*.png` atau `*.jpg` (di bawah 600 KB), ditulis `![Teks alternatif](images/guide/nama.png)`, teks alternatif wajib, berkasnya harus ada, jumlahnya sama di EN dan ID. Jangan menampilkan data asli (nama, gaji, nomor identitas). Gambar tidak diunggah lewat editor web; tambahkan sebagai berkas lewat repo/deploy.
 
 ## 4. KEAKURATAN — aturan paling penting
 

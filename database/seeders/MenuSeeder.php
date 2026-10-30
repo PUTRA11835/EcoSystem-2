@@ -220,6 +220,7 @@ class MenuSeeder extends Seeder
             ['slug' => 'control-center.backup',        'name' => 'Backup & Export',         'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.backup',             'icon' => null,                   'order_seq' => 5],
             ['slug' => 'control-center.sounds',        'name' => 'Notif Sounds',            'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.sounds',             'icon' => null,                   'order_seq' => 6],
             ['slug' => 'control-center.ai-settings',   'name' => 'AI Settings',             'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.ai-settings',        'icon' => null,                   'order_seq' => 8],
+            ['slug' => 'control-center.user-guide',    'name' => 'User Guide Editor',       'type' => 'page',     'parent_slug' => 'control-center', 'route_name' => 'admin.user-guide.index',   'icon' => null,                   'order_seq' => 12],
 
             // ── SLA ───────────────────────────────────────────────────────────────
             ['slug' => 'sla',                          'name' => 'SLA',                     'type' => 'group',    'parent_slug' => null,          'route_name' => null,                           'icon' => 'fa-stopwatch',         'order_seq' => 13],
@@ -405,6 +406,7 @@ class MenuSeeder extends Seeder
             'control-center.backup'       => [self::ADMIN=>$v],
             'control-center.sounds'       => [self::ADMIN=>$v],
             'control-center.ai-settings'  => [self::ADMIN=>$v],
+            'control-center.user-guide'   => [self::ADMIN=>$v],
             // SLA
             'sla'                         => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],
             'sla.report'                  => [self::ADMIN=>$v,    self::HOS=>$v,        self::HELPDESK=>$v],

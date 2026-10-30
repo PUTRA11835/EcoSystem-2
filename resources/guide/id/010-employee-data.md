@@ -5,7 +5,7 @@ order: 10
 title: Data Employee
 summary: Cari, tambah, dan kelola data Employee, serta lihat profil yang sudah dikunci HR.
 requires: [master.employee]
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 Gunakan `Employee Data` untuk mencari Employee, menambah Employee baru, dan membuka profil lengkap beserta tab-tabnya (data dasar, alamat, identitas, bank, dan lainnya).
 
@@ -53,10 +53,10 @@ Spanduk di bagian atas memberi tahu bila profil terkunci. Employee tidak dapat m
 
 Jika tombol aksi tampil pada sebuah baris, isinya:
 
-- `Change Password` — mengatur kata sandi baru untuk orang tersebut.
-- `Change ECI` — mengganti ID Employee; Anda mengonfirmasi dengan kata sandi Anda sendiri.
-- `Change Role` — mencentang Role yang harus dimiliki orang tersebut.
-- `Delete` — menghapus Employee setelah konfirmasi.
+- `Change Password`: mengatur kata sandi baru untuk orang tersebut.
+- `Change ECI`: mengganti ID Employee; Anda mengonfirmasi dengan kata sandi Anda sendiri.
+- `Change Role`: mencentang Role yang harus dimiliki orang tersebut.
+- `Delete`: menghapus Employee setelah konfirmasi.
 
 ## Apa yang terjadi selanjutnya
 

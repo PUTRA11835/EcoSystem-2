@@ -31,6 +31,7 @@
     /* Nama menu/tombol/kolom: kotak abu-abu tebal agar menonjol saat dicetak */
     .body code { background: #f3f4f6; border: 1px solid #d1d5db; padding: 0 1.2mm; font-weight: bold; font-size: 9pt; color: #111827; font-family: DejaVu Sans, sans-serif; }
     .body strong { color: #111827; }
+    .body img { max-width: 100%; margin: 2mm 0; border: 1px solid #d1d5db; }
     .body a { color: #991b1b; text-decoration: none; }
     .g-table { margin: 2mm 0; }
     .body table { width: 100%; border-collapse: collapse; font-size: 9pt; }

@@ -23,6 +23,11 @@ final class UserGuideService
     public const DIR = 'guide';
     private const CACHE_VER = 'v1';
 
+    /** Sumber tambahan (hasil sunting admin) di atas berkas; null = hanya berkas. */
+    public function __construct(private readonly ?TopicOverrides $overrides = null)
+    {
+    }
+
     /** Bahasa yang dipakai: ?lang= (sah) → preferensi pengguna (sah) → bawaan. */
     public function resolveLocale(?string $requested, ?string $preference): string
     {
@@ -174,8 +179,18 @@ final class UserGuideService
         return is_dir($dir) ? array_values(array_filter(glob($dir . '/*.md') ?: [], fn ($f) => !str_starts_with(basename($f), '_'))) : [];
     }
 
-    /** Baca + urai front matter satu bahasa (tanpa render). @return array<string,array<string,mixed>> */
+    /**
+     * Topik satu bahasa tanpa render: berkas bawaan, lalu ditimpa/ditambah hasil sunting bila ada.
+     *
+     * @return array<string,array<string,mixed>>
+     */
     public function load(string $locale, bool $strict): array
+    {
+        return ($this->overrides?->forLocale($locale) ?? []) + $this->loadFiles($locale, $strict);
+    }
+
+    /** Hanya berkas bawaan (tanpa hasil sunting). Dipakai pemeriksa dan editor. @return array<string,array<string,mixed>> */
+    public function loadFiles(string $locale, bool $strict = false): array
     {
         $out = [];
         foreach ($this->files($locale) as $file) {
@@ -396,6 +411,7 @@ final class UserGuideService
             }
         }
         $parts[] = (string) filemtime(config_path('user_guide.php'));
+        $parts[] = $this->overrides?->version() ?? '';
 
         return md5(implode("\n", $parts));
     }

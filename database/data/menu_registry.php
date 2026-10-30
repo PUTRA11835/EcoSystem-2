@@ -4990,4 +4990,15 @@ return array (
     'seq' => 21,
     'active' => true,
   ),
+  453 =>
+  array (
+    'slug' => 'control-center.user-guide',
+    'name' => 'User Guide Editor',
+    'type' => 'page',
+    'parent' => 'control-center',
+    'route' => 'admin.user-guide.index',
+    'icon' => 'fa-book',
+    'seq' => 12,
+    'active' => true,
+  ),
 );

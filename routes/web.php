@@ -233,6 +233,18 @@ Route::middleware(CheckAuthToken::class)->group(function () {
         // Model AI yang dipakai kedua asisten — dipegang super admin.
         Route::get('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'index'])->name('ai-settings')->middleware('menu:control-center.ai-settings');
         Route::post('/ai-settings', [\App\Http\Controllers\AiSettingsController::class, 'update'])->name('ai-settings.update')->middleware('menu:control-center.ai-settings');
+
+        // User Guide Editor: mengubah isi panduan tanpa deploy (topik berkas tetap menjadi bawaan yang bisa dipulihkan).
+        Route::prefix('user-guide')->name('user-guide.')->middleware('menu:control-center.user-guide')->group(function () {
+            $c = \App\Http\Controllers\UserGuideAdminController::class;
+            Route::get('/', [$c, 'index'])->name('index');
+            Route::get('/create', [$c, 'create'])->name('create');
+            Route::post('/', [$c, 'store'])->name('store');
+            Route::post('/preview', [$c, 'preview'])->name('preview');
+            Route::get('/{key}', [$c, 'edit'])->name('edit')->where('key', '[a-z0-9\-]+');
+            Route::put('/{key}', [$c, 'update'])->name('update')->where('key', '[a-z0-9\-]+');
+            Route::delete('/{key}', [$c, 'destroy'])->name('destroy')->where('key', '[a-z0-9\-]+');
+        });
     });
 
     // ==================== SLA ====================

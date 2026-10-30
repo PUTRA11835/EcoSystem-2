@@ -5,7 +5,7 @@ order: 10
 title: Employee Data
 summary: Find, add and maintain employee records, and see which profiles HR has locked.
 requires: [master.employee]
-updated: 2026-10-27
+updated: 2026-10-28
 ---
 Use `Employee Data` to look up any employee, add a new one, and open the full profile with its tabs (basic data, address, identity, bank and more).
 
@@ -53,10 +53,10 @@ A banner at the top tells you when the profile is locked. The employee cannot ch
 
 If you see the action button on a row, it offers:
 
-- `Change Password` — set a new password for the person.
-- `Change ECI` — rename the employee ID; you confirm with your own password.
-- `Change Role` — tick the roles the person should have.
-- `Delete` — remove the employee after a confirmation.
+- `Change Password`: set a new password for the person.
+- `Change ECI`: rename the employee ID; you confirm with your own password.
+- `Change Role`: tick the roles the person should have.
+- `Delete`: remove the employee after a confirmation.
 
 ## What happens next
 

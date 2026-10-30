@@ -911,6 +911,12 @@
                             <span class="nav-text text-sm">AI Settings</span>
                         </a>
                         @endif
+                        @if($can('control-center.user-guide'))
+                        <a href="{{ route('admin.user-guide.index') }}" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/user-guide*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
+                            <span class="nav-icon w-4 h-4 flex items-center justify-center"><i class="fas fa-book text-xs"></i></span>
+                            <span class="nav-text text-sm">User Guide Editor</span>
+                        </a>
+                        @endif
                         @if($can('control-center.sessions'))
                             <a href="{{ route('admin.sessions') }}"
                                 class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg {{ Request::is('admin/sessions*') ? 'bg-white bg-opacity-15 text-white font-medium' : 'text-white text-opacity-70 hover:bg-white hover:bg-opacity-10 hover:text-white' }} transition-all">
